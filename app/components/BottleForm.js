@@ -6,6 +6,7 @@ export default function BottleForm({
   action,
   defaultValues = {},
   submitLabel = "Add bottle",
+  children,
 }) {
   return (
     <form action={action} className="flex flex-col gap-3">
@@ -72,6 +73,7 @@ export default function BottleForm({
       >
         {submitLabel}
       </button>
+      {children}
     </form>
   );
 }

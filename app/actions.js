@@ -40,16 +40,6 @@ export async function createBottle(status, formData) {
   if (bottle) revalidatePath(pathForStatus(status));
 }
 
-// Used by the label-scanning flow so a successful save takes the user to
-// their inventory/wishlist (where the new bottle is visible), the same way
-// deleteBottle already does after a delete.
-export async function createBottleFromScan(status, formData) {
-  const bottle = await insertBottle(status, formData);
-  if (!bottle) return;
-  revalidatePath(pathForStatus(status));
-  redirect(pathForStatus(status));
-}
-
 export async function updateBottle(id, formData) {
   const data = bottleDataFromForm(formData);
   if (!data.producer) return;

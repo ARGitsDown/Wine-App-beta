@@ -14,11 +14,12 @@ the technical choices.
   their tasting notes) via "Mark as finished" on an inventory bottle.
 - **Tasting notes** — a note and a 1–5 rating logged against any bottle,
   regardless of its current status.
-- **Scan a label** (`/scan`) — photograph a bottle and Claude reads the
-  label, checks your own saved bottles for anything similar, and infers
-  what it can (e.g. the grape variety for a Bordeaux or Burgundy labeled
-  only by region) into an editable add-bottle form. Nothing saves until you
-  confirm.
+- **Scan a label** (`/scan`) — photograph (or pick from your library) one or
+  more bottles at once. Claude reads each label, checks your own saved
+  bottles for anything similar, and infers what it can (e.g. the grape
+  variety for a Bordeaux or Burgundy labeled only by region) into an
+  editable add-bottle form per photo. Nothing saves until you confirm each
+  one; saving one doesn't interrupt the rest of the batch.
 
 ## Running it locally
 

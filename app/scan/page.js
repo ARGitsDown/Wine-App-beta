@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { createBottleFromScan, extractBottleFromLabel } from "@/app/actions";
+import { useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+import { createBottle, extractBottleFromLabel } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 
 function fileToBase64(file) {
@@ -39,46 +40,86 @@ function downscaleImage(file, maxDimension = 1568) {
   });
 }
 
+// Runs `worker` over `items` with at most `concurrency` in flight at once,
+// so selecting a big batch of photos doesn't fire dozens of simultaneous AI
+// requests.
+async function runWithConcurrency(items, concurrency, worker) {
+  let index = 0;
+  async function next() {
+    while (index < items.length) {
+      const item = items[index++];
+      await worker(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, next));
+}
+
+// A form's `pending` status (from useFormStatus) briefly goes true then
+// false when a Server Action submission finishes - this watches for that
+// transition to know a card's bottle was saved, without changing how
+// BottleForm's action prop works anywhere else it's used.
+function SavedWatcher({ onSaved }) {
+  const { pending } = useFormStatus();
+  const wasPending = useRef(false);
+
+  useEffect(() => {
+    if (wasPending.current && !pending) onSaved();
+    wasPending.current = pending;
+  }, [pending, onSaved]);
+
+  return null;
+}
+
+let nextPhotoId = 0;
+
 export default function ScanPage() {
   const fileInputRef = useRef(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [status, setStatus] = useState("inventory");
-  const [extracted, setExtracted] = useState(null);
-  const [confident, setConfident] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [photos, setPhotos] = useState([]);
 
-  async function handleFileChange(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  function updatePhoto(id, changes) {
+    setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, ...changes } : p)));
+  }
 
-    setError(null);
-    setExtracted(null);
-    setLoading(true);
-    setPreviewUrl(URL.createObjectURL(file));
-
+  async function processPhoto(photo) {
     try {
-      const resized = await downscaleImage(file);
+      const resized = await downscaleImage(photo.file);
       const base64 = await fileToBase64(resized);
       const result = await extractBottleFromLabel(base64, "image/jpeg");
       if (result.error) {
-        setError(result.error);
+        updatePhoto(photo.id, { status: "error", error: result.error });
       } else {
-        setExtracted(result.data);
-        setConfident(result.data.confident);
+        updatePhoto(photo.id, { status: "ready", extracted: result.data });
       }
     } catch {
-      setError("Something went wrong reading that photo. Please try again.");
-    } finally {
-      setLoading(false);
+      updatePhoto(photo.id, {
+        status: "error",
+        error: "Something went wrong reading that photo. Please try again.",
+      });
     }
   }
 
-  function reset() {
-    setPreviewUrl(null);
-    setExtracted(null);
-    setError(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  async function handleFilesChange(event) {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const newPhotos = files.map((file) => ({
+      id: nextPhotoId++,
+      previewUrl: URL.createObjectURL(file),
+      file,
+      status: "loading",
+      extracted: null,
+      error: null,
+      saveStatus: "inventory",
+    }));
+
+    setPhotos((prev) => [...prev, ...newPhotos]);
+    event.target.value = "";
+
+    await runWithConcurrency(newPhotos, 3, processPhoto);
+  }
+
+  function removePhoto(id) {
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
   }
 
   return (
@@ -86,9 +127,9 @@ export default function ScanPage() {
       <div>
         <h1 className="text-2xl font-semibold">Scan a label</h1>
         <p className="text-sm text-zinc-500">
-          Take a photo of a wine label. The AI reads it, checks your own
-          cellar for anything similar, and fills in what it can &mdash; you
-          review and confirm before it&apos;s saved.
+          Take or choose one or more photos of wine labels. The AI reads each
+          one, checks your own cellar for anything similar, and fills in what
+          it can &mdash; you review and confirm each before it&apos;s saved.
         </p>
       </div>
 
@@ -96,81 +137,102 @@ export default function ScanPage() {
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        onChange={handleFileChange}
+        multiple
+        onChange={handleFilesChange}
         className="text-sm"
       />
 
-      {previewUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={previewUrl}
-          alt="Label preview"
-          className="max-h-64 w-auto rounded-lg border border-zinc-200 object-contain dark:border-zinc-800"
-        />
-      )}
-
-      {loading && (
-        <p className="text-sm text-zinc-500">
-          Reading the label and checking your cellar…
-        </p>
-      )}
-
-      {error && (
-        <div className="flex flex-col gap-3 rounded-lg border border-red-300 p-3 text-sm text-red-600 dark:border-red-900 dark:text-red-400">
-          <p>{error}</p>
-          <p className="text-zinc-500 dark:text-zinc-400">
-            You can still add this bottle by hand below.
-          </p>
-        </div>
-      )}
-
-      {(extracted || error) && (
-        <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-          {extracted && !confident && (
-            <p className="rounded-lg border border-amber-300 p-3 text-sm text-amber-700 dark:border-amber-900 dark:text-amber-400">
-              The AI wasn&apos;t fully confident about this one (it may have
-              had to infer the variety or region) &mdash; please double-check
-              the fields below before saving.
-            </p>
-          )}
-
-          <fieldset className="flex gap-4 text-sm">
-            <legend className="mb-1 text-zinc-500">Save to</legend>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="scan-status"
-                checked={status === "inventory"}
-                onChange={() => setStatus("inventory")}
-              />
-              Inventory
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="scan-status"
-                checked={status === "wishlist"}
-                onChange={() => setStatus("wishlist")}
-              />
-              Wishlist
-            </label>
-          </fieldset>
-
-          <BottleForm
-            action={createBottleFromScan.bind(null, status)}
-            defaultValues={extracted || {}}
-            submitLabel="Save bottle"
-          />
-
-          <button
-            type="button"
-            onClick={reset}
-            className="self-start text-sm text-zinc-500 underline underline-offset-2"
+      <div className="flex flex-col gap-6">
+        {photos.map((photo) => (
+          <div
+            key={photo.id}
+            className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
           >
-            Scan a different photo instead
-          </button>
-        </div>
-      )}
+            <div className="flex gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.previewUrl}
+                alt="Label preview"
+                className="h-32 w-24 shrink-0 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+              />
+
+              <div className="flex flex-1 flex-col gap-2">
+                {photo.status === "loading" && (
+                  <p className="text-sm text-zinc-500">
+                    Reading the label and checking your cellar…
+                  </p>
+                )}
+
+                {photo.status === "saved" && (
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                    ✓ Saved
+                  </p>
+                )}
+
+                {photo.status === "error" && (
+                  <div className="flex flex-col gap-1 text-sm text-red-600 dark:text-red-400">
+                    <p>{photo.error}</p>
+                    <p className="text-zinc-500 dark:text-zinc-400">
+                      You can still add this bottle by hand below.
+                    </p>
+                  </div>
+                )}
+
+                {photo.status === "ready" && !photo.extracted.confident && (
+                  <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
+                    Not fully confident about this one &mdash; please
+                    double-check the fields below.
+                  </p>
+                )}
+
+                {photo.status !== "saved" && (
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(photo.id)}
+                    className="self-start text-xs text-zinc-500 underline underline-offset-2"
+                  >
+                    Remove from this batch
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {(photo.status === "ready" || photo.status === "error") && (
+              <>
+                <fieldset className="flex gap-4 text-sm">
+                  <legend className="mb-1 text-zinc-500">Save to</legend>
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name={`scan-status-${photo.id}`}
+                      checked={photo.saveStatus === "inventory"}
+                      onChange={() => updatePhoto(photo.id, { saveStatus: "inventory" })}
+                    />
+                    Inventory
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name={`scan-status-${photo.id}`}
+                      checked={photo.saveStatus === "wishlist"}
+                      onChange={() => updatePhoto(photo.id, { saveStatus: "wishlist" })}
+                    />
+                    Wishlist
+                  </label>
+                </fieldset>
+
+                <BottleForm
+                  action={createBottle.bind(null, photo.saveStatus)}
+                  defaultValues={photo.extracted || {}}
+                  submitLabel="Save bottle"
+                >
+                  <SavedWatcher onSaved={() => updatePhoto(photo.id, { status: "saved" })} />
+                </BottleForm>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
