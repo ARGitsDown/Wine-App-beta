@@ -6,6 +6,7 @@ export default function BottleForm({
   action,
   defaultValues = {},
   submitLabel = "Add bottle",
+  includeTastingNote = false,
   children,
 }) {
   return (
@@ -85,6 +86,33 @@ export default function BottleForm({
           className={inputClass}
         />
       </label>
+      {includeTastingNote && (
+        <div className="flex flex-col gap-3 rounded border border-zinc-200 p-3 dark:border-zinc-800">
+          <p className="text-xs font-medium text-zinc-500">
+            Tasting note (optional)
+          </p>
+          <label className={labelClass}>
+            Note
+            <textarea
+              name="note"
+              rows={2}
+              defaultValue={defaultValues.note || ""}
+              className={inputClass}
+            />
+          </label>
+          <label className={`${labelClass} max-w-[8rem]`}>
+            Rating (1–5)
+            <input
+              name="rating"
+              type="number"
+              min="1"
+              max="5"
+              defaultValue={defaultValues.rating ?? ""}
+              className={inputClass}
+            />
+          </label>
+        </div>
+      )}
       <button
         type="submit"
         className="self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"

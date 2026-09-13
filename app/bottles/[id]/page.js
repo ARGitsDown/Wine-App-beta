@@ -87,7 +87,11 @@ export default async function BottleDetailPage({ params }) {
                 <span>
                   {new Date(tastingNote.tastedAt).toLocaleDateString()}
                 </span>
-                <span>{tastingNote.rating} / 5 ★</span>
+                <span>
+                  {tastingNote.rating !== null
+                    ? `${tastingNote.rating} / 5 ★`
+                    : "No rating"}
+                </span>
               </div>
               <p className="mt-1">{tastingNote.note}</p>
             </li>
@@ -108,13 +112,12 @@ export default async function BottleDetailPage({ params }) {
             />
           </label>
           <label className="flex max-w-[8rem] flex-col gap-1 text-sm">
-            Rating (1–5)
+            Rating (1–5, optional)
             <input
               name="rating"
               type="number"
               min="1"
               max="5"
-              required
               className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </label>

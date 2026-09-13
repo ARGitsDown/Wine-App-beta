@@ -50,6 +50,9 @@ model TastingNote {
   bottleId Int
   bottle   Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
   note     String
-  rating   Int
+  // Nullable: a note can be logged without a personal score - e.g. a shop's
+  // own tasting-sheet write-up brought in via the scan feature, before (or
+  // instead of) rating it yourself.
+  rating   Int?
   tastedAt DateTime @default(now())
 }

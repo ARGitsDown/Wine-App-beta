@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { createBottle, extractBottleFromLabel } from "@/app/actions";
+import { createBottleWithNote, extractWinesFromPhoto } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 
 function fileToBase64(file) {
@@ -15,7 +15,7 @@ function fileToBase64(file) {
 }
 
 // Phone photos can be several MB at very high resolution - more than the
-// label reader needs and more than is worth paying to send. Shrinking to a
+// photo reader needs and more than is worth paying to send. Shrinking to a
 // modest max dimension keeps requests fast and cheap without hurting
 // readability of the printed text.
 function downscaleImage(file, maxDimension = 1568) {
@@ -71,6 +71,23 @@ function SavedWatcher({ onSaved }) {
 }
 
 let nextPhotoId = 0;
+let nextEntryId = 0;
+
+// One photo can hold several wines (e.g. a shop's tasting sheet), so each
+// extracted wine becomes its own entry - reviewed, edited, and saved
+// independently of its siblings and of the photo's own loading/error state.
+function entriesFromWines(wines) {
+  return wines.map((extracted) => ({
+    localId: nextEntryId++,
+    extracted,
+    // A wine pulled from a document with its own tasting-note text is
+    // treated as already-tasted by default; a plain label defaults to
+    // Inventory, as before. Either is just a starting point - change it
+    // per entry before saving.
+    saveStatus: extracted.note ? "consumed" : "inventory",
+    status: "ready",
+  }));
+}
 
 export default function ScanPage() {
   const fileInputRef = useRef(null);
@@ -84,20 +101,53 @@ export default function ScanPage() {
     setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, ...changes } : p)));
   }
 
+  function updateEntry(photoId, localId, changes) {
+    setPhotos((prev) =>
+      prev.map((p) =>
+        p.id !== photoId
+          ? p
+          : {
+              ...p,
+              entries: p.entries.map((e) =>
+                e.localId === localId ? { ...e, ...changes } : e
+              ),
+            }
+      )
+    );
+  }
+
+  function removeEntry(photoId, localId) {
+    setPhotos((prev) =>
+      prev.map((p) =>
+        p.id !== photoId
+          ? p
+          : { ...p, entries: p.entries.filter((e) => e.localId !== localId) }
+      )
+    );
+  }
+
   async function processPhoto(photo) {
     try {
       const resized = await downscaleImage(photo.file);
       const base64 = await fileToBase64(resized);
-      const result = await extractBottleFromLabel(base64, "image/jpeg");
+      const result = await extractWinesFromPhoto(base64, "image/jpeg");
       if (result.error) {
-        updatePhoto(photo.id, { status: "error", error: result.error });
+        // Still offer one blank manual-entry card, through the same
+        // entry-card rendering as a successful extraction, rather than a
+        // separate code path for the fallback form.
+        updatePhoto(photo.id, {
+          status: "error",
+          error: result.error,
+          entries: entriesFromWines([{}]),
+        });
       } else {
-        updatePhoto(photo.id, { status: "ready", extracted: result.data });
+        updatePhoto(photo.id, { status: "ready", entries: entriesFromWines(result.data) });
       }
     } catch {
       updatePhoto(photo.id, {
         status: "error",
         error: "Something went wrong reading that photo. Please try again.",
+        entries: entriesFromWines([{}]),
       });
     }
   }
@@ -111,9 +161,8 @@ export default function ScanPage() {
       previewUrl: URL.createObjectURL(file),
       file,
       status: "loading",
-      extracted: null,
       error: null,
-      saveStatus: "inventory",
+      entries: [],
     }));
 
     setPhotos((prev) => [...prev, ...newPhotos]);
@@ -143,9 +192,11 @@ export default function ScanPage() {
       <div>
         <h1 className="text-2xl font-semibold">Scan a label</h1>
         <p className="text-sm text-zinc-500">
-          Take or choose one or more photos of wine labels. The AI reads each
-          one, checks your own cellar for anything similar, and fills in what
-          it can &mdash; you review and confirm each before it&apos;s saved.
+          Take or choose one or more photos - a bottle label, or a document
+          like a shop&apos;s tasting sheet listing several wines. The AI reads
+          each one, checks your own cellar for anything similar, and fills in
+          what it can &mdash; you review and confirm each wine before it&apos;s
+          saved.
         </p>
       </div>
 
@@ -160,28 +211,25 @@ export default function ScanPage() {
 
       <div className="flex flex-col gap-6">
         {photos.map((photo) => (
-          <div
-            key={photo.id}
-            className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
-          >
+          <div key={photo.id} className="flex flex-col gap-4">
             <div className="flex gap-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo.previewUrl}
-                alt="Label preview"
+                alt="Scanned photo preview"
                 className="h-32 w-24 shrink-0 rounded border border-zinc-200 object-cover dark:border-zinc-800"
               />
 
               <div className="flex flex-1 flex-col gap-2">
                 {photo.status === "loading" && (
                   <p className="text-sm text-zinc-500">
-                    Reading the label and checking your cellar…
+                    Reading the photo and checking your cellar…
                   </p>
                 )}
 
-                {photo.status === "saved" && (
-                  <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                    ✓ Saved
+                {photo.status === "ready" && photo.entries.length > 1 && (
+                  <p className="text-sm text-zinc-500">
+                    Found {photo.entries.length} wines in this photo.
                   </p>
                 )}
 
@@ -189,62 +237,87 @@ export default function ScanPage() {
                   <div className="flex flex-col gap-1 text-sm text-red-600 dark:text-red-400">
                     <p>{photo.error}</p>
                     <p className="text-zinc-500 dark:text-zinc-400">
-                      You can still add this bottle by hand below.
+                      You can still add a bottle by hand below.
                     </p>
                   </div>
-                )}
-
-                {photo.status === "ready" && !photo.extracted.confident && (
-                  <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
-                    Not fully confident about this one &mdash; please
-                    double-check the fields below.
-                  </p>
-                )}
-
-                {photo.status !== "saved" && (
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(photo.id)}
-                    className="self-start text-xs text-zinc-500 underline underline-offset-2"
-                  >
-                    Remove from this batch
-                  </button>
                 )}
               </div>
             </div>
 
-            {(photo.status === "ready" || photo.status === "error") && (
-              <>
-                <fieldset className="flex gap-4 text-sm">
-                  <legend className="mb-1 text-zinc-500">Save to</legend>
-                  <label className="flex items-center gap-1.5">
-                    <input
-                      type="radio"
-                      name={`scan-status-${photo.id}`}
-                      checked={photo.saveStatus === "inventory"}
-                      onChange={() => updatePhoto(photo.id, { saveStatus: "inventory" })}
-                    />
-                    Inventory
-                  </label>
-                  <label className="flex items-center gap-1.5">
-                    <input
-                      type="radio"
-                      name={`scan-status-${photo.id}`}
-                      checked={photo.saveStatus === "wishlist"}
-                      onChange={() => updatePhoto(photo.id, { saveStatus: "wishlist" })}
-                    />
-                    Wishlist
-                  </label>
-                </fieldset>
-
-                <BottleForm
-                  action={createBottle.bind(null, photo.saveStatus)}
-                  defaultValues={photo.extracted || {}}
-                  submitLabel="Save bottle"
+            <div className="flex flex-col gap-4 pl-0 sm:pl-[6.5rem]">
+              {photo.entries.map((entry) => (
+                <div
+                  key={entry.localId}
+                  className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
                 >
-                  <SavedWatcher onSaved={() => updatePhoto(photo.id, { status: "saved" })} />
-                </BottleForm>
-              </>
+                  {entry.status === "saved" ? (
+                    <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                      ✓ Saved
+                    </p>
+                  ) : (
+                    <>
+                      {entry.extracted.confident === false && (
+                        <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
+                          Not fully confident about this one &mdash; please
+                          double-check the fields below.
+                        </p>
+                      )}
+
+                      <fieldset className="flex gap-4 text-sm">
+                        <legend className="mb-1 text-zinc-500">Save to</legend>
+                        {[
+                          ["inventory", "Inventory"],
+                          ["wishlist", "Wishlist"],
+                          ["consumed", "History"],
+                        ].map(([value, label]) => (
+                          <label key={value} className="flex items-center gap-1.5">
+                            <input
+                              type="radio"
+                              name={`scan-status-${entry.localId}`}
+                              checked={entry.saveStatus === value}
+                              onChange={() =>
+                                updateEntry(photo.id, entry.localId, { saveStatus: value })
+                              }
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </fieldset>
+
+                      <BottleForm
+                        action={createBottleWithNote.bind(null, entry.saveStatus)}
+                        defaultValues={entry.extracted}
+                        submitLabel="Save bottle"
+                        includeTastingNote
+                      >
+                        <SavedWatcher
+                          onSaved={() =>
+                            updateEntry(photo.id, entry.localId, { status: "saved" })
+                          }
+                        />
+                      </BottleForm>
+
+                      <button
+                        type="button"
+                        onClick={() => removeEntry(photo.id, entry.localId)}
+                        className="self-start text-xs text-zinc-500 underline underline-offset-2"
+                      >
+                        Remove this one
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {photo.status !== "loading" && (
+              <button
+                type="button"
+                onClick={() => removePhoto(photo.id)}
+                className="self-start pl-0 text-xs text-zinc-500 underline underline-offset-2 sm:pl-[6.5rem]"
+              >
+                Remove this photo and all its wines from the batch
+              </button>
             )}
           </div>
         ))}

@@ -19,14 +19,19 @@ the technical choices.
   "Bought it" button moves a bottle into inventory.
 - **History** (`/consumed`) — bottles you've finished, kept around (with
   their tasting notes) via "Mark as finished" on an inventory bottle.
-- **Tasting notes** — a note and a 1–5 rating logged against any bottle,
-  regardless of its current status.
+- **Tasting notes** — a note and an optional 1–5 rating logged against any
+  bottle, regardless of its current status. Rating is optional so a note
+  can be logged without a personal score yet (e.g. a shop's own write-up
+  brought in via scanning, before you've actually tasted it yourself).
 - **Scan a label** (`/scan`) — photograph (or pick from your library) one or
-  more bottles at once. Claude reads each label, checks your own saved
-  bottles for anything similar, and infers what it can (e.g. the grape
-  variety for a Bordeaux or Burgundy labeled only by region) into an
-  editable add-bottle form per photo. Nothing saves until you confirm each
-  one; saving one doesn't interrupt the rest of the batch.
+  more photos at once. Each photo can hold a single bottle label *or* a
+  document listing several wines (a shop's tasting sheet, a menu) - Claude
+  figures out which and produces one reviewable card per wine either way.
+  For each, it checks your own saved bottles for anything similar and
+  infers what it can (e.g. the grape variety for a Bordeaux or Burgundy
+  labeled only by region), and carries over any tasting-note-style text the
+  source document already had. Nothing saves until you confirm each wine;
+  saving one doesn't interrupt the rest of the batch.
 
 ## Running it locally
 
@@ -55,8 +60,8 @@ rest of the app.
   [`prisma/schema.prisma`](./prisma/schema.prisma).
 - [Tailwind CSS](https://tailwindcss.com) — styling.
 - [Anthropic's Claude API](https://docs.claude.com) (`@anthropic-ai/sdk`) —
-  reads wine labels for the scan feature. See `app/actions.js` for the
-  `extractBottleFromLabel` action.
+  reads wine photos for the scan feature. See `app/actions.js` for the
+  `extractWinesFromPhoto` action.
 
 Data mutations (adding a bottle, logging a tasting note, etc.) go through
 Next.js Server Actions in [`app/actions.js`](./app/actions.js) — plain
