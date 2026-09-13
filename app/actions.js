@@ -8,11 +8,18 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
+import { WINE_COLORS } from "@/lib/wine-colors";
 
 function parseOptionalInt(value) {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+function parseOptionalFloat(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function parseOptionalRating(value) {
@@ -34,9 +41,16 @@ function bottleDataFromForm(formData) {
     // grape deliberately resolves to null instead of a guess.
     canonicalVariety: canonicalizeVarietal(type, variety),
     region: String(formData.get("region") || "").trim() || null,
+    subRegion: String(formData.get("subRegion") || "").trim() || null,
     country: String(formData.get("country") || "").trim() || null,
     quantity: Math.max(1, parseOptionalInt(formData.get("quantity")) || 1),
     notes: String(formData.get("notes") || "").trim() || null,
+    abv: parseOptionalFloat(formData.get("abv")),
+    wineColor: WINE_COLORS.includes(formData.get("wineColor"))
+      ? formData.get("wineColor")
+      : null,
+    drinkFrom: parseOptionalInt(formData.get("drinkFrom")),
+    drinkTo: parseOptionalInt(formData.get("drinkTo")),
   };
 }
 
@@ -174,12 +188,36 @@ const WINE_ENTRY_SCHEMA = {
     region: {
       type: ["string", "null"],
       description:
-        "The primary sub-country identifier: for a US wine, the state (e.g. 'California', 'Oregon'); for anywhere else, the named wine region or appellation (e.g. 'Bordeaux', 'Burgundy', 'Central Otago', 'Burgenland'). Use your knowledge to fill this in even when only a narrower appellation is stated (e.g. 'Margaux' implies the region 'Bordeaux'). Do not include the country here - that's a separate field.",
+        "The primary sub-country identifier: for a US wine, the state (e.g. 'California', 'Oregon'); for anywhere else, the named wine region (e.g. 'Bordeaux', 'Burgundy', 'Central Otago', 'Burgenland'). Use your knowledge to fill this in even when only a narrower appellation is stated (e.g. 'Margaux' implies the region 'Bordeaux' - put the finer detail in `subRegion` instead, not here). Do not include the country here - that's a separate field.",
+    },
+    subRegion: {
+      type: ["string", "null"],
+      description:
+        "A finer-grained locator within `region`, if the label states or implies one more specific than the broad region (e.g. 'Margaux' or 'Pauillac' within Bordeaux; 'Gevrey-Chambertin' within Burgundy; 'Russian River Valley' within California). Null if only the broad region is known/stated.",
     },
     country: {
       type: ["string", "null"],
       description:
         "Country of origin, inferred from your knowledge when not stated outright (e.g. a Margaux wine implies France).",
+    },
+    abv: {
+      type: ["number", "null"],
+      description:
+        "Alcohol by volume as printed on the label, e.g. 14.5 for '14.5% ALC/VOL'. Null if not visible/stated.",
+    },
+    wineColor: {
+      type: ["string", "null"],
+      description:
+        `One of ${WINE_COLORS.join(", ")} (exactly this spelling/casing) - the wine's color/category from label cues and your own judgment, not the same as \`type\` above (which names the grape/style). Sparkling/Dessert/Fortified take priority over the base color when they apply (e.g. a sparkling rosé is 'Sparkling', a Port is 'Fortified' even though it's red). Null only if you genuinely can't tell.`,
+    },
+    drinkFrom: {
+      type: ["integer", "null"],
+      description:
+        "Start of the drinking window (a year), if the label/sheet states one outright, or you have a genuinely confident basis to estimate one from the wine's style/structure and vintage. Null rather than a speculative guess - most wines shouldn't get one.",
+    },
+    drinkTo: {
+      type: ["integer", "null"],
+      description: "End of the drinking window (a year), same standard as drinkFrom.",
     },
     note: {
       type: ["string", "null"],
@@ -199,7 +237,12 @@ const WINE_ENTRY_SCHEMA = {
     "type",
     "variety",
     "region",
+    "subRegion",
     "country",
+    "abv",
+    "wineColor",
+    "drinkFrom",
+    "drinkTo",
     "note",
     "confident",
   ],
@@ -337,7 +380,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
 const BROWSE_CELLAR_TOOL = {
   name: "browse_cellar",
   description:
-    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns each matching bottle's id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, and average personal rating if any exists. Results are capped, so use filters if the cellar is large.",
+    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns each matching bottle's id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, average personal rating if any exists, and drinkFrom/drinkTo (its drinking window, if known - null fields mean no window is recorded, not that it's unready). Results are capped, so use filters if the cellar is large.",
   input_schema: {
     type: "object",
     properties: {
@@ -361,8 +404,13 @@ const BROWSE_CELLAR_TOOL = {
         type: ["integer", "null"],
         description: "Only bottles from this vintage or earlier. Null for no maximum.",
       },
+      readyToDrink: {
+        type: ["boolean", "null"],
+        description:
+          "True to only return bottles whose drinking window (if any is set) includes the current year - i.e. not too young and not past peak. Bottles with no drinking window set are always included, since most wines don't have one recorded. Null for no filter (browse everything regardless of window).",
+      },
     },
-    required: ["type", "region", "country", "minVintage", "maxVintage"],
+    required: ["type", "region", "country", "minVintage", "maxVintage", "readyToDrink"],
     additionalProperties: false,
   },
   strict: true,
@@ -460,6 +508,7 @@ async function browseCellar(filters) {
     return { ...bottle, averageRating };
   });
 
+  const currentYear = new Date().getFullYear();
   const matches = withRating.filter((bottle) => {
     if (filters.type && !bottle.type?.toLowerCase().includes(filters.type.toLowerCase())) {
       return false;
@@ -476,6 +525,11 @@ async function browseCellar(filters) {
     if (filters.maxVintage && (!bottle.vintage || bottle.vintage > filters.maxVintage)) {
       return false;
     }
+    if (filters.readyToDrink) {
+      // No window recorded is not "unready" - most wines don't have one.
+      if (bottle.drinkFrom && currentYear < bottle.drinkFrom) return false;
+      if (bottle.drinkTo && currentYear > bottle.drinkTo) return false;
+    }
     return true;
   });
 
@@ -490,11 +544,14 @@ async function browseCellar(filters) {
     country: bottle.country,
     quantity: bottle.quantity,
     averageRating: bottle.averageRating,
+    drinkFrom: bottle.drinkFrom,
+    drinkTo: bottle.drinkTo,
   }));
 }
 
-const SUGGEST_SYSTEM_PROMPT =
-  "You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. If nothing currently owned is a strong match, say so honestly and propose a specific gap suggestion (a real producer/style/region, not a vague category) worth adding to their wishlist, rather than forcing a mediocre owned bottle into the recommendation. For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Call record_suggestions exactly once, when you're done, with your final answer.";
+function buildSuggestSystemPrompt(currentYear) {
+  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. If nothing currently owned is a strong match, say so honestly and propose a specific gap suggestion (a real producer/style/region, not a vague category) worth adding to their wishlist, rather than forcing a mediocre owned bottle into the recommendation. For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Call record_suggestions exactly once, when you're done, with your final answer.`;
+}
 
 // Turns a freeform request (a meal to pair, or a tasting theme/mood) into
 // wine recommendations - grounded in the user's actual current inventory
@@ -507,6 +564,7 @@ export async function getSuggestions(request) {
   if (!text) return { error: "Describe what you're working with first." };
 
   const messages = [{ role: "user", content: text }];
+  const systemPrompt = buildSuggestSystemPrompt(new Date().getFullYear());
 
   try {
     // Bounded to a few turns: normally some browse_cellar calls (possibly
@@ -517,7 +575,7 @@ export async function getSuggestions(request) {
         model: "claude-opus-5",
         max_tokens: 8192,
         thinking: { type: "adaptive" },
-        system: SUGGEST_SYSTEM_PROMPT,
+        system: systemPrompt,
         tools: [BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL],
         messages,
       });
@@ -625,7 +683,27 @@ const RESEARCH_TOOL = {
         description: "Fuller grape variety/blend description.",
       },
       region: { type: ["string", "null"], description: "Primary sub-country region or US state." },
+      subRegion: {
+        type: ["string", "null"],
+        description: "A finer-grained locator within region, if known (e.g. 'Margaux' within Bordeaux).",
+      },
       country: { type: ["string", "null"], description: "Country of origin." },
+      abv: {
+        type: ["number", "null"],
+        description: "Alcohol by volume, e.g. 14.5 for '14.5%'.",
+      },
+      wineColor: {
+        type: ["string", "null"],
+        description: `One of ${WINE_COLORS.join(", ")} (exactly this spelling/casing), or null.`,
+      },
+      drinkFrom: {
+        type: ["integer", "null"],
+        description: "Start of the drinking window (a year), only if genuinely well-supported.",
+      },
+      drinkTo: {
+        type: ["integer", "null"],
+        description: "End of the drinking window (a year), same standard as drinkFrom.",
+      },
       summary: {
         type: "string",
         description:
@@ -637,7 +715,21 @@ const RESEARCH_TOOL = {
         description: "URLs of the most useful pages found via web_search. Empty array if none were needed.",
       },
     },
-    required: ["bottling", "vintage", "type", "variety", "region", "country", "summary", "sources"],
+    required: [
+      "bottling",
+      "vintage",
+      "type",
+      "variety",
+      "region",
+      "subRegion",
+      "country",
+      "abv",
+      "wineColor",
+      "drinkFrom",
+      "drinkTo",
+      "summary",
+      "sources",
+    ],
     additionalProperties: false,
   },
   strict: true,
@@ -654,7 +746,13 @@ function describeBottleForResearch(bottle) {
     bottle.type ? `Type: ${bottle.type}` : null,
     bottle.variety ? `Variety: ${bottle.variety}` : null,
     bottle.region ? `Region: ${bottle.region}` : null,
+    bottle.subRegion ? `Sub-region: ${bottle.subRegion}` : null,
     bottle.country ? `Country: ${bottle.country}` : null,
+    bottle.abv ? `ABV: ${bottle.abv}%` : null,
+    bottle.wineColor ? `Color: ${bottle.wineColor}` : null,
+    bottle.drinkFrom || bottle.drinkTo
+      ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}`
+      : null,
   ].filter(Boolean);
   return lines.join("\n");
 }

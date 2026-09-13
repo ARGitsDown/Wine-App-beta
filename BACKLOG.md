@@ -20,31 +20,38 @@ Spätburgunder, Syrah/Shiraz, Zinfandel/Primitivo, Sauvignon Blanc/Fumé
 Blanc) plus many more. A blend or an unrecognized/obscure grape
 deliberately falls back to plain substring matching rather than a guess.
 
-## 2. Regional hierarchy depth
+## ~~2. Regional hierarchy depth~~ — lightweight version done
 
-`region` is deliberately one flexible field today (see the schema
-comment). Real wine databases split this further — CellarTracker tracks
-Country / Region / Sub-Region / Appellation as separate levels — and go
-deeper still within a single region (Bordeaux → Médoc → Margaux; Burgundy
-→ Côte de Nuits → Gevrey-Chambertin → a specific climat). Worth layering
-in as sub-region data proves useful, without breaking existing flat
-`region` values.
+Added one more flat, optional field - `subRegion` - alongside `region`
+(e.g. "Margaux" under region "Bordeaux"), rather than the full Country/
+Region/Sub-Region/Appellation depth CellarTracker tracks. Both scanning
+and manual entry fill it in, and it's filterable like every other field.
+A genuine multi-level hierarchy (Bordeaux → Médoc → Margaux, each with
+its own identity rather than a string) is still open if `subRegion` alone
+proves insufficient, but that's a bigger schema question than this was.
 
-## 3. Wine color/category, distinct from `type`
+## ~~3. Wine color/category, distinct from `type`~~ — done
 
-CellarTracker treats "Type" (red/white/rosé/sparkling/dessert/fortified)
-as a field separate from "Variety" — we've conflated the two into one
-`type` field ("Red Bordeaux Blend", "Zinfandel"). A dedicated
-color/category field would let "show me all my whites" work reliably
-regardless of how `type` happens to be worded.
+`wineColor` is a new field with a fixed vocabulary (Red/White/Rosé/
+Orange/Sparkling/Dessert/Fortified - see `lib/wine-colors.js`), separate
+from `type`/`variety`. The scan feature infers it from the label/photo;
+manual entry is a plain dropdown rather than an auto-guess, since the
+same grape can make wines of different colors (a Pinot Noir rosé, for
+instance) and a text-only guess could confidently mislabel one. "Show me
+all my whites" now works via the Color filter on Inventory/Wishlist/
+History.
 
-## 4. Drinking window
+## ~~4. Drinking window~~ — done
 
-Every major critic (Wine Spectator, etc.) and CellarTracker track a
-"drinking window" — a from/to range for when a wine is at its best. We
-don't capture this at all. Worth adding, especially since it could feed
-directly into the Suggest feature (don't recommend a bottle that isn't
-ready yet, or is already past its peak).
+`drinkFrom`/`drinkTo` (year, both independently optional) are now
+captured - filled in by the scan feature when the label/sheet states one
+or there's a genuinely confident basis to estimate it, otherwise left
+null rather than guessed. The Suggest feature's `browse_cellar` tool now
+returns each candidate's window and is told the current year, and is
+steered toward a bottle that's actually ready over one that's too young
+or past peak (falling back honestly rather than silently ignoring the
+window when nothing ready fits). Shown on the bottle detail page as a
+"ready / too young / past peak" badge.
 
 ## 5. Bottle size / format
 
@@ -53,11 +60,11 @@ ready yet, or is already past its peak).
 both just read "quantity: 2" today, which understates or overstates how
 much wine you actually have.
 
-## 6. Alcohol % (ABV)
+## ~~6. Alcohol % (ABV)~~ — done
 
-Legally printed on nearly every label, easy to capture during scanning,
-and useful for style/food-pairing reasoning (a 15.5% Zinfandel behaves
-very differently at the table than a 12.5% Riesling). Not captured today.
+`abv` (a float, e.g. 14.5) is now captured - filled in by the scan
+feature when printed on the label (nearly always), and editable manually
+otherwise.
 
 ## Lower priority / optional
 

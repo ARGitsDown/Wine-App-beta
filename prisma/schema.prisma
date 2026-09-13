@@ -49,10 +49,40 @@ model Bottle {
   // by wine - a fuller drill-down (like Bordeaux -> Medoc -> ...) can be
   // layered on top of this later without a schema rework.
   region   String?
+  // An optional finer-grained locator within `region` (e.g. "Margaux"
+  // within region "Bordeaux", or "Gevrey-Chambertin" within "Burgundy") -
+  // BACKLOG.md #2's lightweight step: one more flat, optional field rather
+  // than a rigid multi-level hierarchy tree, so a country/region/
+  // sub-region/appellation drill-down can still be layered on properly
+  // later without this being in the way.
+  subRegion String?
   country  String?
   quantity Int     @default(1)
   status   String  @default("wishlist")
   notes    String?
+  // Alcohol by volume, as printed on the label (e.g. 14.5 for "14.5%").
+  // Legally required on nearly every label, so easy to capture during
+  // scanning, and useful for style/pairing reasoning (a 15.5% Zinfandel
+  // behaves very differently at the table than a 12.5% Riesling).
+  abv      Float?
+  // A small fixed vocabulary (Red/White/Rosé/Orange/Sparkling/Dessert/
+  // Fortified - see WINE_COLORS in app/actions.js), distinct from `type`
+  // (which names the grape/style, not the color) so "show me all my
+  // whites" works regardless of how `type` happens to be worded. A plain
+  // String rather than a Prisma enum, same reasoning as `status` below -
+  // easier to extend the vocabulary later without a migration. Not
+  // auto-guessed from type/variety on manual entry (the same grape can
+  // make wines of different colors - a Pinot Noir rosé, for instance - so
+  // a text-based guess could confidently mislabel one); the scan feature
+  // does infer it, since it can actually see the label/context.
+  wineColor String?
+  // The drinking window: the year range this wine is expected to be at its
+  // best (e.g. drinkFrom 2026, drinkTo 2034). Both nullable and independent
+  // - a wine can have a known start with no known end, or vice versa. Feeds
+  // the Suggest feature's reasoning (don't recommend something not ready
+  // yet, or already past peak) - see BACKLOG.md #4.
+  drinkFrom Int?
+  drinkTo   Int?
   // Set when the scan feature wasn't confident about every field it filled
   // in (see `confident` on the scan tool). Surfaces the bottle in the
   // "Needs research" queue until someone runs (or dismisses) the "Research

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { allVarietalNames } from "@/lib/varietal-match";
 import { KNOWN_REGIONS } from "@/lib/regions";
+import { WINE_COLORS } from "@/lib/wine-colors";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -12,7 +13,9 @@ export default function FilterBar({ basePath, filters, regionOptions = KNOWN_REG
   const hasAnyFilter = Boolean(
     filters.variety ||
       filters.region ||
+      filters.subRegion ||
       filters.country ||
+      filters.wineColor ||
       filters.vintage ||
       filters.rating
   );
@@ -52,12 +55,35 @@ export default function FilterBar({ basePath, filters, regionOptions = KNOWN_REG
         />
       </label>
       <label className={labelClass}>
+        Sub-region
+        <input
+          name="subRegion"
+          defaultValue={filters.subRegion || ""}
+          className={inputClass}
+        />
+      </label>
+      <label className={labelClass}>
         Country
         <input
           name="country"
           defaultValue={filters.country || ""}
           className={inputClass}
         />
+      </label>
+      <label className={labelClass}>
+        Color
+        <select
+          name="wineColor"
+          defaultValue={filters.wineColor || ""}
+          className={inputClass}
+        >
+          <option value="">Any</option>
+          {WINE_COLORS.map((color) => (
+            <option key={color} value={color}>
+              {color}
+            </option>
+          ))}
+        </select>
       </label>
       <label className={labelClass}>
         Vintage

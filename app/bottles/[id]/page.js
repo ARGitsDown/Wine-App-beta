@@ -44,11 +44,22 @@ export default async function BottleDetailPage({ params, searchParams }) {
             {bottle.producer}
             {bottle.vintage ? ` ${bottle.vintage}` : ""}
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm capitalize text-zinc-500">{bottle.status}</p>
             {bottle.needsResearch && (
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
                 Needs research
+              </span>
+            )}
+            {(bottle.drinkFrom || bottle.drinkTo) && (
+              <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                Drink {bottle.drinkFrom ?? "?"}–{bottle.drinkTo ?? "?"}
+                {(() => {
+                  const year = new Date().getFullYear();
+                  if (bottle.drinkFrom && year < bottle.drinkFrom) return " (too young)";
+                  if (bottle.drinkTo && year > bottle.drinkTo) return " (past peak)";
+                  return " (ready)";
+                })()}
               </span>
             )}
           </div>

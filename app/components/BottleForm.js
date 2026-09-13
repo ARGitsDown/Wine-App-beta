@@ -1,5 +1,6 @@
 import { allVarietalNames } from "@/lib/varietal-match";
 import { KNOWN_REGIONS } from "@/lib/regions";
+import { WINE_COLORS } from "@/lib/wine-colors";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -103,11 +104,48 @@ export default function BottleForm({
           />
         </label>
         <label className={labelClass}>
+          Sub-region
+          <input
+            name="subRegion"
+            defaultValue={defaultValues.subRegion || ""}
+            className={inputClass}
+            placeholder="e.g. Margaux, or an AVA"
+          />
+        </label>
+        <label className={labelClass}>
           Country
           <input
             name="country"
             defaultValue={defaultValues.country || ""}
             className={inputClass}
+          />
+        </label>
+        <label className={labelClass}>
+          Color
+          <select
+            name="wineColor"
+            defaultValue={defaultValues.wineColor || ""}
+            className={inputClass}
+          >
+            <option value="">Not set</option>
+            {WINE_COLORS.map((color) => (
+              <option key={color} value={color}>
+                {color}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={labelClass}>
+          ABV %
+          <input
+            name="abv"
+            type="number"
+            step="0.1"
+            min="0"
+            max="100"
+            defaultValue={defaultValues.abv ?? ""}
+            className={inputClass}
+            placeholder="e.g. 14.5"
           />
         </label>
         <label className={labelClass}>
@@ -120,6 +158,28 @@ export default function BottleForm({
             className={inputClass}
           />
         </label>
+        <div className={`${labelClass} col-span-2`}>
+          Drinking window (years, optional)
+          <div className="flex items-center gap-2">
+            <input
+              name="drinkFrom"
+              type="number"
+              inputMode="numeric"
+              defaultValue={defaultValues.drinkFrom ?? ""}
+              className={`${inputClass} w-24`}
+              placeholder="From"
+            />
+            <span className="text-zinc-400">–</span>
+            <input
+              name="drinkTo"
+              type="number"
+              inputMode="numeric"
+              defaultValue={defaultValues.drinkTo ?? ""}
+              className={`${inputClass} w-24`}
+              placeholder="To"
+            />
+          </div>
+        </div>
       </div>
       <label className={labelClass}>
         Notes

@@ -10,7 +10,10 @@ features like separate cellars per user.
 ## What's here so far
 
 - **Inventory** (`/inventory`) — bottles you own, with add/edit/remove and
-  filtering by variety, region, country, vintage, and rating. Lists show
+  filtering by variety, region, sub-region, country, color, vintage, and
+  rating. Also tracks ABV and a drinking window (from/to year) - both
+  filled in automatically when scanned, editable by hand otherwise. Lists
+  show
   just each bottle's header line by default (producer, bottling, vintage,
   type); clicking a row expands it in place for the fuller details and a
   link to its full page, so a long list stays scannable. Each bottle
@@ -62,7 +65,9 @@ features like separate cellars per user.
   which you mean. It browses your current inventory (never the wishlist)
   for real candidates, explains its reasoning, and - when nothing owned is
   a strong match - proposes a specific gap suggestion you can add to the
-  wishlist in one click instead of forcing a mediocre pick. A pairing
+  wishlist in one click instead of forcing a mediocre pick. It knows each
+  candidate's drinking window (if one is set) and steers toward a bottle
+  that's actually ready over one that's too young or past peak. A pairing
   recommendation is ephemeral (not saved anywhere) but links each pick
   straight to "log this pairing," which prefills the dish into a new
   tasting note. Saved/browsable tasting flights (a "queue" you can later

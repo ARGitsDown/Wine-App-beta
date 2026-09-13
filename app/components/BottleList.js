@@ -66,7 +66,7 @@ export default function BottleList({ bottles, emptyMessage }) {
             {expanded && (
               <div className="flex flex-col gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
                 <div className="text-sm text-zinc-500">
-                  {[bottle.variety, bottle.region, bottle.country]
+                  {[bottle.variety, bottle.region, bottle.subRegion, bottle.country]
                     .filter(Boolean)
                     .join(" · ") || "No variety/region set"}
                 </div>
