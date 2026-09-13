@@ -2,7 +2,8 @@
 
 A personal wine cellar tracker: inventory, wishlist, and tasting notes. See
 [`PROJECT.md`](./PROJECT.md) for the full project spec and reasoning behind
-the technical choices.
+the technical choices, and [`BACKLOG.md`](./BACKLOG.md) for known
+data-model gaps worth revisiting later.
 
 ## What's here so far
 
