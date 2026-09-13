@@ -46,11 +46,21 @@ export default function BottleList({ bottles, emptyMessage }) {
                 {bottle.vintage ? ` ${bottle.vintage}` : ""}
                 {bottle.type ? ` — ${bottle.type}` : ""}
               </span>
-              {bottle.averageRating !== null && (
-                <span className="shrink-0 text-sm text-zinc-500">
-                  {bottle.averageRating.toFixed(1)} ★
-                </span>
-              )}
+              <span className="flex shrink-0 items-center gap-2">
+                {bottle.favoritedBy?.length > 0 && (
+                  <span
+                    className="text-sm"
+                    title={`Favorited by ${bottle.favoritedBy.join(", ")}`}
+                  >
+                    ❤️ {bottle.favoritedBy.length}
+                  </span>
+                )}
+                {bottle.averageRating !== null && (
+                  <span className="text-sm text-zinc-500">
+                    {bottle.averageRating.toFixed(1)} ★
+                  </span>
+                )}
+              </span>
             </button>
 
             {expanded && (
@@ -60,6 +70,11 @@ export default function BottleList({ bottles, emptyMessage }) {
                     .filter(Boolean)
                     .join(" · ") || "No variety/region set"}
                 </div>
+                {bottle.favoritedBy?.length > 0 && (
+                  <div className="text-xs text-zinc-400">
+                    ❤️ Favorited by {bottle.favoritedBy.join(", ")}
+                  </div>
+                )}
                 <div className="text-xs text-zinc-400">
                   Qty: {bottle.quantity}
                 </div>

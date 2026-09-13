@@ -56,6 +56,7 @@ model Bottle {
   updatedAt DateTime @updatedAt
 
   tastingNotes TastingNote[]
+  favorites    Favorite[]
 }
 
 model TastingNote {
@@ -68,4 +69,33 @@ model TastingNote {
   // instead of) rating it yourself.
   rating   Int?
   tastedAt DateTime @default(now())
+}
+
+// A friend/family member browsing the cellar at /guest to shortlist bottles
+// for their next visit - not a real account (no password), just a name
+// remembered via a cookie so favoriting works across visits from the same
+// browser. Looked up case-insensitively on entry so the same person typing
+// their name again reuses their existing guest record instead of forking
+// it. This is deliberately lightweight; real multi-user accounts (separate
+// cellars per person) are a much bigger, separate future capability - see
+// FUTURE_CAPABILITIES.md.
+model Guest {
+  id        Int        @id @default(autoincrement())
+  name      String
+  createdAt DateTime   @default(now())
+  favorites Favorite[]
+}
+
+// One guest's shortlist pick from the (inventory-only) cellar they browsed
+// at /guest - surfaced back to the owner so they know what to pull before
+// that guest's next visit.
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  guestId   Int
+  guest     Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  bottleId  Int
+  bottle    Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([guestId, bottleId])
 }

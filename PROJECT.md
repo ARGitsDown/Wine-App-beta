@@ -47,7 +47,11 @@ rule them out. Two items originally listed here are since built — see
 - Barcode scanning
 - Drinking window tracking (when a bottle is at its peak) — tracked in
   [`BACKLOG.md`](./BACKLOG.md).
-- Sharing or collaborating with other people
+- ~~Sharing or collaborating with other people~~ — partly built as guest
+  favoriting (`/guest`): no accounts, a friend just browses your inventory
+  and shortlists bottles for their next visit. Everyone getting their own
+  separate cellar is a bigger fork, tracked in
+  [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md) rather than here.
 - Price tracking / valuation
 - Offline support
 - Saved/browsable tasting flights (a "queue" to pull bottles from later to

@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { anthropic } from "@/lib/anthropic";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 
 function parseOptionalInt(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -733,4 +735,55 @@ export async function dismissResearch(id) {
   await prisma.bottle.update({ where: { id }, data: { needsResearch: false } });
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/research");
+}
+
+// A lightweight stand-in for real accounts: a guest just picks a name (no
+// password), looked up case-insensitively so re-entering the same name
+// from a new browser reuses the existing guest record rather than forking
+// it - fine for a small circle of friends/family, not meant to prove
+// identity. Real per-person accounts (separate cellars) are a bigger,
+// separate capability - see FUTURE_CAPABILITIES.md.
+export async function enterAsGuest(formData) {
+  const name = String(formData.get("name") || "").trim();
+  if (!name) return;
+
+  let guest = await prisma.guest.findFirst({
+    where: { name: { equals: name, mode: "insensitive" } },
+  });
+  if (!guest) {
+    guest = await prisma.guest.create({ data: { name } });
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set(GUEST_COOKIE, String(guest.id), {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 365,
+    path: "/",
+  });
+  redirect("/guest");
+}
+
+// Lets someone else use the same browser as a different guest.
+export async function switchGuest() {
+  const cookieStore = await cookies();
+  cookieStore.delete(GUEST_COOKIE);
+  redirect("/guest");
+}
+
+export async function toggleFavorite(bottleId) {
+  const guest = await getCurrentGuest();
+  if (!guest) return;
+
+  const existing = await prisma.favorite.findUnique({
+    where: { guestId_bottleId: { guestId: guest.id, bottleId } },
+  });
+  if (existing) {
+    await prisma.favorite.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.favorite.create({ data: { guestId: guest.id, bottleId } });
+  }
+  revalidatePath("/guest");
+  revalidatePath("/inventory");
+  revalidatePath(`/bottles/${bottleId}`);
 }

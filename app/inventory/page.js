@@ -15,7 +15,10 @@ export default async function InventoryPage({ searchParams }) {
       <div>
         <h1 className="text-2xl font-semibold">Inventory</h1>
         <p className="text-sm text-zinc-500">
-          Bottles currently in your cellar.
+          Bottles currently in your cellar. Share{" "}
+          <span className="font-mono">/guest</span> with friends and family
+          so they can favorite what they&apos;d like pulled for their next
+          visit — favorites show up here as ❤️.
         </p>
       </div>
 

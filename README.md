@@ -2,8 +2,10 @@
 
 A personal wine cellar tracker: inventory, wishlist, and tasting notes. See
 [`PROJECT.md`](./PROJECT.md) for the full project spec and reasoning behind
-the technical choices, and [`BACKLOG.md`](./BACKLOG.md) for known
-data-model gaps worth revisiting later.
+the technical choices, [`BACKLOG.md`](./BACKLOG.md) for known data-model
+gaps worth revisiting later, and
+[`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md) for bigger, deferred
+features like separate cellars per user.
 
 ## What's here so far
 
@@ -59,6 +61,15 @@ data-model gaps worth revisiting later.
   tasting note. Saved/browsable tasting flights (a "queue" you can later
   pull bottles from to consume and rate) are a planned follow-up, not yet
   built.
+- **Guest favoriting** (`/guest`) — share this link with friends/family so
+  they can browse your current inventory (read-only) and favorite bottles
+  they'd like pulled for their next visit. No account or password — a
+  guest just enters a name (reused if they type the same one again from a
+  new device), remembered via a cookie so their favorites persist across
+  visits. Favorites show up back on `/inventory` as a ❤️ with who picked
+  it. This is deliberately lightweight; everyone getting their own
+  separate cellar is a bigger, separate capability - see
+  [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md).
 
 ## Running it locally
 

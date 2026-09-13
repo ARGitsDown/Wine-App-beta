@@ -24,7 +24,10 @@ export default async function BottleDetailPage({ params, searchParams }) {
   const bottle = Number.isInteger(bottleId)
     ? await prisma.bottle.findUnique({
         where: { id: bottleId },
-        include: { tastingNotes: { orderBy: { tastedAt: "desc" } } },
+        include: {
+          tastingNotes: { orderBy: { tastedAt: "desc" } },
+          favorites: { include: { guest: true } },
+        },
       })
     : null;
 
@@ -46,6 +49,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
               </span>
             )}
           </div>
+          {bottle.favorites.length > 0 && (
+            <p className="mt-1 text-sm text-zinc-500">
+              ❤️ Favorited by {bottle.favorites.map((f) => f.guest.name).join(", ")}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {bottle.status === "wishlist" && (
