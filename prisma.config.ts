@@ -3,12 +3,23 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+// Vercel's Prisma Postgres storage integration currently names its
+// connection string env vars after the resource (e.g.
+// Database_DATABASE_URL) instead of the plain DATABASE_URL. Check the
+// conventional name first so this keeps working if the database is ever
+// moved to a provider that sets DATABASE_URL directly.
+const databaseUrl =
+  process.env["DATABASE_URL"] ||
+  process.env["Database_DATABASE_URL"] ||
+  process.env["Database_PRISMA_DATABASE_URL"] ||
+  process.env["Database_POSTGRES_URL"];
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: databaseUrl,
   },
 });
