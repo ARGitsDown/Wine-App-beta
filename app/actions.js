@@ -791,7 +791,7 @@ export async function researchBottle(id) {
       const response = await anthropic.messages.create({
         model: "claude-opus-5",
         max_tokens: 8192,
-        thinking: { type: "adaptive", effort: "max" },
+        thinking: { type: "adaptive" },
         system: RESEARCH_SYSTEM_PROMPT,
         tools: [WEB_SEARCH_TOOL, RESEARCH_TOOL],
         messages,
