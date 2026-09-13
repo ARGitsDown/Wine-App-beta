@@ -16,6 +16,14 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "Wine Tracker",
   description: "A personal wine cellar, wishlist, and tasting log.",
+  appleWebApp: {
+    title: "Wine Tracker",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport = {
+  themeColor: "#18181b",
 };
 
 const navLinks = [

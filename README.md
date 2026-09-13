@@ -86,6 +86,10 @@ features like separate cellars per user.
   everything (every bottle, its tasting notes, guests and their
   favorites) as one JSON file. Cheap peace of mind for a personal system
   with no other backup story.
+- **Add to home screen** — the app has a real icon and manifest, so
+  "Add to Home Screen" (iOS/Android) gives it its own icon and a
+  standalone window (no browser address bar) instead of just a bookmarked
+  tab, per the mobile-web-app plan in [`PROJECT.md`](./PROJECT.md).
 
 ## Running it locally
 
