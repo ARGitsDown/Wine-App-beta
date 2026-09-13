@@ -36,17 +36,23 @@ That's it for v1. Everything else below is explicitly deferred.
 ## 4. Possible future features
 
 Not for now — but worth keeping in mind so early technical choices don't
-rule them out:
+rule them out. Two items originally listed here are since built — see
+[`README.md`](./README.md) for how they work today:
 
-- Wine pairing suggestions (matching a dish to bottles on hand)
-- Themed tasting flight builder
-- Photo-based label reading (identify a bottle from a picture, research
-  what the label doesn't state — e.g. a Bordeaux's varietal blend)
+- ~~Wine pairing suggestions (matching a dish to bottles on hand)~~ — built
+  as `/suggest`, along with themed tasting flights (the two other half of
+  that same feature).
+- ~~Photo-based label reading~~ — built as `/scan`, including multi-wine
+  sheets (a shop's tasting list), not just single bottle labels.
 - Barcode scanning
-- Drinking window tracking (when a bottle is at its peak)
+- Drinking window tracking (when a bottle is at its peak) — tracked in
+  [`BACKLOG.md`](./BACKLOG.md).
 - Sharing or collaborating with other people
 - Price tracking / valuation
 - Offline support
+- Saved/browsable tasting flights (a "queue" to pull bottles from later to
+  consume and rate) — the current `/suggest` pairing output is ephemeral,
+  not saved anywhere yet.
 
 ## 5. How I want to use it
 
