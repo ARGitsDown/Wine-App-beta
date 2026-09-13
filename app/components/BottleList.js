@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 
 export default function BottleList({ bottles, emptyMessage }) {
   const [expandedIds, setExpandedIds] = useState(new Set());
@@ -41,6 +42,12 @@ export default function BottleList({ bottles, emptyMessage }) {
                 <span className="mr-1.5 inline-block text-zinc-400">
                   {expanded ? "▾" : "▸"}
                 </span>
+                {WINE_COLOR_SWATCH[bottle.wineColor] && (
+                  <span
+                    className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle ${WINE_COLOR_SWATCH[bottle.wineColor]}`}
+                    title={bottle.wineColor}
+                  />
+                )}
                 {bottle.producer}
                 {bottle.bottling ? ` “${bottle.bottling}”` : ""}
                 {bottle.vintage ? ` ${bottle.vintage}` : ""}

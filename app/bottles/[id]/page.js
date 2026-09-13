@@ -9,6 +9,7 @@ import {
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import ResearchPanel from "@/app/components/ResearchPanel";
+import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,12 @@ export default async function BottleDetailPage({ params, searchParams }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">
+            {WINE_COLOR_SWATCH[bottle.wineColor] && (
+              <span
+                className={`mr-2 inline-block h-3 w-3 rounded-full align-middle ${WINE_COLOR_SWATCH[bottle.wineColor]}`}
+                title={bottle.wineColor}
+              />
+            )}
             {bottle.producer}
             {bottle.vintage ? ` ${bottle.vintage}` : ""}
           </h1>
