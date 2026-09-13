@@ -75,6 +75,10 @@ let nextPhotoId = 0;
 export default function ScanPage() {
   const fileInputRef = useRef(null);
   const [photos, setPhotos] = useState([]);
+  const photosRef = useRef(photos);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
 
   function updatePhoto(id, changes) {
     setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, ...changes } : p)));
@@ -119,8 +123,20 @@ export default function ScanPage() {
   }
 
   function removePhoto(id) {
-    setPhotos((prev) => prev.filter((p) => p.id !== id));
+    setPhotos((prev) => {
+      const photo = prev.find((p) => p.id === id);
+      if (photo) URL.revokeObjectURL(photo.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
   }
+
+  // Each preview URL otherwise stays alive (and the image data with it) for
+  // as long as the tab does. Release whatever's left when leaving the page.
+  useEffect(() => {
+    return () => {
+      photosRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    };
+  }, []);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">

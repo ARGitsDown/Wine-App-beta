@@ -34,7 +34,17 @@ function pathForStatus(status) {
 async function insertBottle(status, formData) {
   const data = bottleDataFromForm(formData);
   if (!data.producer) return null;
-  return prisma.bottle.create({ data: { ...data, status } });
+  try {
+    return await prisma.bottle.create({ data: { ...data, status } });
+  } catch (err) {
+    // The scan page can have several of these forms on screen at once, each
+    // an independent submission - a transient DB error on one shouldn't
+    // throw an unhandled error out of the Server Action, which would trip
+    // Next.js's default error boundary and blow away every other card's
+    // unsaved, not-yet-reviewed state along with it.
+    console.error("Failed to save bottle:", err);
+    return null;
+  }
 }
 
 export async function createBottle(status, formData) {
