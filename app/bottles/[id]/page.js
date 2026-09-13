@@ -20,7 +20,7 @@ const dangerButtonClass =
 
 export default async function BottleDetailPage({ params, searchParams }) {
   const { id } = await params;
-  const { pairedWith } = await searchParams;
+  const { pairedWith, tastingFlight } = await searchParams;
   const bottleId = Number(id);
 
   const bottle = Number.isInteger(bottleId)
@@ -150,7 +150,13 @@ export default async function BottleDetailPage({ params, searchParams }) {
               name="note"
               required
               rows={3}
-              defaultValue={pairedWith ? `Paired with: ${pairedWith}\n\n` : ""}
+              defaultValue={
+                pairedWith
+                  ? `Paired with: ${pairedWith}\n\n`
+                  : tastingFlight
+                    ? `Tasted as part of: ${tastingFlight}\n\n`
+                    : ""
+              }
               className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </label>

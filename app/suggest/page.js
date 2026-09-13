@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createBottle, getSuggestions } from "@/app/actions";
+import { createBottle, getSuggestions, saveTastingFlight } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import SavedWatcher from "@/app/components/SavedWatcher";
 
@@ -25,6 +25,7 @@ export default function SuggestPage() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [savedGapIds, setSavedGapIds] = useState(new Set());
+  const [flightSave, setFlightSave] = useState({ status: "idle" });
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -33,6 +34,7 @@ export default function SuggestPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setFlightSave({ status: "idle" });
 
     const response = await getSuggestions(request);
     if (response.error) {
@@ -41,6 +43,19 @@ export default function SuggestPage() {
       setResult(response.data);
     }
     setLoading(false);
+  }
+
+  async function handleSaveFlight() {
+    setFlightSave({ status: "saving" });
+    const ownedPicks = result.picks
+      .filter((pick) => pick.bottle)
+      .map((pick) => ({ bottleId: pick.bottle.id, reason: pick.reason }));
+    const response = await saveTastingFlight(result.summary, ownedPicks);
+    if (response.error) {
+      setFlightSave({ status: "error", error: response.error });
+    } else {
+      setFlightSave({ status: "saved", id: response.data.id });
+    }
   }
 
   return (
@@ -75,12 +90,38 @@ export default function SuggestPage() {
 
       {result && (
         <div className="flex flex-col gap-4">
-          <div>
-            <h2 className="font-medium">
-              {result.mode === "tasting" ? "Tasting flight" : "Pairing suggestions"}
-            </h2>
-            <p className="text-sm text-zinc-500">{result.summary}</p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="font-medium">
+                {result.mode === "tasting" ? "Tasting flight" : "Pairing suggestions"}
+              </h2>
+              <p className="text-sm text-zinc-500">{result.summary}</p>
+            </div>
+            {result.mode === "tasting" && (
+              <>
+                {flightSave.status === "saved" ? (
+                  <Link
+                    href={`/flights/${flightSave.id}`}
+                    className="shrink-0 text-sm underline underline-offset-2"
+                  >
+                    View saved flight →
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSaveFlight}
+                    disabled={flightSave.status === "saving"}
+                    className="shrink-0 rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+                  >
+                    {flightSave.status === "saving" ? "Saving…" : "Save this flight"}
+                  </button>
+                )}
+              </>
+            )}
           </div>
+          {flightSave.status === "error" && (
+            <p className="text-sm text-red-600 dark:text-red-400">{flightSave.error}</p>
+          )}
 
           {result.picks.map((pick, index) => (
             <div

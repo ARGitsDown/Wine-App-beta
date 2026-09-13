@@ -902,3 +902,43 @@ export async function toggleFavorite(bottleId) {
   revalidatePath("/inventory");
   revalidatePath(`/bottles/${bottleId}`);
 }
+
+// Saves a Suggest tasting-flight result as a queue to pull bottles from
+// later, rather than letting it disappear once the page is left. Only
+// picks tied to a real owned bottle are stored - a gap suggestion mixed
+// into the same result isn't something to "pull from the cellar" and can
+// already be added to the wishlist independently.
+export async function saveTastingFlight(summary, picks) {
+  const ownedPicks = picks.filter((p) => Number.isInteger(p.bottleId));
+  if (ownedPicks.length === 0) return { error: "Nothing in that flight was an owned bottle to save." };
+
+  const flight = await prisma.tastingFlight.create({
+    data: {
+      summary,
+      picks: {
+        create: ownedPicks.map((pick, index) => ({
+          bottleId: pick.bottleId,
+          reason: pick.reason,
+          order: index,
+        })),
+      },
+    },
+  });
+  revalidatePath("/flights");
+  return { data: { id: flight.id } };
+}
+
+export async function markFlightPickConsumed(pickId) {
+  const pick = await prisma.flightPick.update({
+    where: { id: pickId },
+    data: { consumed: true },
+  });
+  revalidatePath(`/flights/${pick.flightId}`);
+  revalidatePath("/flights");
+}
+
+export async function deleteTastingFlight(id) {
+  await prisma.tastingFlight.delete({ where: { id } });
+  revalidatePath("/flights");
+  redirect("/flights");
+}

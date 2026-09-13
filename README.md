@@ -70,9 +70,15 @@ features like separate cellars per user.
   that's actually ready over one that's too young or past peak. A pairing
   recommendation is ephemeral (not saved anywhere) but links each pick
   straight to "log this pairing," which prefills the dish into a new
-  tasting note. Saved/browsable tasting flights (a "queue" you can later
-  pull bottles from to consume and rate) are a planned follow-up, not yet
-  built.
+  tasting note. A tasting-flight result can be saved via "Save this
+  flight" - see **Tasting flights** below.
+- **Tasting flights** (`/flights`) — a themed flight saved from Suggest,
+  kept as a queue to pull bottles from over time rather than disappearing
+  once you leave the page. Each pick can be marked "tasted" once you open
+  it, or linked straight to logging a tasting note for it (prefilled with
+  which flight it was part of). Only real owned bottles are saved into a
+  flight - a gap suggestion in the same result isn't something to "pull
+  from the cellar," and can already be added to the wishlist independently.
 - **Guest favoriting** (`/guest`) — share this link with friends/family so
   they can browse your current inventory (read-only) and favorite bottles
   they'd like pulled for their next visit. No account or password — a

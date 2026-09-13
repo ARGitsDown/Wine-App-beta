@@ -94,6 +94,7 @@ model Bottle {
 
   tastingNotes TastingNote[]
   favorites    Favorite[]
+  flightPicks  FlightPick[]
 }
 
 model TastingNote {
@@ -135,4 +136,29 @@ model Favorite {
   createdAt DateTime @default(now())
 
   @@unique([guestId, bottleId])
+}
+
+// A saved Suggest tasting-flight result (mode: "tasting") - unlike a
+// pairing recommendation, which is ephemeral and logs straight into a
+// tasting note, a themed flight is worth keeping around as a queue to pull
+// bottles from over time. Only real owned-bottle picks are saved; a gap
+// suggestion mixed into the same result isn't part of "what to pull from
+// the cellar" and can already be added to the wishlist independently.
+model TastingFlight {
+  id        Int          @id @default(autoincrement())
+  summary   String
+  createdAt DateTime     @default(now())
+  picks     FlightPick[]
+}
+
+// One bottle's place in a saved flight, in tasting order.
+model FlightPick {
+  id       Int           @id @default(autoincrement())
+  flightId Int
+  flight   TastingFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  bottleId Int
+  bottle   Bottle        @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  order    Int
+  reason   String
+  consumed Boolean       @default(false)
 }
