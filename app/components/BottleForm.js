@@ -22,6 +22,15 @@ export default function BottleForm({
           />
         </label>
         <label className={labelClass}>
+          Bottling / vineyard
+          <input
+            name="bottling"
+            defaultValue={defaultValues.bottling || ""}
+            className={inputClass}
+            placeholder="e.g. Rochioli Vineyard, or a proprietary name"
+          />
+        </label>
+        <label className={labelClass}>
           Vintage
           <input
             name="vintage"

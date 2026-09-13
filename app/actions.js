@@ -20,6 +20,7 @@ function parseOptionalRating(value) {
 function bottleDataFromForm(formData) {
   return {
     producer: String(formData.get("producer") || "").trim(),
+    bottling: String(formData.get("bottling") || "").trim() || null,
     vintage: parseOptionalInt(formData.get("vintage")),
     type: String(formData.get("type") || "").trim() || null,
     variety: String(formData.get("variety") || "").trim() || null,
@@ -138,6 +139,11 @@ const WINE_ENTRY_SCHEMA = {
       type: "string",
       description: "The producer/winery name as printed.",
     },
+    bottling: {
+      type: ["string", "null"],
+      description:
+        "The specific bottling, if this producer is known to make more than one wine from the same grape/vintage - a vineyard designation (e.g. 'Rochioli Vineyard', 'Kanzler Vineyard') or a proprietary/cuvée name (e.g. 'Madeleine', 'Reserve', 'Insignia'). This is what a producer prints to distinguish this specific wine from their other bottlings of the same variety - use your knowledge of the producer's lineup, not just what's printed, since it may not be obvious which of a producer's several similarly-labeled wines this is without checking. Null if this producer only makes one bottling of this grape, or there's no such distinguishing name.",
+    },
     vintage: {
       type: ["integer", "null"],
       description: "The vintage year, or null if non-vintage/not visible.",
@@ -175,6 +181,7 @@ const WINE_ENTRY_SCHEMA = {
   },
   required: [
     "producer",
+    "bottling",
     "vintage",
     "type",
     "variety",
@@ -212,12 +219,14 @@ async function searchCellar(query) {
     where: {
       OR: [
         { producer: { contains: q, mode: "insensitive" } },
+        { bottling: { contains: q, mode: "insensitive" } },
         { region: { contains: q, mode: "insensitive" } },
         { country: { contains: q, mode: "insensitive" } },
       ],
     },
     select: {
       producer: true,
+      bottling: true,
       vintage: true,
       type: true,
       variety: true,
@@ -229,7 +238,7 @@ async function searchCellar(query) {
 }
 
 const LABEL_SYSTEM_PROMPT =
-  "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). If the source document includes its own descriptive/tasting-note-style text for a wine, carry that into the entry's `note` field - never invent one for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
+  "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). Many producers make several distinct wines from the same grape and vintage - a regional/estate bottling plus one or more vineyard-designated or proprietary-named bottlings (e.g. a producer's basic Pinot Noir alongside a 'Rochioli Vineyard' or a 'Madeleine' bottling). Think about whether this producer is one of those before settling on the `bottling` field - a label that only shows a small or partial vineyard/cuvée name (easy to crop out of a photo, or in small print) is exactly the kind of detail worth getting right, since it's what tells two of a producer's own bottlings apart. If the source document includes its own descriptive/tasting-note-style text for a wine, carry that into the entry's `note` field - never invent one for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
 
 // Reads a photo - one bottle label, or a document listing several wines -
 // optionally researching the user's own saved bottles and the model's wine

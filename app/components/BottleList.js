@@ -16,6 +16,7 @@ export default function BottleList({ bottles, emptyMessage }) {
             <div className="flex items-baseline justify-between gap-2">
               <span className="font-medium">
                 {bottle.producer}
+                {bottle.bottling ? ` “${bottle.bottling}”` : ""}
                 {bottle.vintage ? ` ${bottle.vintage}` : ""}
                 {bottle.type ? ` — ${bottle.type}` : ""}
               </span>

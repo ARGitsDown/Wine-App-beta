@@ -14,7 +14,11 @@ the technical choices.
   than a rigid hierarchy: a US state for domestic wines, or a named
   region/appellation otherwise (Bordeaux, Burgundy, Central Otago, etc.) —
   a fuller multi-level drill-down can be layered on top later without a
-  schema rework.
+  schema rework. There's also `bottling`, for producers who make more than
+  one wine from the same grape/vintage: a vineyard designation (e.g.
+  "Rochioli Vineyard") or a proprietary/cuvée name (e.g. "Madeleine"),
+  shown right in the header so a producer's own bottlings read as
+  distinct entries instead of looking like duplicates.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
 - **History** (`/consumed`) — bottles you've finished, kept around (with

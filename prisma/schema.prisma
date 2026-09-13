@@ -19,6 +19,14 @@ datasource db {
 model Bottle {
   id       Int     @id @default(autoincrement())
   producer String
+  // The specific bottling, when a producer makes more than one wine from
+  // the same grape/vintage - a vineyard designation (e.g. "Rochioli
+  // Vineyard") or a proprietary/cuvée name (e.g. "Madeleine", "Insignia").
+  // Real labels blur these two concepts constantly (a vineyard-designated
+  // wine often carries a proprietary-sounding name too), so this is
+  // deliberately one flexible field rather than two, the same reasoning as
+  // `region` below.
+  bottling String?
   vintage  Int?
   // Short, header-friendly style label - usually just the grape variety
   // (e.g. "Zinfandel"), but a concise descriptor for blends or wines with
