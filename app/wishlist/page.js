@@ -1,4 +1,4 @@
-import { getBottles } from "@/lib/bottles";
+import { getBottles, getRegionOptions } from "@/lib/bottles";
 import { createBottle } from "@/app/actions";
 import FilterBar from "@/app/components/FilterBar";
 import BottleForm from "@/app/components/BottleForm";
@@ -8,7 +8,10 @@ export const dynamic = "force-dynamic";
 
 export default async function WishlistPage({ searchParams }) {
   const filters = await searchParams;
-  const bottles = await getBottles("wishlist", filters);
+  const [bottles, regionOptions] = await Promise.all([
+    getBottles("wishlist", filters),
+    getRegionOptions(),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
@@ -17,7 +20,7 @@ export default async function WishlistPage({ searchParams }) {
         <p className="text-sm text-zinc-500">Bottles to try or buy.</p>
       </div>
 
-      <FilterBar basePath="/wishlist" filters={filters} />
+      <FilterBar basePath="/wishlist" filters={filters} regionOptions={regionOptions} />
 
       <BottleList
         bottles={bottles}
@@ -29,7 +32,10 @@ export default async function WishlistPage({ searchParams }) {
           Add a bottle to your wishlist
         </summary>
         <div className="mt-4">
-          <BottleForm action={createBottle.bind(null, "wishlist")} />
+          <BottleForm
+            action={createBottle.bind(null, "wishlist")}
+            regionOptions={regionOptions}
+          />
         </div>
       </details>
     </div>

@@ -1,4 +1,4 @@
-import { getBottles } from "@/lib/bottles";
+import { getBottles, getRegionOptions } from "@/lib/bottles";
 import FilterBar from "@/app/components/FilterBar";
 import BottleList from "@/app/components/BottleList";
 
@@ -6,7 +6,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ConsumedPage({ searchParams }) {
   const filters = await searchParams;
-  const bottles = await getBottles("consumed", filters);
+  const [bottles, regionOptions] = await Promise.all([
+    getBottles("consumed", filters),
+    getRegionOptions(),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
@@ -17,7 +20,7 @@ export default async function ConsumedPage({ searchParams }) {
         </p>
       </div>
 
-      <FilterBar basePath="/consumed" filters={filters} />
+      <FilterBar basePath="/consumed" filters={filters} regionOptions={regionOptions} />
 
       <BottleList
         bottles={bottles}

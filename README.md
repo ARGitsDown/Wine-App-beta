@@ -24,7 +24,14 @@ features like separate cellars per user.
   one wine from the same grape/vintage: a vineyard designation (e.g.
   "Rochioli Vineyard") or a proprietary/cuvée name (e.g. "Madeleine"),
   shown right in the header so a producer's own bottlings read as
-  distinct entries instead of looking like duplicates.
+  distinct entries instead of looking like duplicates. Variety and Region
+  fields offer autocomplete suggestions as you type (grape names/regional
+  synonyms for Variety, well-known appellations plus anything you've typed
+  before for Region) - still plain text underneath, so anything not on
+  either list is fine to type too. Searching Variety by a grape name also
+  matches bottles logged under a regional synonym for the same grape (e.g.
+  searching "Grenache" also finds one logged as "Garnacha" or "Cannonau") -
+  see [`BACKLOG.md`](./BACKLOG.md) #1.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
 - **History** (`/consumed`) — bottles you've finished, kept around (with

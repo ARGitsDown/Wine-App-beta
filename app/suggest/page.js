@@ -150,6 +150,7 @@ export default function SuggestPage() {
                             notes: pick.reason,
                           }}
                           submitLabel="Add to wishlist"
+                          idPrefix={`suggest-gap-${index}`}
                         >
                           <SavedWatcher
                             onSaved={() =>

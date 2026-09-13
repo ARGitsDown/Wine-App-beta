@@ -273,6 +273,7 @@ export default function ScanPage() {
                         defaultValues={entry.extracted}
                         submitLabel="Save bottle"
                         includeTastingNote
+                        idPrefix={`scan-entry-${entry.localId}`}
                       >
                         <SavedWatcher
                           onSaved={() =>

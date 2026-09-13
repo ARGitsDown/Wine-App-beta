@@ -6,23 +6,19 @@ already collect, where the current model is a working simplification
 rather than a wrong one. Add to this list as new gaps surface; check items
 off (or delete them) once addressed.
 
-## 1. Standardized/canonical varietal name
+## ~~1. Standardized/canonical varietal name~~ — done
 
-`variety`/`type` currently store whatever name is printed or regionally
-conventional (e.g. "Garnacha" on a Spanish label, "Grenache" for the same
-grape grown in France or Australia). Filtering/searching by grape doesn't
-reliably group synonyms:
-
-- Grenache / Garnacha / Cannonau
-- Mourvèdre / Mataro / Monastrell
-- Pinot Noir / Pinot Nero / Spätburgunder
-- Syrah / Shiraz
-- Zinfandel / Primitivo
-- Sauvignon Blanc / Fumé Blanc
-
-Fix direction: a canonical grape name (or a small controlled list)
-alongside the as-printed name, so "show me all my Grenache" also finds the
-Garnacha.
+`variety`/`type` still store whatever name is printed or regionally
+conventional, but filtering now also resolves a search term to a
+canonical grape (via `lib/varietals.js`'s ~140-entry reference list and
+`lib/varietal-match.js`) and matches any bottle logged under a synonym -
+so "show me all my Grenache" also finds a bottle logged as Garnacha or
+Cannonau, without changing what's actually printed in `variety`. Covers
+all the synonym clusters originally called out here (Grenache/Garnacha/
+Cannonau, Mourvèdre/Mataro/Monastrell, Pinot Noir/Pinot Nero/
+Spätburgunder, Syrah/Shiraz, Zinfandel/Primitivo, Sauvignon Blanc/Fumé
+Blanc) plus many more. A blend or an unrecognized/obscure grape
+deliberately falls back to plain substring matching rather than a guess.
 
 ## 2. Regional hierarchy depth
 

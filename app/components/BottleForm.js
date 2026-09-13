@@ -1,19 +1,49 @@
+import { allVarietalNames } from "@/lib/varietal-match";
+import { KNOWN_REGIONS } from "@/lib/regions";
+
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 const labelClass = "flex flex-col gap-1 text-sm";
+
+// Static, so computed once at module load rather than per render.
+const VARIETY_NAMES = allVarietalNames();
 
 export default function BottleForm({
   action,
   defaultValues = {},
   submitLabel = "Add bottle",
   includeTastingNote = false,
+  // A page that already queries the DB (inventory, wishlist, the bottle
+  // detail page) can pass a richer list via getRegionOptions() - anything
+  // already saved, not just the curated defaults. Falls back to the
+  // curated list alone for the client-rendered pages (scan, suggest) that
+  // can't run that query themselves.
+  regionOptions = KNOWN_REGIONS,
+  // Only needs to change when several BottleForms render on the same page
+  // at once (the scan flow, one per extracted wine) - keeps each
+  // instance's <datalist> id unique so browsers don't get confused about
+  // which list an input's suggestions should come from.
+  idPrefix = "bottle-form",
   children,
 }) {
+  const varietyListId = `${idPrefix}-variety-options`;
+  const regionListId = `${idPrefix}-region-options`;
+
   return (
     <form action={action} className="flex flex-col gap-3">
       {defaultValues.confident === false && (
         <input type="hidden" name="needsResearch" value="true" />
       )}
+      <datalist id={varietyListId}>
+        {VARIETY_NAMES.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      <datalist id={regionListId}>
+        {regionOptions.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
       <div className="grid grid-cols-2 gap-3">
         <label className={labelClass}>
           Producer
@@ -56,6 +86,7 @@ export default function BottleForm({
           Variety (fuller detail)
           <input
             name="variety"
+            list={varietyListId}
             defaultValue={defaultValues.variety || ""}
             className={inputClass}
             placeholder="e.g. Cabernet Sauvignon"
@@ -65,6 +96,7 @@ export default function BottleForm({
           Region
           <input
             name="region"
+            list={regionListId}
             defaultValue={defaultValues.region || ""}
             className={inputClass}
             placeholder="e.g. Bordeaux, or a US state"

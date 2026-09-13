@@ -14,7 +14,7 @@ const secondaryButtonClass =
 // this bottle's current fields and shows the result as an editable,
 // prefilled form - nothing is saved until the user reviews and submits it,
 // same trust model as the scan and suggest features.
-export default function ResearchPanel({ bottle }) {
+export default function ResearchPanel({ bottle, regionOptions }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -99,6 +99,8 @@ export default function ResearchPanel({ bottle }) {
             action={applyResearch.bind(null, bottle.id)}
             defaultValues={{ ...bottle, ...result }}
             submitLabel="Apply these changes"
+            regionOptions={regionOptions}
+            idPrefix="bottle-research"
           >
             <SavedWatcher onSaved={() => setApplied(true)} />
           </BottleForm>

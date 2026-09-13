@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getRegionOptions } from "@/lib/bottles";
 import {
   updateBottle,
   deleteBottle,
@@ -32,6 +33,8 @@ export default async function BottleDetailPage({ params, searchParams }) {
     : null;
 
   if (!bottle) notFound();
+
+  const regionOptions = await getRegionOptions();
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
@@ -84,10 +87,12 @@ export default async function BottleDetailPage({ params, searchParams }) {
           action={updateBottle.bind(null, bottle.id)}
           defaultValues={bottle}
           submitLabel="Save changes"
+          regionOptions={regionOptions}
+          idPrefix="bottle-details"
         />
       </section>
 
-      <ResearchPanel bottle={bottle} />
+      <ResearchPanel bottle={bottle} regionOptions={regionOptions} />
 
       <section className="flex flex-col gap-4">
         <h2 className="font-medium">Tasting notes</h2>

@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { allVarietalNames } from "@/lib/varietal-match";
+import { KNOWN_REGIONS } from "@/lib/regions";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 const labelClass = "flex flex-col gap-1 text-xs text-zinc-500";
 
-export default function FilterBar({ basePath, filters }) {
+const VARIETY_NAMES = allVarietalNames();
+
+export default function FilterBar({ basePath, filters, regionOptions = KNOWN_REGIONS }) {
   const hasAnyFilter = Boolean(
     filters.variety ||
       filters.region ||
@@ -19,10 +23,21 @@ export default function FilterBar({ basePath, filters }) {
       method="get"
       className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
     >
+      <datalist id="filter-variety-options">
+        {VARIETY_NAMES.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      <datalist id="filter-region-options">
+        {regionOptions.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
       <label className={labelClass}>
         Variety
         <input
           name="variety"
+          list="filter-variety-options"
           defaultValue={filters.variety || ""}
           className={inputClass}
         />
@@ -31,6 +46,7 @@ export default function FilterBar({ basePath, filters }) {
         Region
         <input
           name="region"
+          list="filter-region-options"
           defaultValue={filters.region || ""}
           className={inputClass}
         />
