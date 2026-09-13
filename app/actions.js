@@ -320,3 +320,263 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
     };
   }
 }
+
+const BROWSE_CELLAR_TOOL = {
+  name: "browse_cellar",
+  description:
+    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns each matching bottle's id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, and average personal rating if any exists. Results are capped, so use filters if the cellar is large.",
+  input_schema: {
+    type: "object",
+    properties: {
+      type: {
+        type: ["string", "null"],
+        description: "Filter by the bottle's short type/style label, substring match (e.g. 'Pinot Noir', 'Sauvignon Blanc'). Null for no filter.",
+      },
+      region: {
+        type: ["string", "null"],
+        description: "Filter by region, substring match (e.g. 'Bordeaux', 'Oregon'). Null for no filter.",
+      },
+      country: {
+        type: ["string", "null"],
+        description: "Filter by country, substring match. Null for no filter.",
+      },
+      minVintage: {
+        type: ["integer", "null"],
+        description: "Only bottles from this vintage or later. Null for no minimum.",
+      },
+      maxVintage: {
+        type: ["integer", "null"],
+        description: "Only bottles from this vintage or earlier. Null for no maximum.",
+      },
+    },
+    required: ["type", "region", "country", "minVintage", "maxVintage"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+const SUGGESTION_PICK_SCHEMA = {
+  type: "object",
+  properties: {
+    bottleId: {
+      type: ["integer", "null"],
+      description:
+        "The id of an existing inventory bottle returned by browse_cellar, if recommending something the user already owns. Null if this is a gap suggestion - something not currently owned that would be worth adding to the wishlist instead.",
+    },
+    pairingContext: {
+      type: ["string", "null"],
+      description:
+        "For a pairing request only: which dish/course this wine goes with, in a few words (e.g. 'the grilled salmon'). Null for a tasting-flight request, or when there's only one dish and it's already obvious.",
+    },
+    reason: {
+      type: "string",
+      description:
+        "Why this wine - the pairing logic, or how it fits the tasting theme and its place in the tasting order. A sentence or two.",
+    },
+    gapProducer: {
+      type: ["string", "null"],
+      description:
+        "For a gap suggestion (bottleId null) only: a real, specific example producer for the style being suggested - not a vague placeholder. Null when bottleId is set.",
+    },
+    gapType: {
+      type: ["string", "null"],
+      description:
+        "For a gap suggestion only: a short style/variety label, matching the app's `type` field convention (e.g. 'Sancerre', 'Riesling'). Null when bottleId is set.",
+    },
+    gapRegion: {
+      type: ["string", "null"],
+      description: "For a gap suggestion only. Null when bottleId is set.",
+    },
+    gapCountry: {
+      type: ["string", "null"],
+      description: "For a gap suggestion only. Null when bottleId is set.",
+    },
+  },
+  required: [
+    "bottleId",
+    "pairingContext",
+    "reason",
+    "gapProducer",
+    "gapType",
+    "gapRegion",
+    "gapCountry",
+  ],
+  additionalProperties: false,
+};
+
+const SUGGESTIONS_TOOL = {
+  name: "record_suggestions",
+  description:
+    "Record your final wine recommendations, after browsing the cellar as needed. For a tasting flight, list picks in suggested tasting order.",
+  input_schema: {
+    type: "object",
+    properties: {
+      mode: {
+        type: "string",
+        enum: ["pairing", "tasting"],
+        description: "Which kind of request this was.",
+      },
+      summary: {
+        type: "string",
+        description: "A short (1-3 sentence) overall explanation of your recommendation or theme.",
+      },
+      picks: {
+        type: "array",
+        description: "One entry per recommended wine.",
+        items: SUGGESTION_PICK_SCHEMA,
+      },
+    },
+    required: ["mode", "summary", "picks"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+async function browseCellar(filters) {
+  const bottles = await prisma.bottle.findMany({
+    where: { status: "inventory" },
+    include: { tastingNotes: { select: { rating: true } } },
+    orderBy: { producer: "asc" },
+  });
+
+  const withRating = bottles.map((bottle) => {
+    const ratings = bottle.tastingNotes.map((t) => t.rating).filter((r) => r !== null);
+    const averageRating = ratings.length
+      ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length
+      : null;
+    return { ...bottle, averageRating };
+  });
+
+  const matches = withRating.filter((bottle) => {
+    if (filters.type && !bottle.type?.toLowerCase().includes(filters.type.toLowerCase())) {
+      return false;
+    }
+    if (filters.region && !bottle.region?.toLowerCase().includes(filters.region.toLowerCase())) {
+      return false;
+    }
+    if (filters.country && !bottle.country?.toLowerCase().includes(filters.country.toLowerCase())) {
+      return false;
+    }
+    if (filters.minVintage && (!bottle.vintage || bottle.vintage < filters.minVintage)) {
+      return false;
+    }
+    if (filters.maxVintage && (!bottle.vintage || bottle.vintage > filters.maxVintage)) {
+      return false;
+    }
+    return true;
+  });
+
+  return matches.slice(0, 40).map((bottle) => ({
+    id: bottle.id,
+    producer: bottle.producer,
+    bottling: bottle.bottling,
+    vintage: bottle.vintage,
+    type: bottle.type,
+    variety: bottle.variety,
+    region: bottle.region,
+    country: bottle.country,
+    quantity: bottle.quantity,
+    averageRating: bottle.averageRating,
+  }));
+}
+
+const SUGGEST_SYSTEM_PROMPT =
+  "You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. If nothing currently owned is a strong match, say so honestly and propose a specific gap suggestion (a real producer/style/region, not a vague category) worth adding to their wishlist, rather than forcing a mediocre owned bottle into the recommendation. For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Call record_suggestions exactly once, when you're done, with your final answer.";
+
+// Turns a freeform request (a meal to pair, or a tasting theme/mood) into
+// wine recommendations - grounded in the user's actual current inventory
+// via browse_cellar, with gap suggestions (not owned, worth adding to the
+// wishlist) where nothing owned fits well. Bottle data for owned picks is
+// re-fetched fresh from the database rather than trusting the model's
+// echoed fields, so what's displayed always matches what's actually saved.
+export async function getSuggestions(request) {
+  const text = String(request || "").trim();
+  if (!text) return { error: "Describe what you're working with first." };
+
+  const messages = [{ role: "user", content: text }];
+
+  try {
+    // Bounded to a few turns: normally some browse_cellar calls (possibly
+    // several in parallel, exploring different filters) then
+    // record_suggestions, but this caps it in case the model keeps browsing.
+    for (let turn = 0; turn < 6; turn++) {
+      const response = await anthropic.messages.create({
+        model: "claude-opus-5",
+        max_tokens: 8192,
+        thinking: { type: "adaptive" },
+        system: SUGGEST_SYSTEM_PROMPT,
+        tools: [BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL],
+        messages,
+      });
+
+      const toolUses = response.content.filter((block) => block.type === "tool_use");
+      const finalCall = toolUses.find((t) => t.name === "record_suggestions");
+      if (finalCall) {
+        const picks = finalCall.input.picks;
+        const ownedIds = picks.map((p) => p.bottleId).filter((id) => id !== null);
+        const ownedBottles = ownedIds.length
+          ? await prisma.bottle.findMany({ where: { id: { in: ownedIds } } })
+          : [];
+        const bottleById = new Map(ownedBottles.map((b) => [b.id, b]));
+
+        const resolvedPicks = picks
+          .map((pick) => {
+            const bottle = pick.bottleId !== null ? bottleById.get(pick.bottleId) ?? null : null;
+            const gap =
+              bottle === null && pick.bottleId === null
+                ? {
+                    producer: pick.gapProducer,
+                    type: pick.gapType,
+                    region: pick.gapRegion,
+                    country: pick.gapCountry,
+                  }
+                : null;
+            return { reason: pick.reason, pairingContext: pick.pairingContext, bottle, gap };
+          })
+          // Drop a pick that resolved to neither a real bottle nor a
+          // usable gap suggestion (e.g. a hallucinated bottleId) rather
+          // than render a broken card.
+          .filter((pick) => pick.bottle || (pick.gap && pick.gap.producer));
+
+        if (resolvedPicks.length === 0) {
+          return { error: "Couldn't come up with a recommendation for that. Try describing it differently." };
+        }
+
+        return {
+          data: { mode: finalCall.input.mode, summary: finalCall.input.summary, picks: resolvedPicks },
+        };
+      }
+
+      const browseCalls = toolUses.filter((t) => t.name === "browse_cellar");
+      if (browseCalls.length === 0) {
+        return { error: "Couldn't come up with a recommendation for that. Try describing it differently." };
+      }
+
+      // Claude can make several tool calls in the same turn (parallel tool
+      // use). Every tool_use block needs a matching tool_result in the next
+      // message, so answer all of them, not just the first.
+      const toolResults = await Promise.all(
+        browseCalls.map(async (call) => ({
+          type: "tool_result",
+          tool_use_id: call.id,
+          content: JSON.stringify(await browseCellar(call.input)),
+        }))
+      );
+
+      messages.push({ role: "assistant", content: response.content });
+      messages.push({ role: "user", content: toolResults });
+    }
+    return { error: "Couldn't come up with a recommendation for that. Try again in a moment." };
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { error: "The suggestion feature isn't configured correctly (invalid API key)." };
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return { error: "Too many requests at once — wait a moment and try again." };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { error: `Suggestion error: ${err.message}` };
+    }
+    return { error: "Something went wrong getting suggestions. Please try again." };
+  }
+}

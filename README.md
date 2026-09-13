@@ -39,6 +39,17 @@ the technical choices.
   labeled only by region), and carries over any tasting-note-style text the
   source document already had. Nothing saves until you confirm each wine;
   saving one doesn't interrupt the rest of the batch.
+- **Suggest** (`/suggest`) — describe tonight's menu for a pairing, or a
+  theme/mood for a tasting flight, in one flexible text box; Claude infers
+  which you mean. It browses your current inventory (never the wishlist)
+  for real candidates, explains its reasoning, and - when nothing owned is
+  a strong match - proposes a specific gap suggestion you can add to the
+  wishlist in one click instead of forcing a mediocre pick. A pairing
+  recommendation is ephemeral (not saved anywhere) but links each pick
+  straight to "log this pairing," which prefills the dish into a new
+  tasting note. Saved/browsable tasting flights (a "queue" you can later
+  pull bottles from to consume and rate) are a planned follow-up, not yet
+  built.
 
 ## Running it locally
 
@@ -67,8 +78,9 @@ rest of the app.
   [`prisma/schema.prisma`](./prisma/schema.prisma).
 - [Tailwind CSS](https://tailwindcss.com) — styling.
 - [Anthropic's Claude API](https://docs.claude.com) (`@anthropic-ai/sdk`) —
-  reads wine photos for the scan feature. See `app/actions.js` for the
-  `extractWinesFromPhoto` action.
+  reads wine photos for the scan feature (`extractWinesFromPhoto`) and
+  reasons over the cellar for pairing/tasting suggestions
+  (`getSuggestions`). Both in `app/actions.js`.
 
 Data mutations (adding a bottle, logging a tasting note, etc.) go through
 Next.js Server Actions in [`app/actions.js`](./app/actions.js) — plain

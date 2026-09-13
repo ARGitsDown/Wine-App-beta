@@ -15,8 +15,9 @@ const buttonClass =
 const dangerButtonClass =
   "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
 
-export default async function BottleDetailPage({ params }) {
+export default async function BottleDetailPage({ params, searchParams }) {
   const { id } = await params;
+  const { pairedWith } = await searchParams;
   const bottleId = Number(id);
 
   const bottle = Number.isInteger(bottleId)
@@ -108,6 +109,7 @@ export default async function BottleDetailPage({ params }) {
               name="note"
               required
               rows={3}
+              defaultValue={pairedWith ? `Paired with: ${pairedWith}\n\n` : ""}
               className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </label>

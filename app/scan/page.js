@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
 import { createBottleWithNote, extractWinesFromPhoto } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import SavedWatcher from "@/app/components/SavedWatcher";
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -52,22 +52,6 @@ async function runWithConcurrency(items, concurrency, worker) {
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, next));
-}
-
-// A form's `pending` status (from useFormStatus) briefly goes true then
-// false when a Server Action submission finishes - this watches for that
-// transition to know a card's bottle was saved, without changing how
-// BottleForm's action prop works anywhere else it's used.
-function SavedWatcher({ onSaved }) {
-  const { pending } = useFormStatus();
-  const wasPending = useRef(false);
-
-  useEffect(() => {
-    if (wasPending.current && !pending) onSaved();
-    wasPending.current = pending;
-  }, [pending, onSaved]);
-
-  return null;
 }
 
 let nextPhotoId = 0;
