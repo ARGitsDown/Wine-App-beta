@@ -19,15 +19,15 @@ the technical choices.
 
 ```bash
 npm install
-npx prisma migrate dev   # creates/updates the local dev.db SQLite file
 npm run dev
 ```
 
 Then open <http://localhost:3000>.
 
-Local development uses a SQLite file (`dev.db`, not committed to git) so
-there's nothing to set up. Production will point at a hosted Postgres
-database instead — see `PROJECT.md` section 7 for that plan.
+There's one Postgres database, used everywhere (no separate local
+database) — set its connection string as `DATABASE_URL` in a `.env` file
+(see `.env.example`). On Vercel, `npm run build` runs `prisma migrate
+deploy` first, so schema changes apply automatically on every deploy.
 
 ## Tech stack
 
