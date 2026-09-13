@@ -7,7 +7,10 @@ the technical choices.
 ## What's here so far
 
 - **Inventory** (`/inventory`) — bottles you own, with add/edit/remove and
-  filtering by variety, region, country, vintage, and rating. Each bottle
+  filtering by variety, region, country, vintage, and rating. Lists show
+  just each bottle's header line by default (producer, bottling, vintage,
+  type); clicking a row expands it in place for the fuller details and a
+  link to its full page, so a long list stays scannable. Each bottle
   has both a short `type` (a header-friendly style label like "Red Bordeaux
   Blend" or "Zinfandel") and a fuller `variety` field for more detailed
   notes on the grape(s). "Region" is deliberately one flexible field rather
