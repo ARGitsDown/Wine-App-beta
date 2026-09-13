@@ -35,6 +35,9 @@ export default function BottleForm({
       {defaultValues.confident === false && (
         <input type="hidden" name="needsResearch" value="true" />
       )}
+      {defaultValues.photoUrl && (
+        <input type="hidden" name="photoUrl" value={defaultValues.photoUrl} />
+      )}
       <datalist id={varietyListId}>
         {VARIETY_NAMES.map((name) => (
           <option key={name} value={name} />

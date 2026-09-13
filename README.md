@@ -52,7 +52,11 @@ features like separate cellars per user.
   labeled only by region), and carries over any tasting-note-style text the
   source document already had. Nothing saves until you confirm each wine;
   saving one doesn't interrupt the rest of the batch. A wine it wasn't
-  fully confident about is flagged "Needs research" when saved.
+  fully confident about is flagged "Needs research" when saved. The photo
+  itself is kept too (uploaded to Vercel Blob storage) and shown back on
+  the bottle's list row and detail page - optional, and the rest of
+  scanning works exactly the same without it (see `BLOB_READ_WRITE_TOKEN`
+  in `.env.example`).
 - **Needs research** (`/research`) — a queue of bottles the scan feature
   flagged as unsure about some field. Open one and hit "Research further"
   on its page to have Claude look it up with an actual web search (not

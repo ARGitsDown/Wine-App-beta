@@ -40,41 +40,51 @@ export default async function BottleDetailPage({ params, searchParams }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            {WINE_COLOR_SWATCH[bottle.wineColor] && (
-              <span
-                className={`mr-2 inline-block h-3 w-3 rounded-full align-middle ${WINE_COLOR_SWATCH[bottle.wineColor]}`}
-                title={bottle.wineColor}
-              />
-            )}
-            {bottle.producer}
-            {bottle.vintage ? ` ${bottle.vintage}` : ""}
-          </h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm capitalize text-zinc-500">{bottle.status}</p>
-            {bottle.needsResearch && (
-              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
-                Needs research
-              </span>
-            )}
-            {(bottle.drinkFrom || bottle.drinkTo) && (
-              <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                Drink {bottle.drinkFrom ?? "?"}–{bottle.drinkTo ?? "?"}
-                {(() => {
-                  const year = new Date().getFullYear();
-                  if (bottle.drinkFrom && year < bottle.drinkFrom) return " (too young)";
-                  if (bottle.drinkTo && year > bottle.drinkTo) return " (past peak)";
-                  return " (ready)";
-                })()}
-              </span>
+        <div className="flex items-center gap-4">
+          {bottle.photoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={bottle.photoUrl}
+              alt={`Label photo for ${bottle.producer}`}
+              className="h-24 w-20 shrink-0 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+            />
+          )}
+          <div>
+            <h1 className="text-2xl font-semibold">
+              {WINE_COLOR_SWATCH[bottle.wineColor] && (
+                <span
+                  className={`mr-2 inline-block h-3 w-3 rounded-full align-middle ${WINE_COLOR_SWATCH[bottle.wineColor]}`}
+                  title={bottle.wineColor}
+                />
+              )}
+              {bottle.producer}
+              {bottle.vintage ? ` ${bottle.vintage}` : ""}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm capitalize text-zinc-500">{bottle.status}</p>
+              {bottle.needsResearch && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                  Needs research
+                </span>
+              )}
+              {(bottle.drinkFrom || bottle.drinkTo) && (
+                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                  Drink {bottle.drinkFrom ?? "?"}–{bottle.drinkTo ?? "?"}
+                  {(() => {
+                    const year = new Date().getFullYear();
+                    if (bottle.drinkFrom && year < bottle.drinkFrom) return " (too young)";
+                    if (bottle.drinkTo && year > bottle.drinkTo) return " (past peak)";
+                    return " (ready)";
+                  })()}
+                </span>
+              )}
+            </div>
+            {bottle.favorites.length > 0 && (
+              <p className="mt-1 text-sm text-zinc-500">
+                ❤️ Favorited by {bottle.favorites.map((f) => f.guest.name).join(", ")}
+              </p>
             )}
           </div>
-          {bottle.favorites.length > 0 && (
-            <p className="mt-1 text-sm text-zinc-500">
-              ❤️ Favorited by {bottle.favorites.map((f) => f.guest.name).join(", ")}
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {bottle.status === "wishlist" && (

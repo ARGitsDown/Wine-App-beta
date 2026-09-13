@@ -9,6 +9,7 @@ import { cookies } from "next/headers";
 import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { WINE_COLORS } from "@/lib/wine-colors";
+import { uploadLabelPhoto } from "@/lib/blob";
 
 function parseOptionalInt(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -67,8 +68,11 @@ async function insertBottle(status, formData) {
   // confident) - editing a bottle afterward never touches this flag one
   // way or the other, so only the research panel's own actions clear it.
   const needsResearch = formData.get("needsResearch") === "true";
+  // Same reasoning: only ever set from the scan flow's hidden field at
+  // creation time, never touched by a later manual edit.
+  const photoUrl = String(formData.get("photoUrl") || "").trim() || null;
   try {
-    return await prisma.bottle.create({ data: { ...data, status, needsResearch } });
+    return await prisma.bottle.create({ data: { ...data, status, needsResearch, photoUrl } });
   } catch (err) {
     // The scan page can have several of these forms on screen at once, each
     // an independent submission - a transient DB error on one shouldn't
@@ -338,7 +342,12 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
         if (finalCall.input.wines.length === 0) {
           return { error: "Couldn't find any wines in that photo. Try a clearer, well-lit photo." };
         }
-        return { data: finalCall.input.wines };
+        // One photo can hold several wines (a tasting sheet) - they all
+        // share the same uploaded photo. Never blocks extraction: null
+        // (unconfigured storage, a failed upload) just means no photo.
+        const photoUrl = await uploadLabelPhoto(base64Image, mediaType);
+        const wines = finalCall.input.wines.map((wine) => ({ ...wine, photoUrl }));
+        return { data: wines };
       }
 
       const searchCalls = toolUses.filter((t) => t.name === "search_cellar");

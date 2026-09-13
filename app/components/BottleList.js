@@ -71,26 +71,36 @@ export default function BottleList({ bottles, emptyMessage }) {
             </button>
 
             {expanded && (
-              <div className="flex flex-col gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                <div className="text-sm text-zinc-500">
-                  {[bottle.variety, bottle.region, bottle.subRegion, bottle.country]
-                    .filter(Boolean)
-                    .join(" · ") || "No variety/region set"}
-                </div>
-                {bottle.favoritedBy?.length > 0 && (
-                  <div className="text-xs text-zinc-400">
-                    ❤️ Favorited by {bottle.favoritedBy.join(", ")}
-                  </div>
+              <div className="flex gap-3 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                {bottle.photoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={bottle.photoUrl}
+                    alt={`Label photo for ${bottle.producer}`}
+                    className="h-20 w-16 shrink-0 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+                  />
                 )}
-                <div className="text-xs text-zinc-400">
-                  Qty: {bottle.quantity}
+                <div className="flex flex-col gap-2">
+                  <div className="text-sm text-zinc-500">
+                    {[bottle.variety, bottle.region, bottle.subRegion, bottle.country]
+                      .filter(Boolean)
+                      .join(" · ") || "No variety/region set"}
+                  </div>
+                  {bottle.favoritedBy?.length > 0 && (
+                    <div className="text-xs text-zinc-400">
+                      ❤️ Favorited by {bottle.favoritedBy.join(", ")}
+                    </div>
+                  )}
+                  <div className="text-xs text-zinc-400">
+                    Qty: {bottle.quantity}
+                  </div>
+                  <Link
+                    href={`/bottles/${bottle.id}`}
+                    className="self-start text-sm text-zinc-500 underline underline-offset-2"
+                  >
+                    View full details →
+                  </Link>
                 </div>
-                <Link
-                  href={`/bottles/${bottle.id}`}
-                  className="self-start text-sm text-zinc-500 underline underline-offset-2"
-                >
-                  View full details →
-                </Link>
               </div>
             )}
           </li>

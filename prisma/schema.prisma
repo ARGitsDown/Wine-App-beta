@@ -88,6 +88,13 @@ model Bottle {
   // "Needs research" queue until someone runs (or dismisses) the "Research
   // further" action on its page - never cleared automatically otherwise.
   needsResearch Boolean @default(false)
+  // The scanned label photo, uploaded to Vercel Blob storage (see
+  // lib/blob.js) at scan time - null for a manually-added bottle, or when
+  // blob storage isn't configured (the scan feature still works without
+  // it, same graceful-degradation spirit as ANTHROPIC_API_KEY being
+  // optional). One photo can hold several wines (a shop's tasting sheet),
+  // in which case each of those bottles shares the same photoUrl.
+  photoUrl String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
