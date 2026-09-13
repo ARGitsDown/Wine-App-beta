@@ -758,6 +758,7 @@ export async function enterAsGuest(formData) {
   cookieStore.set(GUEST_COOKIE, String(guest.id), {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 365,
     path: "/",
   });
@@ -767,7 +768,16 @@ export async function enterAsGuest(formData) {
 // Lets someone else use the same browser as a different guest.
 export async function switchGuest() {
   const cookieStore = await cookies();
-  cookieStore.delete(GUEST_COOKIE);
+  // Re-set with maxAge 0 (rather than delete()) so every attribute matches
+  // exactly what enterAsGuest set the cookie with - the browser only
+  // clears a cookie when path/sameSite/etc. line up.
+  cookieStore.set(GUEST_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 0,
+    path: "/",
+  });
   redirect("/guest");
 }
 
