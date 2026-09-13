@@ -6,7 +6,11 @@ const labelClass = "flex flex-col gap-1 text-xs text-zinc-500";
 
 export default function FilterBar({ basePath, filters }) {
   const hasAnyFilter = Boolean(
-    filters.variety || filters.region || filters.vintage || filters.rating
+    filters.variety ||
+      filters.region ||
+      filters.country ||
+      filters.vintage ||
+      filters.rating
   );
 
   return (
@@ -28,6 +32,14 @@ export default function FilterBar({ basePath, filters }) {
         <input
           name="region"
           defaultValue={filters.region || ""}
+          className={inputClass}
+        />
+      </label>
+      <label className={labelClass}>
+        Country
+        <input
+          name="country"
+          defaultValue={filters.country || ""}
           className={inputClass}
         />
       </label>

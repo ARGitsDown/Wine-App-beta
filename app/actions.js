@@ -18,6 +18,7 @@ function bottleDataFromForm(formData) {
     vintage: parseOptionalInt(formData.get("vintage")),
     variety: String(formData.get("variety") || "").trim() || null,
     region: String(formData.get("region") || "").trim() || null,
+    country: String(formData.get("country") || "").trim() || null,
     quantity: Math.max(1, parseOptionalInt(formData.get("quantity")) || 1),
     notes: String(formData.get("notes") || "").trim() || null,
   };
@@ -75,13 +76,13 @@ export async function addTastingNote(bottleId, formData) {
 const SEARCH_CELLAR_TOOL = {
   name: "search_cellar",
   description:
-    "Search this user's own already-saved bottles by producer name or region/appellation. Use this to check whether the same or a similar wine was logged before with fuller details than the current photo shows - e.g. a producer whose label doesn't print its grape variety, but whose variety is already known from an earlier bottle.",
+    "Search this user's own already-saved bottles by producer name, region, or country. Use this to check whether the same or a similar wine was logged before with fuller details than the current photo shows - e.g. a producer whose label doesn't print its grape variety, but whose variety is already known from an earlier bottle.",
   input_schema: {
     type: "object",
     properties: {
       query: {
         type: "string",
-        description: "Producer name or region/appellation to search for.",
+        description: "Producer name, region, or country to search for.",
       },
     },
     required: ["query"],
@@ -113,7 +114,12 @@ const WINE_LABEL_TOOL = {
       region: {
         type: ["string", "null"],
         description:
-          "Region/appellation as printed on the label, extended with the broader geography that helps place it - append the country, and the US state if applicable, e.g. 'Margaux, Bordeaux, France' or 'Napa Valley, California, USA'. Infer the broader geography from your knowledge even when only the narrow appellation is printed.",
+          "The primary sub-country identifier: for a US wine, the state (e.g. 'California', 'Oregon'); for anywhere else, the named wine region or appellation (e.g. 'Bordeaux', 'Burgundy', 'Central Otago', 'Burgenland'). Use your knowledge to fill this in even when only a narrower appellation is printed (e.g. a label that only says 'Margaux' implies the region 'Bordeaux'). Do not include the country here - that's a separate field.",
+      },
+      country: {
+        type: ["string", "null"],
+        description:
+          "Country of origin, inferred from your knowledge when not printed (e.g. a Margaux label implies France).",
       },
       confident: {
         type: "boolean",
@@ -121,7 +127,7 @@ const WINE_LABEL_TOOL = {
           "True only if you're confident in every field above, including any inferred ones. False if you had to guess at something uncertain - the user will double check fields when this is false.",
       },
     },
-    required: ["producer", "vintage", "variety", "region", "confident"],
+    required: ["producer", "vintage", "variety", "region", "country", "confident"],
     additionalProperties: false,
   },
   strict: true,
@@ -135,9 +141,10 @@ async function searchCellar(query) {
       OR: [
         { producer: { contains: q, mode: "insensitive" } },
         { region: { contains: q, mode: "insensitive" } },
+        { country: { contains: q, mode: "insensitive" } },
       ],
     },
-    select: { producer: true, vintage: true, variety: true, region: true },
+    select: { producer: true, vintage: true, variety: true, region: true, country: true },
     take: 5,
   });
 }

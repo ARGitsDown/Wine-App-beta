@@ -45,6 +45,15 @@ export default function BottleForm({
             name="region"
             defaultValue={defaultValues.region || ""}
             className={inputClass}
+            placeholder="e.g. Bordeaux, or a US state"
+          />
+        </label>
+        <label className={labelClass}>
+          Country
+          <input
+            name="country"
+            defaultValue={defaultValues.country || ""}
+            className={inputClass}
           />
         </label>
         <label className={labelClass}>

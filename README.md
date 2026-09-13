@@ -7,7 +7,11 @@ the technical choices.
 ## What's here so far
 
 - **Inventory** (`/inventory`) — bottles you own, with add/edit/remove and
-  filtering by variety, region, vintage, and rating.
+  filtering by variety, region, country, vintage, and rating. "Region" is
+  deliberately one flexible field rather than a rigid hierarchy: a US state
+  for domestic wines, or a named region/appellation otherwise (Bordeaux,
+  Burgundy, Central Otago, etc.) — a fuller multi-level drill-down can be
+  layered on top later without a schema rework.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
 - **History** (`/consumed`) — bottles you've finished, kept around (with

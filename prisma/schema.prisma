@@ -17,14 +17,23 @@ datasource db {
 // - inventory: currently owned/in the cellar
 // - consumed: already drunk, kept around so its tasting notes stay attached
 model Bottle {
-  id        Int      @id @default(autoincrement())
-  producer  String
-  vintage   Int?
-  variety   String?
-  region    String?
-  quantity  Int      @default(1)
-  status    String   @default("wishlist")
-  notes     String?
+  id       Int     @id @default(autoincrement())
+  producer String
+  vintage  Int?
+  variety  String?
+  // The primary sub-country identifier - a US state for domestic wines
+  // (e.g. "California"), or a named wine region/appellation for everything
+  // else (e.g. "Bordeaux", "Burgundy", "Central Otago"). Deliberately just
+  // one flexible field rather than a rigid state/region/subregion
+  // hierarchy, since that hierarchy genuinely differs by country and even
+  // by wine - a fuller drill-down (like Bordeaux -> Medoc -> ...) can be
+  // layered on top of this later without a schema rework.
+  region   String?
+  country  String?
+  quantity Int     @default(1)
+  status   String  @default("wishlist")
+  notes    String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

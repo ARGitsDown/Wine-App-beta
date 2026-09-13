@@ -25,8 +25,9 @@ export default function BottleList({ bottles, emptyMessage }) {
               )}
             </div>
             <div className="text-sm text-zinc-500">
-              {[bottle.variety, bottle.region].filter(Boolean).join(" · ") ||
-                "No variety/region set"}
+              {[bottle.variety, bottle.region, bottle.country]
+                .filter(Boolean)
+                .join(" · ") || "No variety/region set"}
             </div>
             <div className="mt-1 text-xs text-zinc-400">
               Qty: {bottle.quantity}
