@@ -82,6 +82,10 @@ features like separate cellars per user.
   it. This is deliberately lightweight; everyone getting their own
   separate cellar is a bigger, separate capability - see
   [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md).
+- **Data export** (`/export`, linked from the home page) — downloads
+  everything (every bottle, its tasting notes, guests and their
+  favorites) as one JSON file. Cheap peace of mind for a personal system
+  with no other backup story.
 
 ## Running it locally
 

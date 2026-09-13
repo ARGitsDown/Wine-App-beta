@@ -52,6 +52,12 @@ export default async function HomePage() {
           </Link>
         ))}
       </div>
+      <a
+        href="/export"
+        className="self-start text-sm text-zinc-500 underline underline-offset-2"
+      >
+        Export all your data (JSON backup) →
+      </a>
     </div>
   );
 }
