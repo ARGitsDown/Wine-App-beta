@@ -196,23 +196,24 @@ export async function extractBottleFromLabel(base64Image, mediaType) {
         return { data: finalCall.input };
       }
 
-      const searchCall = toolUses.find((t) => t.name === "search_cellar");
-      if (!searchCall) {
+      const searchCalls = toolUses.filter((t) => t.name === "search_cellar");
+      if (searchCalls.length === 0) {
         return { error: "Could not read that label. Try a clearer, well-lit photo." };
       }
 
-      const results = await searchCellar(searchCall.input.query);
+      // Claude can make several tool calls in the same turn (parallel tool
+      // use). Every tool_use block needs a matching tool_result in the next
+      // message, so answer all of them, not just the first.
+      const toolResults = await Promise.all(
+        searchCalls.map(async (call) => ({
+          type: "tool_result",
+          tool_use_id: call.id,
+          content: JSON.stringify(await searchCellar(call.input.query)),
+        }))
+      );
+
       messages.push({ role: "assistant", content: response.content });
-      messages.push({
-        role: "user",
-        content: [
-          {
-            type: "tool_result",
-            tool_use_id: searchCall.id,
-            content: JSON.stringify(results),
-          },
-        ],
-      });
+      messages.push({ role: "user", content: toolResults });
     }
     return { error: "Could not read that label. Try a clearer, well-lit photo." };
   } catch (err) {
