@@ -1,0 +1,41 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// A single wine, in one of three states:
+// - wishlist: something to try or buy, not owned yet
+// - inventory: currently owned/in the cellar
+// - consumed: already drunk, kept around so its tasting notes stay attached
+model Bottle {
+  id        Int      @id @default(autoincrement())
+  producer  String
+  vintage   Int?
+  variety   String?
+  region    String?
+  quantity  Int      @default(1)
+  status    String   @default("wishlist")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tastingNotes TastingNote[]
+}
+
+model TastingNote {
+  id       Int      @id @default(autoincrement())
+  bottleId Int
+  bottle   Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  note     String
+  rating   Int
+  tastedAt DateTime @default(now())
+}
