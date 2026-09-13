@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,7 +27,11 @@ const navLinks = [
   { href: "/consumed", label: "History" },
 ];
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const needsResearchCount = await prisma.bottle.count({
+    where: { needsResearch: true },
+  });
+
   return (
     <html
       lang="en"
@@ -44,6 +49,14 @@ export default function RootLayout({ children }) {
                 {link.label}
               </Link>
             ))}
+            {needsResearchCount > 0 && (
+              <Link
+                href="/research"
+                className="font-medium text-amber-800 hover:underline dark:text-amber-400"
+              >
+                Research ({needsResearchCount})
+              </Link>
+            )}
           </nav>
         </header>
         <main className="flex flex-1 flex-col">{children}</main>

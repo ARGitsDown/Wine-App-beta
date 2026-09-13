@@ -7,6 +7,7 @@ import {
   addTastingNote,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import ResearchPanel from "@/app/components/ResearchPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,14 @@ export default async function BottleDetailPage({ params, searchParams }) {
             {bottle.producer}
             {bottle.vintage ? ` ${bottle.vintage}` : ""}
           </h1>
-          <p className="text-sm capitalize text-zinc-500">{bottle.status}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm capitalize text-zinc-500">{bottle.status}</p>
+            {bottle.needsResearch && (
+              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                Needs research
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {bottle.status === "wishlist" && (
@@ -70,6 +78,8 @@ export default async function BottleDetailPage({ params, searchParams }) {
           submitLabel="Save changes"
         />
       </section>
+
+      <ResearchPanel bottle={bottle} />
 
       <section className="flex flex-col gap-4">
         <h2 className="font-medium">Tasting notes</h2>

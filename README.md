@@ -39,7 +39,15 @@ data-model gaps worth revisiting later.
   infers what it can (e.g. the grape variety for a Bordeaux or Burgundy
   labeled only by region), and carries over any tasting-note-style text the
   source document already had. Nothing saves until you confirm each wine;
-  saving one doesn't interrupt the rest of the batch.
+  saving one doesn't interrupt the rest of the batch. A wine it wasn't
+  fully confident about is flagged "Needs research" when saved.
+- **Needs research** (`/research`) — a queue of bottles the scan feature
+  flagged as unsure about some field. Open one and hit "Research further"
+  on its page to have Claude look it up with an actual web search (not
+  just its training knowledge) and propose corrections - reviewed and
+  edited the same way as everywhere else before you save them. Dismiss a
+  bottle straight from the queue if the current details already look
+  fine, without spending a search on it.
 - **Suggest** (`/suggest`) — describe tonight's menu for a pairing, or a
   theme/mood for a tasting flight, in one flexible text box; Claude infers
   which you mean. It browses your current inventory (never the wishlist)
@@ -79,9 +87,10 @@ rest of the app.
   [`prisma/schema.prisma`](./prisma/schema.prisma).
 - [Tailwind CSS](https://tailwindcss.com) — styling.
 - [Anthropic's Claude API](https://docs.claude.com) (`@anthropic-ai/sdk`) —
-  reads wine photos for the scan feature (`extractWinesFromPhoto`) and
-  reasons over the cellar for pairing/tasting suggestions
-  (`getSuggestions`). Both in `app/actions.js`.
+  reads wine photos for the scan feature (`extractWinesFromPhoto`), reasons
+  over the cellar for pairing/tasting suggestions (`getSuggestions`), and
+  looks up an uncertain bottle with a real web search (`researchBottle`).
+  All three in `app/actions.js`.
 
 Data mutations (adding a bottle, logging a tasting note, etc.) go through
 Next.js Server Actions in [`app/actions.js`](./app/actions.js) — plain

@@ -11,6 +11,9 @@ export default function BottleForm({
 }) {
   return (
     <form action={action} className="flex flex-col gap-3">
+      {defaultValues.confident === false && (
+        <input type="hidden" name="needsResearch" value="true" />
+      )}
       <div className="grid grid-cols-2 gap-3">
         <label className={labelClass}>
           Producer

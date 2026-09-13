@@ -40,8 +40,12 @@ function pathForStatus(status) {
 async function insertBottle(status, formData) {
   const data = bottleDataFromForm(formData);
   if (!data.producer) return null;
+  // Only set on creation (e.g. from the scan flow, when extraction wasn't
+  // confident) - editing a bottle afterward never touches this flag one
+  // way or the other, so only the research panel's own actions clear it.
+  const needsResearch = formData.get("needsResearch") === "true";
   try {
-    return await prisma.bottle.create({ data: { ...data, status } });
+    return await prisma.bottle.create({ data: { ...data, status, needsResearch } });
   } catch (err) {
     // The scan page can have several of these forms on screen at once, each
     // an independent submission - a transient DB error on one shouldn't
@@ -579,4 +583,154 @@ export async function getSuggestions(request) {
     }
     return { error: "Something went wrong getting suggestions. Please try again." };
   }
+}
+
+// A real, server-executed web search - unlike the scan/suggest features
+// above, which only ever draw on the model's training knowledge (plus the
+// user's own cellar). Anthropic runs the searches and feeds results back
+// within the same call; max_uses just bounds how many it can run.
+const WEB_SEARCH_TOOL = {
+  type: "web_search_20260318",
+  name: "web_search",
+  max_uses: 5,
+};
+
+const RESEARCH_TOOL = {
+  name: "record_research",
+  description:
+    "Record your final best-available fields for this wine, after researching it. Only change a field from its current value when research actually found or confirmed something - otherwise repeat the current value back rather than guess.",
+  input_schema: {
+    type: "object",
+    properties: {
+      bottling: {
+        type: ["string", "null"],
+        description: "Vineyard designation or proprietary/cuvée name, if any.",
+      },
+      vintage: { type: ["integer", "null"], description: "The vintage year." },
+      type: {
+        type: ["string", "null"],
+        description: "Short, header-friendly style label (e.g. 'Zinfandel', 'Red Bordeaux Blend').",
+      },
+      variety: {
+        type: ["string", "null"],
+        description: "Fuller grape variety/blend description.",
+      },
+      region: { type: ["string", "null"], description: "Primary sub-country region or US state." },
+      country: { type: ["string", "null"], description: "Country of origin." },
+      summary: {
+        type: "string",
+        description:
+          "A short explanation for the user of what you found or confirmed, specific enough to justify each field you changed.",
+      },
+      sources: {
+        type: "array",
+        items: { type: "string" },
+        description: "URLs of the most useful pages found via web_search. Empty array if none were needed.",
+      },
+    },
+    required: ["bottling", "vintage", "type", "variety", "region", "country", "summary", "sources"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+const RESEARCH_SYSTEM_PROMPT =
+  "You help fill in gaps or correct uncertain details for one wine already saved in a personal cellar-tracking app. You have a real web_search tool, not just training knowledge - use it (the producer's own site, retailer listings, critic write-ups) to verify or fill in what's uncertain, since your training data can be stale or the wine can be obscure/small-production. Don't invent specifics you can't find support for - keep a field as its current value rather than guess at a replacement. Call record_research exactly once, when you're done researching, with your final answer.";
+
+function describeBottleForResearch(bottle) {
+  const lines = [
+    `Producer: ${bottle.producer}`,
+    bottle.bottling ? `Bottling: ${bottle.bottling}` : null,
+    bottle.vintage ? `Vintage: ${bottle.vintage}` : null,
+    bottle.type ? `Type: ${bottle.type}` : null,
+    bottle.variety ? `Variety: ${bottle.variety}` : null,
+    bottle.region ? `Region: ${bottle.region}` : null,
+    bottle.country ? `Country: ${bottle.country}` : null,
+  ].filter(Boolean);
+  return lines.join("\n");
+}
+
+// Researches one already-saved bottle with a real web search (not just the
+// model's training knowledge) and returns proposed field values plus an
+// explanation and sources - never saved automatically. The bottle page
+// shows this as an editable, prefilled form the user reviews before saving,
+// same trust model as the scan and suggest features.
+export async function researchBottle(id) {
+  const bottle = await prisma.bottle.findUnique({ where: { id } });
+  if (!bottle) return { error: "That bottle no longer exists." };
+
+  const messages = [
+    {
+      role: "user",
+      content: `Research this wine and fill in or correct anything uncertain:\n\n${describeBottleForResearch(bottle)}`,
+    },
+  ];
+
+  try {
+    // Bounded to a few turns: web_search itself runs server-side within a
+    // single call, but a long research turn can come back with stop_reason
+    // "pause_turn", which just needs re-sending (with the paused turn
+    // appended) to continue rather than a fresh tool_result.
+    for (let turn = 0; turn < 4; turn++) {
+      const response = await anthropic.messages.create({
+        model: "claude-opus-5",
+        max_tokens: 8192,
+        thinking: { type: "adaptive", effort: "max" },
+        system: RESEARCH_SYSTEM_PROMPT,
+        tools: [WEB_SEARCH_TOOL, RESEARCH_TOOL],
+        messages,
+      });
+
+      const finalCall = response.content.find(
+        (block) => block.type === "tool_use" && block.name === "record_research"
+      );
+      if (finalCall) {
+        return { data: finalCall.input };
+      }
+
+      if (response.stop_reason === "pause_turn") {
+        messages.push({ role: "assistant", content: response.content });
+        continue;
+      }
+
+      return { error: "Couldn't complete that research. Please try again." };
+    }
+    return { error: "That research is taking too long. Please try again." };
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { error: "The research feature isn't configured correctly (invalid API key)." };
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return { error: "Too many requests at once — wait a moment and try again." };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { error: `Research error: ${err.message}` };
+    }
+    return { error: "Something went wrong researching that bottle. Please try again." };
+  }
+}
+
+// Applies reviewed/edited research output to the bottle and clears the
+// research flag - a dedicated action (rather than routing through
+// updateBottle) so a plain details-page edit never clears the flag as a
+// side effect.
+export async function applyResearch(id, formData) {
+  const data = bottleDataFromForm(formData);
+  if (!data.producer) return;
+
+  const bottle = await prisma.bottle.update({
+    where: { id },
+    data: { ...data, needsResearch: false },
+  });
+  revalidatePath(`/bottles/${id}`);
+  revalidatePath("/research");
+  revalidatePath(pathForStatus(bottle.status));
+}
+
+// Clears the research flag without changing any fields - for when the
+// existing details are judged fine as-is.
+export async function dismissResearch(id) {
+  await prisma.bottle.update({ where: { id }, data: { needsResearch: false } });
+  revalidatePath(`/bottles/${id}`);
+  revalidatePath("/research");
 }

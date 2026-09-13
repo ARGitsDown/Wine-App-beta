@@ -46,6 +46,11 @@ model Bottle {
   quantity Int     @default(1)
   status   String  @default("wishlist")
   notes    String?
+  // Set when the scan feature wasn't confident about every field it filled
+  // in (see `confident` on the scan tool). Surfaces the bottle in the
+  // "Needs research" queue until someone runs (or dismisses) the "Research
+  // further" action on its page - never cleared automatically otherwise.
+  needsResearch Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
