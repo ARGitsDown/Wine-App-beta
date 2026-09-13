@@ -20,6 +20,11 @@ model Bottle {
   id       Int     @id @default(autoincrement())
   producer String
   vintage  Int?
+  // Short, header-friendly style label - usually just the grape variety
+  // (e.g. "Zinfandel"), but a concise descriptor for blends or wines with
+  // no single named variety (e.g. "Red Bordeaux Blend", "Orange Wine").
+  // `variety` below can hold a fuller, more detailed description.
+  type     String?
   variety  String?
   // The primary sub-country identifier - a US state for domestic wines
   // (e.g. "California"), or a named wine region/appellation for everything

@@ -31,7 +31,16 @@ export default function BottleForm({
           />
         </label>
         <label className={labelClass}>
-          Variety / type
+          Type (short, shown in lists)
+          <input
+            name="type"
+            defaultValue={defaultValues.type || ""}
+            className={inputClass}
+            placeholder="e.g. Red Bordeaux Blend"
+          />
+        </label>
+        <label className={labelClass}>
+          Variety (fuller detail)
           <input
             name="variety"
             defaultValue={defaultValues.variety || ""}

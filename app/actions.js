@@ -16,6 +16,7 @@ function bottleDataFromForm(formData) {
   return {
     producer: String(formData.get("producer") || "").trim(),
     vintage: parseOptionalInt(formData.get("vintage")),
+    type: String(formData.get("type") || "").trim() || null,
     variety: String(formData.get("variety") || "").trim() || null,
     region: String(formData.get("region") || "").trim() || null,
     country: String(formData.get("country") || "").trim() || null,
@@ -106,10 +107,15 @@ const WINE_LABEL_TOOL = {
         type: ["integer", "null"],
         description: "The vintage year, or null if non-vintage/not visible.",
       },
+      type: {
+        type: ["string", "null"],
+        description:
+          "A SHORT, header-friendly style label - a few words at most, for at-a-glance browsing in a list. Most often just the grape variety (e.g. 'Zinfandel', 'Sauvignon Blanc'). For a blend or a wine with no single named variety, a concise style descriptor instead (e.g. 'Red Bordeaux Blend', 'White Rhône Blend', 'Orange Wine'). Keep any inference reasoning out of this field - put the fuller explanation in `variety` below instead.",
+      },
       variety: {
         type: ["string", "null"],
         description:
-          "Grape variety or blend. Many Old World wines (red/white Bordeaux, red/white Burgundy, Chianti, Barolo, Rioja, etc.) print only the region, not the grape - in that case, infer the conventional grape(s) for that appellation from your knowledge (e.g. red Bordeaux -> a Cabernet Sauvignon/Merlot blend, red Burgundy -> Pinot Noir, white Burgundy -> Chardonnay, Barolo -> Nebbiolo) and prefix the value with 'Likely ' since it wasn't printed on the label. Null only if you have no reasonable basis to infer it.",
+          "The fuller, more detailed grape variety/blend description - this can be longer and more explanatory than `type` above. Many Old World wines (red/white Bordeaux, red/white Burgundy, Chianti, Barolo, Rioja, etc.) print only the region, not the grape - in that case, infer the conventional grape(s) for that appellation from your knowledge (e.g. red Bordeaux -> a Cabernet Sauvignon/Merlot blend, red Burgundy -> Pinot Noir, white Burgundy -> Chardonnay, Barolo -> Nebbiolo) and prefix the value with 'Likely ' since it wasn't printed on the label. Null only if you have no reasonable basis to infer it.",
       },
       region: {
         type: ["string", "null"],
@@ -127,7 +133,7 @@ const WINE_LABEL_TOOL = {
           "True only if you're confident in every field above, including any inferred ones. False if you had to guess at something uncertain - the user will double check fields when this is false.",
       },
     },
-    required: ["producer", "vintage", "variety", "region", "country", "confident"],
+    required: ["producer", "vintage", "type", "variety", "region", "country", "confident"],
     additionalProperties: false,
   },
   strict: true,
@@ -144,7 +150,14 @@ async function searchCellar(query) {
         { country: { contains: q, mode: "insensitive" } },
       ],
     },
-    select: { producer: true, vintage: true, variety: true, region: true, country: true },
+    select: {
+      producer: true,
+      vintage: true,
+      type: true,
+      variety: true,
+      region: true,
+      country: true,
+    },
     take: 5,
   });
 }

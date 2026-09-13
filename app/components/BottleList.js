@@ -17,6 +17,7 @@ export default function BottleList({ bottles, emptyMessage }) {
               <span className="font-medium">
                 {bottle.producer}
                 {bottle.vintage ? ` ${bottle.vintage}` : ""}
+                {bottle.type ? ` — ${bottle.type}` : ""}
               </span>
               {bottle.averageRating !== null && (
                 <span className="text-sm text-zinc-500">

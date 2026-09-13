@@ -20,7 +20,7 @@ export default function FilterBar({ basePath, filters }) {
       className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
     >
       <label className={labelClass}>
-        Variety / type
+        Variety
         <input
           name="variety"
           defaultValue={filters.variety || ""}
