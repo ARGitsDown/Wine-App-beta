@@ -34,6 +34,13 @@ model Bottle {
   // `variety` below can hold a fuller, more detailed description.
   type     String?
   variety  String?
+  // A grape name from lib/varietals.js's canonical list, auto-matched from
+  // `type`/`variety` on save (see lib/varietal-match.js) whenever they
+  // name exactly one recognized grape - null for a blend or an
+  // unrecognized/obscure variety, rather than guess. Lets filtering match
+  // synonyms (e.g. "Grenache" also finds a bottle logged as "Garnacha")
+  // without changing what's actually printed on the label in `variety`.
+  canonicalVariety String?
   // The primary sub-country identifier - a US state for domestic wines
   // (e.g. "California"), or a named wine region/appellation for everything
   // else (e.g. "Bordeaux", "Burgundy", "Central Otago"). Deliberately just

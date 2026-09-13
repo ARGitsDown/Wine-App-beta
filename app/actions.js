@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
+import { canonicalizeVarietal } from "@/lib/varietal-match";
 
 function parseOptionalInt(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -20,12 +21,18 @@ function parseOptionalRating(value) {
 }
 
 function bottleDataFromForm(formData) {
+  const type = String(formData.get("type") || "").trim() || null;
+  const variety = String(formData.get("variety") || "").trim() || null;
   return {
     producer: String(formData.get("producer") || "").trim(),
     bottling: String(formData.get("bottling") || "").trim() || null,
     vintage: parseOptionalInt(formData.get("vintage")),
-    type: String(formData.get("type") || "").trim() || null,
-    variety: String(formData.get("variety") || "").trim() || null,
+    type,
+    variety,
+    // Re-derived from type/variety on every save (not user-editable
+    // directly) - see lib/varietal-match.js for why a blend or unrecognized
+    // grape deliberately resolves to null instead of a guess.
+    canonicalVariety: canonicalizeVarietal(type, variety),
     region: String(formData.get("region") || "").trim() || null,
     country: String(formData.get("country") || "").trim() || null,
     quantity: Math.max(1, parseOptionalInt(formData.get("quantity")) || 1),
