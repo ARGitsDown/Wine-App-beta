@@ -34,7 +34,7 @@ export default function Spinner({ label, className = "h-4 w-4" }) {
           strokeLinecap="round"
           opacity="0.35"
         />
-        <ellipse cx="20" cy="15" ry="3.2" fill="currentColor">
+        <ellipse cx="20" cy="15" ry="3.2" fill="#7b1329">
           <animate
             attributeName="rx"
             values="9;1.5;9"
