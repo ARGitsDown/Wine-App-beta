@@ -10,7 +10,7 @@ const NAV_LINKS = [
   { href: "/flights", label: "Flights" },
   { href: "/inventory", label: "Inventory" },
   { href: "/wishlist", label: "Wishlist" },
-  { href: "/consumed", label: "History" },
+  { href: "/consumed", label: "Tasting history" },
 ];
 
 export default function NavLinks() {

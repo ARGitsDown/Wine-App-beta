@@ -361,12 +361,12 @@ export default function ScanPage() {
                         </p>
                       )}
 
-                      <fieldset className="flex gap-4 text-sm">
+                      <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                         <legend className="mb-1 text-zinc-500">Saved to</legend>
                         {[
                           ["inventory", "Inventory"],
                           ["wishlist", "Wishlist"],
-                          ["consumed", "History"],
+                          ["consumed", "Tasting history"],
                         ].map(([value, label]) => (
                           <label key={value} className="flex items-center gap-1.5">
                             <input
@@ -420,12 +420,12 @@ export default function ScanPage() {
                         </p>
                       )}
 
-                      <fieldset className="flex gap-4 text-sm">
+                      <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                         <legend className="mb-1 text-zinc-500">Save to</legend>
                         {[
                           ["inventory", "Inventory"],
                           ["wishlist", "Wishlist"],
-                          ["consumed", "History"],
+                          ["consumed", "Tasting history"],
                         ].map(([value, label]) => (
                           <label key={value} className="flex items-center gap-1.5">
                             <input

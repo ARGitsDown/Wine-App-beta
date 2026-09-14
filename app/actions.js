@@ -217,7 +217,7 @@ export async function updateBottle(id, prevState, formData) {
 // in, cleared on the way out. Every path that moves a bottle between states
 // goes through here so none of them can forget.
 //
-// An existing date is never overwritten - re-selecting "History" on a scan
+// An existing date is never overwritten - re-selecting "Tasting history" on a scan
 // card that's already there shouldn't silently reset when you drank it -
 // but leaving and returning does re-stamp, because by then the old date is
 // describing a different event.

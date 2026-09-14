@@ -13,7 +13,7 @@ export default async function ConsumedPage({ searchParams }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
       <div>
-        <h1 className="text-2xl font-semibold">History</h1>
+        <h1 className="text-2xl font-semibold">Tasting history</h1>
         <p className="text-sm text-zinc-500">
           Bottles you&apos;ve finished, with their tasting notes.
         </p>

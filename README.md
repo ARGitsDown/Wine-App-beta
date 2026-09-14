@@ -59,16 +59,16 @@ features like separate cellars per user.
   to ask the same question again.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
-- **History** (`/consumed`) — bottles you've finished, kept around (with
-  their tasting notes). A row is a wine rather than an individual bottle,
+- **Tasting history** (`/consumed`) — bottles you've finished, kept around
+  (with their tasting notes). A row is a wine rather than an individual bottle,
   so owning several and drinking one just decrements the count ("Tasted
   one — 5 left"); it only moves here once the last one is gone, or via
   "Tasted all N" if you're clearing the whole lot at once. Counts can
   also be corrected with a +/- stepper right on an inventory row, without
-  opening the bottle. Each bottle records when it was emptied, so History
-  sorts by "Recently emptied" — the date is stamped automatically and
-  editable on the bottle's page, and bottles that reached History before
-  this existed read "Emptied date unknown" until you fill one in.
+  opening the bottle. Each bottle records when it was emptied, so this
+  page sorts by "Recently emptied" — the date is stamped automatically and
+  editable on the bottle's page, and bottles that got here before this
+  existed read "Emptied date unknown" until you fill one in.
 - **Tasting notes** — a note, an optional 1–5 rating, and the date you
   tasted it, logged against any bottle regardless of its current status.
   The date defaults to today, so logging as you drink stays one tap, but a
@@ -184,9 +184,14 @@ features like separate cellars per user.
   "Add to Home Screen" (iOS/Android) gives it its own icon and a
   standalone window (no browser address bar) instead of just a bookmarked
   tab, per the mobile-web-app plan in [`PROJECT.md`](./PROJECT.md).
-- **Design touches** — the home page's Inventory/Wishlist/History cards
-  each carry a small icon and color accent instead of being plain text
-  links. Anywhere the app is doing something that takes a moment (saving
+- **Design touches** — the home page is a dashboard of six cards, each
+  with a small icon and color accent instead of a plain text link, split
+  into what you can *do* (Scan, Suggest) and what you *have* (Inventory,
+  Wishlist, Tasting history, Flights). Only the latter carry a count: a
+  number on "Scan" would be meaningless. The icons are hand-written SVG
+  paths in `app/components/icons.js` rather than image assets or an icon
+  library — nothing to host or license, and they inherit the surrounding
+  text color so one copy works in both themes. Anywhere the app is doing something that takes a moment (saving
   a bottle, researching, getting suggestions, reading a scanned photo) it
   shows a small animated "glass swirl" indicator instead of static text,
   so a busy screen reads as working rather than stuck. Navigating between
