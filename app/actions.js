@@ -52,6 +52,7 @@ function bottleDataFromForm(formData) {
       : null,
     drinkFrom: parseOptionalInt(formData.get("drinkFrom")),
     drinkTo: parseOptionalInt(formData.get("drinkTo")),
+    criticNotes: String(formData.get("criticNotes") || "").trim() || null,
   };
 }
 
@@ -728,6 +729,11 @@ const RESEARCH_TOOL = {
         type: ["integer", "null"],
         description: "End of the drinking window (a year), same standard as drinkFrom.",
       },
+      criticNotes: {
+        type: ["string", "null"],
+        description:
+          "Existing winemaking/tasting notes about this wine, synthesized from what you found - the winery's own description, then major critics (Wine Advocate/Robert Parker, Wine Spectator, Halliday, Jancis Robinson), then other reviews/wine shops, roughly in that priority order. Attribute each part to its source (e.g. 'Winery: ...', 'Wine Spectator: ...'). Null if nothing credible was found.",
+      },
       summary: {
         type: "string",
         description:
@@ -751,6 +757,7 @@ const RESEARCH_TOOL = {
       "wineColor",
       "drinkFrom",
       "drinkTo",
+      "criticNotes",
       "summary",
       "sources",
     ],
@@ -760,7 +767,7 @@ const RESEARCH_TOOL = {
 };
 
 const RESEARCH_SYSTEM_PROMPT =
-  "You help fill in gaps or correct uncertain details for one wine already saved in a personal cellar-tracking app. You have a real web_search tool, not just training knowledge - use it (the producer's own site, retailer listings, critic write-ups) to verify or fill in what's uncertain, since your training data can be stale or the wine can be obscure/small-production. Don't invent specifics you can't find support for - keep a field as its current value rather than guess at a replacement. Call record_research exactly once, when you're done researching, with your final answer.";
+  "You help fill in gaps or correct uncertain details for one wine already saved in a personal cellar-tracking app. You have a real web_search tool, not just training knowledge - use it (the producer's own site, retailer listings, critic write-ups) to verify or fill in what's uncertain, since your training data can be stale or the wine can be obscure/small-production. Don't invent specifics you can't find support for - keep a field as its current value rather than guess at a replacement. Also look for existing winemaking/tasting notes about this specific wine (ideally this vintage) to record in criticNotes: check the winery's own site first, then major critics (Wine Advocate/Robert Parker, Wine Spectator, Halliday, Jancis Robinson), then other online reviews or wine shop listings, in that priority order - synthesize what you find rather than just picking one source, and attribute each part to where it came from. Call record_research exactly once, when you're done researching, with your final answer.";
 
 function describeBottleForResearch(bottle) {
   const lines = [
@@ -777,6 +784,7 @@ function describeBottleForResearch(bottle) {
     bottle.drinkFrom || bottle.drinkTo
       ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}`
       : null,
+    bottle.criticNotes ? `Existing critic/winemaker notes on file: ${bottle.criticNotes}` : null,
   ].filter(Boolean);
   return lines.join("\n");
 }
