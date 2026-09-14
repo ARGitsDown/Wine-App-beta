@@ -183,7 +183,9 @@ export default function BottleForm({
               <input
                 name="abv"
                 type="number"
-                step="0.1"
+                // Two decimals: a step of 0.1 rejects a real label value
+                // like 13.75 as invalid rather than just rounding it.
+                step="0.01"
                 min="0"
                 max="100"
                 defaultValue={defaultValues.abv ?? ""}
