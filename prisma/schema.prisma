@@ -83,6 +83,15 @@ model Bottle {
   // yet, or already past peak) - see BACKLOG.md #4.
   drinkFrom Int?
   drinkTo   Int?
+  // True when drinkFrom/drinkTo came from an AI guess (scan, Research's
+  // fallback, a bulk backfill, or a dedicated estimate action - see
+  // BACKLOG.md #7) rather than something stated on the label, found via a
+  // real Research citation, or typed by hand. Shown as a distinct badge so
+  // it's clear which windows are worth double-checking. Only ever set by
+  // those estimate-producing actions; a plain edit through updateBottle
+  // clears it back to false when the years actually change (the human has
+  // now made the call), and leaves it alone otherwise.
+  drinkWindowEstimated Boolean @default(false)
   // Set when the scan feature wasn't confident about every field it filled
   // in (see `confident` on the scan tool). Surfaces the bottle in the
   // "Needs research" queue until someone runs (or dismisses) the "Research

@@ -55,6 +55,18 @@ function bottleDataFromForm(formData) {
   };
 }
 
+// drinkWindowEstimated is only ever set true by an estimate-producing
+// action (scan, Research's fallback, a bulk backfill, or a dedicated
+// estimate action - see BACKLOG.md #7), never by a plain form save. If a
+// save actually changes the window's years, clear it back to false - the
+// human has made the call now - otherwise leave it untouched.
+function clearEstimatedFlagIfWindowChanged(data, existingBottle) {
+  if (!existingBottle) return data;
+  const changed =
+    existingBottle.drinkFrom !== data.drinkFrom || existingBottle.drinkTo !== data.drinkTo;
+  return changed ? { ...data, drinkWindowEstimated: false } : data;
+}
+
 function pathForStatus(status) {
   if (status === "inventory") return "/inventory";
   if (status === "consumed") return "/consumed";
@@ -124,7 +136,14 @@ export async function updateBottle(id, prevState, formData) {
   if (!data.producer) return { error: "Producer is required." };
 
   try {
-    const bottle = await prisma.bottle.update({ where: { id }, data });
+    const existing = await prisma.bottle.findUnique({
+      where: { id },
+      select: { drinkFrom: true, drinkTo: true },
+    });
+    const bottle = await prisma.bottle.update({
+      where: { id },
+      data: clearEstimatedFlagIfWindowChanged(data, existing),
+    });
     revalidatePath(`/bottles/${id}`);
     revalidatePath(pathForStatus(bottle.status));
     return { success: true };
@@ -849,9 +868,13 @@ export async function applyResearch(id, prevState, formData) {
   if (!data.producer) return { error: "Producer is required." };
 
   try {
+    const existing = await prisma.bottle.findUnique({
+      where: { id },
+      select: { drinkFrom: true, drinkTo: true },
+    });
     const bottle = await prisma.bottle.update({
       where: { id },
-      data: { ...data, needsResearch: false },
+      data: { ...clearEstimatedFlagIfWindowChanged(data, existing), needsResearch: false },
     });
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/research");

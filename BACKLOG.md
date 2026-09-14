@@ -72,12 +72,16 @@ Today's scan/Research only fill `drinkFrom`/`drinkTo` when there's a
 stated date or a "genuinely confident" basis - otherwise both stay null,
 which conveys nothing. For a cellar large enough that bottles are
 actively passing their peak, a rough estimate you can refine beats a
-blank you have to remember to fill in yourself. Plan, once built:
+blank you have to remember to fill in yourself. Plan:
 
-- **New field**: `drinkWindowEstimated` (bool) distinguishes an AI guess
-  from a confirmed window (label text, a real Research citation, or
-  anything a person typed by hand) - shown as a distinct badge so it's
-  clear which windows are worth double-checking.
+- ~~**New field**: `drinkWindowEstimated` (bool)~~ — done. Distinguishes
+  an AI guess from a confirmed window (label text, a real Research
+  citation, or anything a person typed by hand) - shown as a distinct
+  "· estimated" badge next to the drinking-window pill on the bottle
+  detail page. Only ever set by an estimate-producing action (none exist
+  yet - still to build); a plain edit through the Details form clears it
+  back to false when the years actually change, and leaves it alone
+  otherwise (e.g. editing Notes doesn't clear it).
 - **Every add path fills it in, not just a one-time pass**: the scan
   tool's schema changes from "only if confident" to "always propose your
   best estimate," and Research's fallback (when its web search finds
