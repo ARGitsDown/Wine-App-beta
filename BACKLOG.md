@@ -109,6 +109,36 @@ blank you have to remember to fill in yourself. Plan:
 This turns "estimate the backlog" from a one-time fix into how the field
 behaves going forward.
 
+## 8. Speed improvements that would add cost
+
+From the app-wide speed review. Everything here would genuinely make the
+app faster, but each one costs something per use, so all of it is parked
+until that trade is worth making. The free speed work (client-side
+filtering, `loading.js` skeletons, trimming over-fetched queries, DB
+indexes) is tracked separately as ordinary work, not here.
+
+- **Optimized label thumbnails.** Inventory rows and the bottle detail
+  page render label photos through a plain `<img>` pointed straight at the
+  full-size Blob upload, then scale it down to a ~64×80 thumbnail in CSS.
+  A phone on cell data downloads every full-resolution photo to show a
+  postage stamp. `next/image` fixes this automatically, but image
+  optimization is metered on Vercel, so it trades bandwidth for billed
+  transformations. The free alternative - generate and store a small
+  thumbnail at upload time, since `lib/client-image.js` already downscales
+  before upload - costs a second Blob object per photo instead, which is
+  much cheaper but not nothing.
+- **Re-scan existing bottles to fill gaps in bulk.** A pass like
+  `/estimate-windows` but for every empty field (missing `wineColor`,
+  `subRegion`, `abv`) across the whole cellar. Straightforward to build on
+  the batching that's already there, but it's one AI call per batch over
+  the entire inventory - the same shape of spend as the drinking-window
+  backfill, repeated per field group.
+- **Precomputed "drink soon" digest.** BACKLOG #7 already wants a
+  drink-soon sort. Going further - a scheduled job that emails or pushes
+  "these three are hitting their window this month" - needs a cron and a
+  delivery channel, both recurring costs for something the sort itself
+  mostly solves for free.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
