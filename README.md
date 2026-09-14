@@ -188,17 +188,21 @@ features like separate cellars per user.
   "Add to Home Screen" (iOS/Android) gives it its own icon and a
   standalone window (no browser address bar) instead of just a bookmarked
   tab, per the mobile-web-app plan in [`PROJECT.md`](./PROJECT.md).
-- **Design touches** — the home page is a dashboard of six cards, each
-  with a small icon and color accent instead of a plain text link, split
-  into what you can *do* (Scan, Suggest) and what you *have* (Inventory,
-  Wishlist, Tasting history, Flights). Only the latter carry a count: a
-  number on "Scan" would be meaningless. The icons are hand-written SVG
-  paths in `app/components/icons.js` rather than image assets or an icon
-  library — nothing to host or license, and they inherit the surrounding
-  text color so one copy works in both themes. They're built from a few
-  shared parts (a bottle, a glass, a coil) rather than drawn one at a time,
-  since four of the six contain a bottle and three contain a glass — which
-  is what keeps the set looking like a set. Anywhere the app is doing something that takes a moment (saving
+- **Design touches** — the home page is six cards and nothing else: no
+  title, no section labels, since six labelled cards say what the app holds
+  better than a heading above them does. Each card carries its icon and
+  name top-left, its count bottom-left (centered under the icon, so the
+  figure reads as belonging to it) and its description bottom-right. Only
+  Inventory, Wishlist, Tasting history and Flights carry a count — a number
+  on "Scan" would be meaningless, so Scan and Suggest give their
+  description the whole bottom row instead. The whole screen fits above the
+  fold on a small phone. The icons are hand-written SVG paths in
+  `app/components/icons.js` rather than image assets or an icon library —
+  nothing to host or license, and they inherit the surrounding text color
+  so one copy works in both themes. They're built from a few shared parts
+  (a bottle, a glass, a coil) rather than drawn one at a time, since four
+  of the six contain a bottle and three contain a glass — which is what
+  keeps the set looking like a set. Anywhere the app is doing something that takes a moment (saving
   a bottle, researching, getting suggestions, reading a scanned photo) it
   shows a small animated "glass swirl" indicator instead of static text,
   so a busy screen reads as working rather than stuck. Navigating between

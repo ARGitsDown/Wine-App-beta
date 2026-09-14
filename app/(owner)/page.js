@@ -11,34 +11,41 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const sectionLabelClass =
-  "text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500";
-
 const cardClass =
-  "flex flex-col gap-2 rounded-xl border border-zinc-200 p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md dark:border-zinc-800 dark:hover:border-zinc-600";
+  "flex min-h-28 flex-col justify-between gap-3.5 rounded-xl border border-zinc-200 p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md dark:border-zinc-800 dark:hover:border-zinc-600";
 
 function Card({ card }) {
+  const hasCount = card.count !== undefined;
+
   return (
     <Link href={card.href} className={cardClass}>
-      {/* Icon and count share a row. Stacked, they cost a line per card,
-          which across six cards was most of a phone screen. */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <span
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${card.accent}`}
+          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${card.accent}`}
         >
-          <card.Icon className="h-5 w-5" />
+          <card.Icon className="h-7 w-7" />
         </span>
-        {/* Only the collections carry a number. Scan and Suggest are things
-            you do rather than piles of bottles, and a count on them would
-            either be meaningless or quietly invented. */}
-        {card.count !== undefined && (
-          <span className="text-xl font-semibold leading-none">{card.count}</span>
-        )}
+        <span className="text-base font-medium">{card.label}</span>
       </div>
-      <div>
-        <div className="text-sm font-medium">{card.label}</div>
-        <div className="text-xs text-zinc-500">{card.description}</div>
-      </div>
+
+      {/* Only the collections carry a number. Scan and Suggest are things
+          you do rather than piles of bottles, and a count on them would
+          either be meaningless or quietly invented - so their description
+          takes the whole bottom row instead of sitting beside a gap. */}
+      {hasCount ? (
+        <div className="flex items-end justify-between gap-2">
+          {/* The same width as the icon above it, centred: the figure reads
+              as belonging to that icon rather than to the card's edge. */}
+          <span className="w-11 shrink-0 text-center text-[26px] font-semibold leading-none tabular-nums">
+            {card.count}
+          </span>
+          <span className="text-right text-[12.5px] text-zinc-500">
+            {card.description}
+          </span>
+        </div>
+      ) : (
+        <span className="text-[12.5px] text-zinc-500">{card.description}</span>
+      )}
     </Link>
   );
 }
@@ -52,12 +59,31 @@ export default async function HomePage() {
       prisma.tastingFlight.count(),
     ]);
 
-  const collections = [
+  // Actions first: on a phone this is the top of the screen, and scanning a
+  // label or asking what to open is more often why you opened the app than
+  // reading a count is.
+  const cards = [
+    {
+      href: "/scan",
+      label: "Scan",
+      description: "Read a label or tasting sheet",
+      Icon: ScanIcon,
+      accent:
+        "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
+    },
+    {
+      href: "/suggest",
+      label: "Suggest",
+      description: "What to open tonight",
+      Icon: SuggestIcon,
+      accent:
+        "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-400",
+    },
     {
       href: "/inventory",
       label: "Inventory",
       count: inventoryCount,
-      description: "Bottles currently in your cellar",
+      description: "Bottles in your cellar",
       Icon: InventoryIcon,
       accent: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
     },
@@ -81,59 +107,24 @@ export default async function HomePage() {
       href: "/flights",
       label: "Flights",
       count: flightCount,
-      description: "Themed flights saved from Suggest",
+      description: "Themed flights saved",
       Icon: FlightsIcon,
       accent:
         "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400",
     },
   ];
 
-  const actions = [
-    {
-      href: "/scan",
-      label: "Scan",
-      description: "Read a label or tasting sheet from a photo",
-      Icon: ScanIcon,
-      accent:
-        "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
-    },
-    {
-      href: "/suggest",
-      label: "Suggest",
-      description: "What to open tonight, or a flight to build",
-      Icon: SuggestIcon,
-      accent:
-        "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-400",
-    },
-  ];
-
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6">
-      {/* No tagline under the title: six labelled cards say what the app
-          holds more precisely than a sentence summarising three of them. */}
-      <h1 className="text-2xl font-semibold">Wine tracker</h1>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
+      {/* The cards are the screen now - no title, no section labels. The
+          heading stays for screen readers, which would otherwise land on a
+          page with nothing naming it. */}
+      <h1 className="sr-only">Wine tracker</h1>
 
-      {/* Start here sits first: on a phone this is the top of the screen,
-          and scanning a label or asking what to open is more often why
-          you opened the app than reading a count is. */}
-      <div className="flex flex-col gap-2">
-        <h2 className={sectionLabelClass}>Start here</h2>
-        {/* Two across even on the narrowest phone. One card per row read
-            as a stack of banners and pushed Flights off the screen. */}
-        <div className="grid grid-cols-2 gap-3">
-          {actions.map((card) => (
-            <Card key={card.href} card={card} />
-          ))}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <h2 className={sectionLabelClass}>Your wines</h2>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {collections.map((card) => (
-            <Card key={card.href} card={card} />
-          ))}
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {cards.map((card) => (
+          <Card key={card.href} card={card} />
+        ))}
       </div>
 
       <a
