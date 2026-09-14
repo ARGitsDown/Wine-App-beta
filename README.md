@@ -60,9 +60,11 @@ features like separate cellars per user.
   For each, it checks your own saved bottles for anything similar and
   infers what it can (e.g. the grape variety for a Bordeaux or Burgundy
   labeled only by region), and carries over any tasting-note-style text the
-  source document already had. Nothing saves until you confirm each wine;
-  saving one doesn't interrupt the rest of the batch. A wine it wasn't
-  fully confident about is flagged "Needs research" when saved. The photo
+  source document already had. Each wine is saved as soon as it's read,
+  rather than waiting on a manual confirm - so navigating away (or the tab
+  closing) mid-batch never loses a wine that already came back; review and
+  correct each card afterward, or remove one you don't want. A wine it
+  wasn't fully confident about is flagged "Needs research" once saved. The photo
   itself is kept too (uploaded to Vercel Blob storage) and shown back on
   the bottle's list row and detail page - optional, and the rest of
   scanning works exactly the same without it (see `BLOB_READ_WRITE_TOKEN`
