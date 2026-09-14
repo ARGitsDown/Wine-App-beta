@@ -119,7 +119,10 @@ features like separate cellars per user.
   guest just enters a name (reused if they type the same one again from a
   new device), remembered via a cookie so their favorites persist across
   visits. Favorites show up back on `/inventory` as a ❤️ with who picked
-  it. This is deliberately lightweight; everyone getting their own
+  it. A guest sees only this page — no nav into the owner's Inventory,
+  Scan, or anything else — which is why the app's routes are split into
+  `app/(owner)` and `app/(guest)` route groups, each with its own header,
+  rather than sharing one. This is deliberately lightweight; everyone getting their own
   separate cellar is a bigger, separate capability - see
   [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md).
 - **Data export** (`/export`, linked from the home page) — downloads

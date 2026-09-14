@@ -139,6 +139,51 @@ indexes) is tracked separately as ordinary work, not here.
   delivery channel, both recurring costs for something the sort itself
   mostly solves for free.
 
+## 9. Usability gaps from the app-wide review
+
+Loose ends from the same review that produced #8. None of these cost
+anything to build - they're here because they were found in one pass and
+shouldn't live only in a chat log. Roughly in order of how often they'd
+bite someone actually using the app.
+
+- **Changing quantity takes a full page load and a form.** Drinking one
+  of six bottles is the single most common daily action, and it currently
+  means opening the bottle's page, editing the Details form, and saving.
+  A +/- control on the expanded inventory row would make it one tap.
+  Related, and arguably the same fix: **"Mark as finished" ignores
+  quantity entirely** - it flips a bottle to History whether you own one
+  or six, so the count silently stops meaning anything once you drink
+  from a case.
+- **No sort control.** Lists are always producer A-Z. Recently added,
+  vintage, and rating are all obvious wants; the drink-soon ordering in
+  #7 above is the one that actually helps prioritize pulls, and would
+  land in the same control.
+- **Deleting a bottle has no confirmation.** One tap on a bottle's page
+  removes it and cascade-deletes every tasting note attached to it, with
+  no undo and no prompt. The export in `/export` is the only safety net.
+- **Sharing the guest link is manual.** `/inventory` describes the guest
+  URL in plain text rather than offering a tappable copy/share button,
+  so handing it to someone means retyping it.
+- **Scanning a batch shows no overall progress.** Each photo gets its own
+  spinner, but with ten selected there's no "3 of 10 done" anywhere, so a
+  long batch reads as indefinite.
+- **`/estimate-windows` progress jumps around.** Batches run concurrently
+  now, so the counter advances 20 at a time and out of order. Cosmetic,
+  but it looks like a glitch.
+- **`getRegionOptions()` is uncached.** It runs a distinct-over-the-whole-
+  table query on every list page and every bottle detail page, for a
+  result that changes only when a new region is first used.
+- **`thinking: adaptive` on the extraction calls is probably not earning
+  its latency.** All five Claude calls set it; the four now on the
+  lighter model are structured extraction ("read this back label, invent
+  nothing"), where deliberation buys little. Worth measuring with it off
+  for the added-photo read and the drinking-window estimates.
+- **The lighter-model switch has not been checked against real bottles.**
+  Scan, Research, window estimates and photo reads moved to a mid-tier
+  model without a live API key available to test. Grape-from-appellation
+  inference and the `bottling` field are where a regression would show up
+  first.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
