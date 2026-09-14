@@ -66,9 +66,13 @@ features like separate cellars per user.
   "Tasted all N" if you're clearing the whole lot at once. Counts can
   also be corrected with a +/- stepper right on an inventory row, without
   opening the bottle.
-- **Tasting notes** — a note and an optional 1–5 rating logged against any
-  bottle, regardless of its current status. Rating is optional so a note
-  can be logged without a personal score yet (e.g. a shop's own write-up
+- **Tasting notes** — a note, an optional 1–5 rating, and the date you
+  tasted it, logged against any bottle regardless of its current status.
+  The date defaults to today, so logging as you drink stays one tap, but a
+  bottle you opened last month can be backdated rather than stamped with
+  the day you got round to writing it up — and the date on an existing
+  note can be corrected by clicking it. Rating is optional so a note can
+  be logged without a personal score yet (e.g. a shop's own write-up
   brought in via scanning, before you've actually tasted it yourself).
 - **Scan a label** (`/scan`) — photograph (or pick from your library) one or
   more photos at once. Each photo can hold a single bottle label *or* a

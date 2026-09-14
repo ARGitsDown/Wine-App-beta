@@ -13,6 +13,8 @@ import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
+import TastedDateEditor from "@/app/components/TastedDateEditor";
+import { todayInputValue } from "@/lib/tasting-date";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +57,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
       ? prisma.bottle.findUnique({
           where: { id: bottleId },
           include: {
-            tastingNotes: { orderBy: { tastedAt: "desc" } },
+            tastingNotes: { orderBy: [{ tastedAt: "desc" }, { id: "desc" }] },
             favorites: { include: { guest: true } },
             photos: { orderBy: { createdAt: "asc" } },
           },
@@ -222,10 +224,8 @@ export default async function BottleDetailPage({ params, searchParams }) {
               key={tastingNote.id}
               className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
             >
-              <div className="flex items-center justify-between text-sm text-zinc-500">
-                <span>
-                  {new Date(tastingNote.tastedAt).toLocaleDateString()}
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-500">
+                <TastedDateEditor note={tastingNote} />
                 <span>
                   {tastingNote.rating !== null
                     ? `${tastingNote.rating} / 5 ★`
@@ -257,16 +257,31 @@ export default async function BottleDetailPage({ params, searchParams }) {
               className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </label>
-          <label className="flex max-w-[8rem] flex-col gap-1 text-sm">
-            Rating (1–5, optional)
-            <input
-              name="rating"
-              type="number"
-              min="1"
-              max="5"
-              className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
+          <div className="flex flex-wrap gap-3">
+            <label className="flex max-w-[8rem] flex-col gap-1 text-sm">
+              Rating (1–5, optional)
+              <input
+                name="rating"
+                type="number"
+                min="1"
+                max="5"
+                className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Tasted on
+              {/* Defaults to today, so logging as you drink stays one tap -
+                  but a bottle you opened last month no longer gets stamped
+                  with the day you got round to writing it up. */}
+              <input
+                name="tastedAt"
+                type="date"
+                defaultValue={todayInputValue()}
+                max={todayInputValue()}
+                className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+              />
+            </label>
+          </div>
           <button type="submit" className={`self-start ${buttonClass}`}>
             Add tasting note
           </button>

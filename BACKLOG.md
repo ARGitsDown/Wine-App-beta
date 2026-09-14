@@ -60,9 +60,14 @@ README.md and from commit messages, so they stay put. This sits here
 because it outranks #5 below. The app has one real date and two
 implied ones, and can't distinguish them:
 
-- `TastingNote.tastedAt` exists and defaults to `now()`, but **nothing in
-  the UI ever sets it**. Logging a note about a bottle you opened last
-  month records today. This is the immediate gap.
+- ~~`TastingNote.tastedAt` exists and defaults to `now()`, but nothing in
+  the UI ever sets it~~ — done. The add-note form has a "Tasted on" field
+  defaulting to today (and capped at today), and the date on an existing
+  note is editable in place, since every note written before this was
+  stamped with whenever it got typed up. Dates are anchored at noon UTC
+  and always formatted in UTC - see `lib/tasting-date.js` for why a
+  date-only value in a DateTime column otherwise drifts a day each time
+  it round-trips.
 - `Bottle.createdAt` is "when this row was made", which the app quietly
   treats as "when it entered the cellar". For a bottle scanned off a shop
   shelf into the wishlist, or one scanned from a tasting sheet straight
@@ -71,12 +76,9 @@ implied ones, and can't distinguish them:
   History without noting the date; the tasting notes are the only trace,
   and only if one was written.
 
-The first is a small, self-contained fix: an optional date input on the
-tasting-note form, defaulting to today, plus the ability to correct it on
-an existing note. No migration - the column is already there.
-
-The rest needs a decision first, and it's the one scan raises: **what is
-the app recording when a wine is added?** Today scan infers status from
+That first item is now done. The rest needs a decision first, and it's
+the one scan raises: **what is the app recording when a wine is added?**
+Today scan infers status from
 whether the source document carried tasting-note text (a shop sheet's
 write-up ⇒ History; a plain label ⇒ Inventory), which is a reasonable
 guess but is never explained and can't be corrected as an intent - only
@@ -92,10 +94,12 @@ as a status radio after the fact. Worth settling:
   simply renamed in the UI and left alone? A separate nullable
   `acquiredAt` avoids rewriting history for existing rows.
 
-Recommendation: ship the tasting-note date on its own first, since it's
-useful immediately and commits to nothing. Treat the scan-intent flow and
-any acquired-date column as a second, separate piece of work once the
-question above is answered.
+The tasting-note date shipped on its own, as recommended - it was useful
+immediately and committed to none of the above. The scan-intent flow and
+any acquired-date column remain a separate piece of work, waiting on the
+question above. Of what's left, "when was it emptied" is arguably the
+bigger hole than acquisition, and is easier now that a tasting date
+exists to hang it off.
 
 ## 5. Bottle size / format
 

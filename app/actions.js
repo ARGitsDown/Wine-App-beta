@@ -10,6 +10,7 @@ import { cookies } from "next/headers";
 import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
+import { parseTastedDate } from "@/lib/tasting-date";
 import { WINE_COLORS } from "@/lib/wine-colors";
 import { uploadLabelPhoto } from "@/lib/blob";
 
@@ -274,9 +275,33 @@ export async function addTastingNote(bottleId, formData) {
   const note = String(formData.get("note") || "").trim();
   if (!note) return;
   const rating = parseOptionalRating(formData.get("rating"));
+  // Falls back to the column's own now() when the field is missing or
+  // unparseable, so a note is never lost to a bad date.
+  const tastedAt = parseTastedDate(formData.get("tastedAt")) ?? undefined;
 
-  await prisma.tastingNote.create({ data: { bottleId, note, rating } });
+  await prisma.tastingNote.create({ data: { bottleId, note, rating, tastedAt } });
   revalidatePath(`/bottles/${bottleId}`);
+}
+
+// Correcting when a note happened, without reopening the note itself -
+// the date is the part you're most likely to get wrong, since until now it
+// was always stamped with whenever you happened to write the note down.
+export async function updateTastingNoteDate(noteId, formData) {
+  const tastedAt = parseTastedDate(formData.get("tastedAt"));
+  if (!tastedAt) return { error: "That date doesn't look right." };
+
+  try {
+    const note = await prisma.tastingNote.update({
+      where: { id: noteId },
+      data: { tastedAt },
+      select: { bottleId: true },
+    });
+    revalidatePath(`/bottles/${note.bottleId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to update tasting note date:", err);
+    return { error: "Couldn't save that date. Please try again." };
+  }
 }
 
 const SEARCH_CELLAR_TOOL = {
