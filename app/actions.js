@@ -208,16 +208,16 @@ export async function setBottleStatus(id, status) {
   revalidatePath("/consumed");
 }
 
-// Drinking one bottle out of several you own. This used to go through
+// Tasting one bottle out of several you own. This used to go through
 // setBottleStatus, which moved the whole row to History regardless of
 // quantity - so opening one of a case of six both lost the five still in
 // the cellar and made `quantity` stop meaning anything.
 //
-// A row is the wine, not an individual bottle, so "finished" is only true
+// A row is the wine, not an individual bottle, so it only leaves the cellar
 // once the last one is gone: above one, this just decrements. The record of
 // *when* each bottle was drunk lives in that wine's tasting notes, which
 // carry their own dates and stay attached either way.
-export async function finishOneBottle(id) {
+export async function markOneTasted(id) {
   const bottle = await prisma.bottle.findUnique({
     where: { id },
     select: { quantity: true },
@@ -236,9 +236,9 @@ export async function finishOneBottle(id) {
 }
 
 // Correcting the count in place (bought two more, miscounted), as opposed
-// to finishOneBottle's "I drank one". Deliberately floors at 1: dropping to
+// to markOneTasted's "I drank one". Deliberately floors at 1: dropping to
 // zero is the same thing as no longer owning any, which is what
-// finishOneBottle is for, and doing it here would strand a bottle in
+// markOneTasted is for, and doing it here would strand a bottle in
 // Inventory at quantity 0.
 export async function adjustBottleQuantity(id, delta) {
   const bottle = await prisma.bottle.findUnique({

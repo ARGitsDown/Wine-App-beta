@@ -5,7 +5,7 @@ import {
   updateBottle,
   deleteBottle,
   setBottleStatus,
-  finishOneBottle,
+  markOneTasted,
   addTastingNote,
   deleteBottlePhoto,
 } from "@/app/actions";
@@ -128,20 +128,23 @@ export default async function BottleDetailPage({ params, searchParams }) {
           )}
           {bottle.status === "inventory" && (
             <>
-              <form action={finishOneBottle.bind(null, bottle.id)}>
+              <form action={markOneTasted.bind(null, bottle.id)}>
                 <button className={buttonClass} type="submit">
                   {bottle.quantity > 1
-                    ? `Drink one — ${bottle.quantity - 1} left`
-                    : "Mark as finished"}
+                    ? `Tasted one — ${bottle.quantity - 1} left`
+                    : "Tasted"}
                 </button>
               </form>
-              {/* Still a way to retire the whole lot at once (gave the case
-                  away, fixing a bad count) - the button above only ever
-                  moves the last bottle to History. */}
+              {/* Still a way to clear the whole lot at once (drank them at a
+                  dinner, gave the case away, fixing a bad count) - the
+                  button above only ever moves the last bottle to History.
+                  "Tasted" rather than "finished" throughout: finished reads
+                  as "done with this task", which is what Research's buttons
+                  mean, and the two sat side by side on this page. */}
               {bottle.quantity > 1 && (
                 <form action={setBottleStatus.bind(null, bottle.id, "consumed")}>
                   <button className={secondaryButtonClass} type="submit">
-                    Finish all {bottle.quantity}
+                    Tasted all {bottle.quantity}
                   </button>
                 </form>
               )}

@@ -359,7 +359,7 @@ export default function ScanPage() {
                       <BottleForm
                         action={updateBottle.bind(null, entry.bottle.id)}
                         defaultValues={entry.bottle}
-                        submitLabel="Save changes"
+                        submitLabel="Update"
                         idPrefix={`scan-entry-${entry.localId}`}
                       />
 
@@ -368,7 +368,7 @@ export default function ScanPage() {
                         onClick={() => handleRemove(photo, entry)}
                         className="self-start text-xs text-zinc-500 underline underline-offset-2"
                       >
-                        Remove this one
+                        Delete this wine
                       </button>
                     </>
                   ) : entry.status === "saved" ? (
@@ -423,7 +423,7 @@ export default function ScanPage() {
                         onClick={() => handleRemove(photo, entry)}
                         className="self-start text-xs text-zinc-500 underline underline-offset-2"
                       >
-                        Remove this one
+                        Discard this card
                       </button>
                     </>
                   )}

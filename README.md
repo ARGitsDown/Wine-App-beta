@@ -61,9 +61,9 @@ features like separate cellars per user.
   "Bought it" button moves a bottle into inventory.
 - **History** (`/consumed`) — bottles you've finished, kept around (with
   their tasting notes). A row is a wine rather than an individual bottle,
-  so owning several and drinking one just decrements the count ("Drink
+  so owning several and drinking one just decrements the count ("Tasted
   one — 5 left"); it only moves here once the last one is gone, or via
-  "Finish all N" if you're retiring the whole lot at once. Counts can
+  "Tasted all N" if you're clearing the whole lot at once. Counts can
   also be corrected with a +/- stepper right on an inventory row, without
   opening the bottle.
 - **Tasting notes** — a note and an optional 1–5 rating logged against any
@@ -81,7 +81,7 @@ features like separate cellars per user.
   rather than waiting on a manual confirm - so navigating away (or the tab
   closing) mid-batch never loses a wine that already came back; review and
   correct each card afterward, or remove one you don't want. A wine it
-  wasn't fully confident about is flagged "Needs research" once saved. The photo
+  wasn't fully confident about is flagged "Needs research" once saved.
   A progress bar above the batch tracks how many photos have been read and
   how many wines have turned up so far, so a ten-photo run reads as
   working rather than indefinite, and ends with a summary of what was

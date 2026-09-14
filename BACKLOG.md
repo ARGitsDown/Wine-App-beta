@@ -53,6 +53,50 @@ or past peak (falling back honestly rather than silently ignoring the
 window when nothing ready fits). Shown on the bottle detail page as a
 "ready / too young / past peak" badge.
 
+## 10. Dates: when it was tasted, and when it arrived
+
+Out of numeric order on purpose: section numbers are referenced from
+README.md and from commit messages, so they stay put. This sits here
+because it outranks #5 below. The app has one real date and two
+implied ones, and can't distinguish them:
+
+- `TastingNote.tastedAt` exists and defaults to `now()`, but **nothing in
+  the UI ever sets it**. Logging a note about a bottle you opened last
+  month records today. This is the immediate gap.
+- `Bottle.createdAt` is "when this row was made", which the app quietly
+  treats as "when it entered the cellar". For a bottle scanned off a shop
+  shelf into the wishlist, or one scanned from a tasting sheet straight
+  into History, that reading is wrong.
+- Nothing records **when a bottle was emptied**. "Tasted" moves a row to
+  History without noting the date; the tasting notes are the only trace,
+  and only if one was written.
+
+The first is a small, self-contained fix: an optional date input on the
+tasting-note form, defaulting to today, plus the ability to correct it on
+an existing note. No migration - the column is already there.
+
+The rest needs a decision first, and it's the one scan raises: **what is
+the app recording when a wine is added?** Today scan infers status from
+whether the source document carried tasting-note text (a shop sheet's
+write-up ⇒ History; a plain label ⇒ Inventory), which is a reasonable
+guess but is never explained and can't be corrected as an intent - only
+as a status radio after the fact. Worth settling:
+
+- Should scan ask outright ("adding to the cellar" vs "drinking this
+  now"), rather than inferring? That would make both dates meaningful:
+  added-to-cellar for the first, tasted for the second.
+- Does a bottle that goes straight to History need an acquired date at
+  all? It never sat in the cellar, so arguably not - but a tasting sheet
+  from a shop visit does have a real date worth keeping.
+- Is "acquired" a separate column from `createdAt`, or is `createdAt`
+  simply renamed in the UI and left alone? A separate nullable
+  `acquiredAt` avoids rewriting history for existing rows.
+
+Recommendation: ship the tasting-note date on its own first, since it's
+useful immediately and commits to nothing. Treat the scan-intent flow and
+any acquired-date column as a second, separate piece of work once the
+question above is answered.
+
 ## 5. Bottle size / format
 
 `quantity` counts bottles but doesn't distinguish sizes (375ml half,
@@ -155,8 +199,8 @@ bite someone actually using the app.
 - ~~**Changing quantity takes a full page load and a form**, and **"Mark
   as finished" ignores quantity entirely**~~ — done. A row is the wine
   rather than an individual bottle, so "finished" only means anything
-  once the last one is gone: `finishOneBottle` decrements above one and
-  moves the row to History only on the last, with "Finish all N" kept
+  once the last one is gone: `markOneTasted` decrements above one and
+  moves the row to History only on the last, with "Tasted all N" kept
   alongside for retiring a whole lot at once. Tasting notes stay attached
   either way, and since each carries its own date they remain the record
   of when each bottle was actually drunk. Inventory and Wishlist rows

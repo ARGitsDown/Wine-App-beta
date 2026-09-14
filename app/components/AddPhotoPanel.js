@@ -79,9 +79,20 @@ export default function AddPhotoPanel({ bottle, regionOptions }) {
       {result && !applied && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300 p-4 dark:border-amber-900">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{result.summary}</p>
-          <p className="text-xs text-zinc-500">
-            Review and edit below — nothing changes until you save.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-zinc-500">
+              Review and edit below — nothing changes until you save.
+            </p>
+            {/* Closing only discards the proposed field changes; the photo
+                itself was uploaded as soon as it was picked, and stays. */}
+            <button
+              type="button"
+              onClick={() => setResult(null)}
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+            >
+              Close
+            </button>
+          </div>
           <BottleForm
             action={updateBottle.bind(null, bottle.id)}
             defaultValues={{ ...bottle, ...result }}

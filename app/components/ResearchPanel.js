@@ -92,9 +92,20 @@ export default function ResearchPanel({ bottle, regionOptions }) {
               ))}
             </ul>
           )}
-          <p className="text-xs text-zinc-500">
-            Review and edit below — nothing changes until you save.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-zinc-500">
+              Review and edit below — nothing changes until you save.
+            </p>
+            {/* Without this there was no way out of a result you didn't want
+                except reloading the page: the only button was "Apply". */}
+            <button
+              type="button"
+              onClick={() => setResult(null)}
+              className={secondaryButtonClass}
+            >
+              Close
+            </button>
+          </div>
           <BottleForm
             action={applyResearch.bind(null, bottle.id)}
             defaultValues={{ ...bottle, ...result }}
