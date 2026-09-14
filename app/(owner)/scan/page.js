@@ -29,6 +29,72 @@ async function runWithConcurrency(items, concurrency, worker) {
 let nextPhotoId = 0;
 let nextEntryId = 0;
 
+// A whole-batch view of what's happening. Each photo already shows its own
+// spinner, but with ten selected there was nothing saying how far along the
+// batch as a whole was - so a long run read as indefinite even though every
+// piece of it was making progress.
+//
+// Counts come from the photo list itself rather than a separate tally, so
+// choosing more photos mid-run (which appends to the same list) just raises
+// the total instead of starting a second, competing count.
+function batchProgress(photos) {
+  const total = photos.length;
+  const done = photos.filter((p) => p.status !== "loading").length;
+  const failed = photos.filter((p) => p.status === "error").length;
+  // Only wines from photos that actually read - an errored photo still gets
+  // one blank card to type into, which isn't a wine anyone found.
+  const wines = photos
+    .filter((p) => p.status === "ready")
+    .reduce((n, p) => n + p.entries.length, 0);
+  return { total, done, failed, wines, running: done < total };
+}
+
+function BatchProgress({ photos }) {
+  const { total, done, failed, wines, running } = batchProgress(photos);
+  if (total === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <span className={running ? "text-zinc-500" : "font-medium"}>
+          {running ? (
+            // Counting completions rather than "photo N of M": several are
+            // in flight at once, so there's no single current one.
+            <Spinner label={`${done} of ${total} photos read…`} />
+          ) : (
+            `Read ${total} photo${total === 1 ? "" : "s"} — ${wines} wine${
+              wines === 1 ? "" : "s"
+            } saved`
+          )}
+        </span>
+        {wines > 0 && running && (
+          <span className="text-xs text-zinc-500">
+            {wines} wine{wines === 1 ? "" : "s"} so far
+          </span>
+        )}
+        {failed > 0 && !running && (
+          <span className="text-xs text-red-600 dark:text-red-400">
+            {failed} couldn&apos;t be read
+          </span>
+        )}
+      </div>
+      <div
+        className="h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+        role="progressbar"
+        aria-valuenow={done}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-label="Photos read"
+      >
+        <div
+          className="h-full rounded-full bg-zinc-900 transition-[width] duration-300 dark:bg-zinc-100"
+          style={{ width: `${(done / total) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // An unsaved draft card - for when reading a photo fails outright, or (rarely)
 // a specific wine was read successfully but its save to the database failed.
 // Nothing exists yet; the existing manual "Save bottle" flow creates it.
@@ -205,6 +271,8 @@ export default function ScanPage() {
         onChange={handleFilesChange}
         className="text-sm"
       />
+
+      <BatchProgress photos={photos} />
 
       <div className="flex flex-col gap-6">
         {photos.map((photo) => (

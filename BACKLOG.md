@@ -173,9 +173,14 @@ bite someone actually using the app.
 - **Sharing the guest link is manual.** `/inventory` describes the guest
   URL in plain text rather than offering a tappable copy/share button,
   so handing it to someone means retyping it.
-- **Scanning a batch shows no overall progress.** Each photo gets its own
-  spinner, but with ten selected there's no "3 of 10 done" anywhere, so a
-  long batch reads as indefinite.
+- ~~**Scanning a batch shows no overall progress**~~ — done. A bar above
+  the photo list tracks the batch as a whole ("3 of 9 photos read…", with
+  a running count of wines found), then settles into a summary once
+  everything is in ("Read 9 photos — 12 wines saved", plus how many
+  couldn't be read). It counts completions rather than naming a current
+  photo, since three are processed at once, and it derives from the photo
+  list itself - so picking more photos mid-run raises the total instead
+  of starting a second, competing count.
 - **`/estimate-windows` progress jumps around.** Batches run concurrently
   now, so the counter advances 20 at a time and out of order. Cosmetic,
   but it looks like a glitch.

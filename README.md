@@ -75,6 +75,10 @@ features like separate cellars per user.
   closing) mid-batch never loses a wine that already came back; review and
   correct each card afterward, or remove one you don't want. A wine it
   wasn't fully confident about is flagged "Needs research" once saved. The photo
+  A progress bar above the batch tracks how many photos have been read and
+  how many wines have turned up so far, so a ten-photo run reads as
+  working rather than indefinite, and ends with a summary of what was
+  saved and what couldn't be read. The photo
   itself is kept too (uploaded to Vercel Blob storage) and shown back on
   the bottle's list row and detail page - optional, and the rest of
   scanning works exactly the same without it (see `BLOB_READ_WRITE_TOKEN`
