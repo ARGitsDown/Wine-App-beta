@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { addBottlePhoto } from "@/app/actions";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
+import Spinner from "@/app/components/Spinner";
 
 // Lets a bottle collect more than one photo over time - a back label, a
 // cork, a case - beyond the single label photo captured at scan time.
@@ -48,7 +49,7 @@ export default function AddPhotoPanel({ bottleId }) {
         disabled={uploading}
         className="self-start rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
       >
-        {uploading ? "Uploading…" : "Add a photo"}
+        {uploading ? <Spinner label="Uploading…" /> : "Add a photo"}
       </button>
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
     </div>
