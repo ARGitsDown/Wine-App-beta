@@ -78,11 +78,18 @@ blank you have to remember to fill in yourself. Plan:
   an AI guess from a confirmed window (label text, a real Research
   citation, or anything a person typed by hand) - shown as a distinct
   "· estimated" badge next to the drinking-window pill on the bottle
-  detail page. Only ever set by an estimate-producing action (none exist
-  yet - still to build); a plain edit through the Details form clears it
-  back to false when the years actually change, and leaves it alone
-  otherwise (e.g. editing Notes doesn't clear it).
-- **Every add path fills it in, not just a one-time pass**: the scan
+  detail page. A plain edit through the Details form clears it back to
+  false when the years actually change, and leaves it alone otherwise
+  (e.g. editing Notes doesn't clear it).
+- ~~**A one-time bulk backfill action**~~ — done. `/estimate-windows`
+  (linked from a banner on Inventory when any bottle qualifies) estimates
+  every inventory bottle with no window at all (both `drinkFrom` and
+  `drinkTo` null - a partial window left open-ended on purpose is never
+  touched) and applies the results directly, not reviewed one-by-one,
+  since that isn't practical at hundreds of bottles. Chunked client-side
+  (20 bottles/request) so a single request never risks a serverless
+  timeout across a large cellar.
+- **Every add path fills it in, not just the one-time pass**: the scan
   tool's schema changes from "only if confident" to "always propose your
   best estimate," and Research's fallback (when its web search finds
   nothing stated) does the same instead of leaving the field untouched.
@@ -95,10 +102,6 @@ blank you have to remember to fill in yourself. Plan:
   would need the same domain judgment we're already asking the model
   for, just harder to keep current), just avoiding redundant calls for
   bottles you own multiples of.
-- **A one-time bulk backfill action** applies estimates directly (not
-  reviewed one-by-one - at hundreds of bottles that isn't practical)
-  across every bottle currently missing a window, for the existing
-  cellar and the hundreds about to be added.
 - **A "drink soon" sort/view** on Inventory, ordered by urgency (past
   peak -> ending soon -> ready -> too young), since an estimate sitting
   on a detail page nobody visits doesn't actually help prioritize pulls.
