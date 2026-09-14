@@ -130,6 +130,10 @@ features like separate cellars per user.
   rather than sharing one. This is deliberately lightweight; everyone getting their own
   separate cellar is a bigger, separate capability - see
   [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md).
+- **Deleting asks first** — removing a bottle, one of its photos, or a
+  saved flight takes a second click, and the confirmation says what else
+  goes with it ("Also deletes 2 tasting notes and 2 guest favorites"),
+  since a bottle's notes and favorites are cascade-deleted along with it.
 - **Data export** (`/export`, linked from the home page) — downloads
   everything (every bottle, its tasting notes, guests and their
   favorites) as one JSON file. Cheap peace of mind for a personal system

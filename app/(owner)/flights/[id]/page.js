@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { markFlightPickConsumed, deleteTastingFlight } from "@/app/actions";
+import ConfirmButton from "@/app/components/ConfirmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -38,11 +39,15 @@ export default async function FlightDetailPage({ params }) {
             Saved {new Date(flight.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <form action={deleteTastingFlight.bind(null, flight.id)}>
-          <button type="submit" className={dangerButtonClass}>
-            Delete flight
-          </button>
-        </form>
+        <ConfirmButton
+          action={deleteTastingFlight.bind(null, flight.id)}
+          label="Delete flight"
+          confirmLabel="Yes, delete"
+          warning={`Deletes this flight and its ${flight.picks.length} pick${
+            flight.picks.length === 1 ? "" : "s"
+          }. The bottles themselves stay in your cellar.`}
+          className={dangerButtonClass}
+        />
       </div>
 
       <ol className="flex flex-col gap-3">

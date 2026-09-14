@@ -161,9 +161,15 @@ bite someone actually using the app.
   vintage, and rating are all obvious wants; the drink-soon ordering in
   #7 above is the one that actually helps prioritize pulls, and would
   land in the same control.
-- **Deleting a bottle has no confirmation.** One tap on a bottle's page
-  removes it and cascade-deletes every tasting note attached to it, with
-  no undo and no prompt. The export in `/export` is the only safety net.
+- ~~**Deleting a bottle has no confirmation**~~ — done. Deleting a
+  bottle, removing one of its photos, or deleting a saved flight now all
+  take a second click, via a shared `ConfirmButton`. It's a two-step
+  inline control rather than a native `confirm()` dialog specifically so
+  it can name what's about to go with it ("Also deletes 2 tasting notes
+  and 2 guest favorites") - "are you sure?" on its own tells you nothing
+  you didn't already know. Scan's "Remove this one" is deliberately left
+  alone: discarding cards you didn't want is the normal path through that
+  review flow, not an accident worth interrupting.
 - **Sharing the guest link is manual.** `/inventory` describes the guest
   URL in plain text rather than offering a tappable copy/share button,
   so handing it to someone means retyping it.

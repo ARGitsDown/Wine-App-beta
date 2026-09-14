@@ -10,6 +10,7 @@ import {
   deleteBottlePhoto,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import ConfirmButton from "@/app/components/ConfirmButton";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
@@ -20,6 +21,25 @@ const buttonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
 const secondaryButtonClass =
   "rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700";
+
+// Deleting a bottle cascades to everything hanging off it. Naming what
+// actually goes with it is the point of confirming at all - "are you sure?"
+// on its own tells you nothing you didn't already know.
+function describeDeleteLoss(bottle) {
+  const count = (n, one, many) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
+  const attached = [
+    bottle.tastingNotes.length && count(bottle.tastingNotes.length, "tasting note", "tasting notes"),
+    bottle.photos.length && count(bottle.photos.length, "added photo", "added photos"),
+    bottle.favorites.length && count(bottle.favorites.length, "guest favorite", "guest favorites"),
+  ].filter(Boolean);
+
+  if (attached.length === 0) return "Permanently delete this bottle?";
+  const list =
+    attached.length === 1
+      ? attached[0]
+      : `${attached.slice(0, -1).join(", ")} and ${attached.at(-1)}`;
+  return `Also deletes ${list}. This can't be undone.`;
+}
 const dangerButtonClass =
   "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
 
@@ -127,11 +147,13 @@ export default async function BottleDetailPage({ params, searchParams }) {
               )}
             </>
           )}
-          <form action={deleteBottle.bind(null, bottle.id)}>
-            <button className={dangerButtonClass} type="submit">
-              Delete
-            </button>
-          </form>
+          <ConfirmButton
+            action={deleteBottle.bind(null, bottle.id)}
+            label="Delete"
+            confirmLabel="Yes, delete"
+            warning={describeDeleteLoss(bottle)}
+            className={dangerButtonClass}
+          />
         </div>
       </div>
 
@@ -166,14 +188,13 @@ export default async function BottleDetailPage({ params, searchParams }) {
                   alt={`Additional photo for ${bottle.producer}`}
                   className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
                 />
-                <form action={deleteBottlePhoto.bind(null, photo.id)}>
-                  <button
-                    type="submit"
-                    className="text-xs text-zinc-500 underline underline-offset-2"
-                  >
-                    Remove
-                  </button>
-                </form>
+                <ConfirmButton
+                  action={deleteBottlePhoto.bind(null, photo.id)}
+                  label="Remove"
+                  confirmLabel="Remove photo"
+                  className="text-xs text-zinc-500 underline underline-offset-2"
+                  confirmClassName="text-xs font-medium text-red-600 underline underline-offset-2 dark:text-red-400"
+                />
               </div>
             ))}
           </div>
