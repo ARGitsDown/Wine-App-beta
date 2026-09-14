@@ -96,12 +96,17 @@ blank you have to remember to fill in yourself. Plan:
   A lightweight "Estimate" action (producer/variety/region/vintage only,
   no web search - cheaper and faster than full Research) covers manual
   entry.
-- **A small cache** (keyed on producer/bottling/canonicalVariety/region/
-  vintage) reuses a past estimate for an identical wine instead of
-  re-asking Claude every time - not a hand-curated reference table (which
-  would need the same domain judgment we're already asking the model
-  for, just harder to keep current), just avoiding redundant calls for
-  bottles you own multiples of.
+- ~~**A small cache**~~ — done. `DrinkWindowEstimate` stores each answer
+  against a normalized producer/bottling/grape/region/vintage key (see
+  `lib/drink-window-cache.js`), so the same wine is never asked about
+  twice - whether it appears as two rows in one batch or comes back
+  months later. Case and spacing are normalized, so "Domaine Tempier"
+  and "domaine tempier " share an entry. An all-null answer is
+  deliberately not cached: the model having nothing this time shouldn't
+  permanently stop us asking again. The backfill panel reports how many
+  were reused. Still not a hand-curated reference table - that would need
+  the same domain judgment we're asking the model for, just harder to
+  keep current.
 - ~~**A "drink soon" sort/view**~~ — done as part of the sort control in
   #9 below. Orders by urgency (past peak -> ready -> too young -> no
   window on file), and within each group by whichever window closes
@@ -192,9 +197,12 @@ bite someone actually using the app.
 - **`/estimate-windows` progress jumps around.** Batches run concurrently
   now, so the counter advances 20 at a time and out of order. Cosmetic,
   but it looks like a glitch.
-- **`getRegionOptions()` is uncached.** It runs a distinct-over-the-whole-
-  table query on every list page and every bottle detail page, for a
-  result that changes only when a new region is first used.
+- ~~**`getRegionOptions()` is uncached**~~ — done. Wrapped in
+  `unstable_cache` behind a `region-options` tag, invalidated wherever a
+  bottle is created or edited (the only way a new region name can
+  appear), with an hourly revalidate as a backstop. Deliberately not
+  invalidated on delete: a suggestion for a region you no longer own is
+  harmless, and the backstop clears it eventually.
 - **`thinking: adaptive` on the extraction calls is probably not earning
   its latency.** All five Claude calls set it; the four now on the
   lighter model are structured extraction ("read this back label, invent

@@ -39,25 +39,24 @@ export default async function EstimateWindowsPage() {
         </p>
       </div>
 
-      {bottles.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          Every inventory bottle already has a drinking window.
-        </p>
-      ) : (
-        <>
-          <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-            <summary className="cursor-pointer text-sm text-zinc-500">
-              Show the {bottles.length} bottle{bottles.length === 1 ? "" : "s"}
-            </summary>
-            <ul className="mt-2 flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-              {bottles.map((bottle) => (
-                <li key={bottle.id}>{bottleHeader(bottle)}</li>
-              ))}
-            </ul>
-          </details>
-          <EstimateWindowsPanel bottles={bottles} />
-        </>
+      {/* The panel is rendered unconditionally, including its own empty
+          state. A finished run leaves no bottle missing a window, so
+          branching on that list here used to replace the panel - and its
+          result summary - the instant the work completed, meaning you never
+          got to read what happened. */}
+      {bottles.length > 0 && (
+        <details className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+          <summary className="cursor-pointer text-sm text-zinc-500">
+            Show the {bottles.length} bottle{bottles.length === 1 ? "" : "s"}
+          </summary>
+          <ul className="mt-2 flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+            {bottles.map((bottle) => (
+              <li key={bottle.id}>{bottleHeader(bottle)}</li>
+            ))}
+          </ul>
+        </details>
       )}
+      <EstimateWindowsPanel bottles={bottles} />
     </div>
   );
 }

@@ -221,3 +221,21 @@ model FlightPick {
   @@index([flightId])
   @@index([bottleId])
 }
+
+// A drinking-window estimate Claude has already produced for a given wine,
+// keyed on what actually determines the answer (producer, bottling, grape,
+// region, vintage - see drinkWindowCacheKey in lib/drink-window-cache.js)
+// rather than on a bottle id. Two rows for the same wine, or the same wine
+// re-added months later, then reuse the earlier answer instead of paying
+// for an identical question - see BACKLOG.md #7.
+//
+// Deliberately not a hand-curated reference table: that would need the same
+// domain judgment we're already asking the model for, just harder to keep
+// current. This only avoids asking twice.
+model DrinkWindowEstimate {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  drinkFrom Int?
+  drinkTo   Int?
+  createdAt DateTime @default(now())
+}

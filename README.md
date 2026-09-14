@@ -53,7 +53,10 @@ features like separate cellars per user.
   reviewed one by one, and marked "estimated" on the bottle's own page
   afterward so it's clear which windows are a rough guess worth
   double-checking versus a confirmed one - see [`BACKLOG.md`](./BACKLOG.md)
-  #7.
+  #7. Each answer is remembered against the wine (producer/bottling/grape/
+  region/vintage), so owning the same wine as two separate entries, or
+  re-adding it months later, reuses the earlier estimate instead of paying
+  to ask the same question again.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
 - **History** (`/consumed`) — bottles you've finished, kept around (with

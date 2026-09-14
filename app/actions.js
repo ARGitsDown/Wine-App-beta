@@ -2,12 +2,14 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL, REASONING_MODEL } from "@/lib/anthropic";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
+import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { WINE_COLORS } from "@/lib/wine-colors";
 import { uploadLabelPhoto } from "@/lib/blob";
 
@@ -68,6 +70,15 @@ function clearEstimatedFlagIfWindowChanged(data, existingBottle) {
   return changed ? { ...data, drinkWindowEstimated: false } : data;
 }
 
+// The Region autocomplete's list is cached (see getRegionOptions), and a
+// bottle write is the only way a region name it hasn't seen can appear.
+// Called after creating or editing a bottle, not after deleting one: a
+// suggestion for a region you no longer own is harmless, and the cache's
+// own revalidate clears it out eventually.
+function invalidateRegionOptions() {
+  revalidateTag(REGION_OPTIONS_TAG);
+}
+
 function pathForStatus(status) {
   if (status === "inventory") return "/inventory";
   if (status === "consumed") return "/consumed";
@@ -112,7 +123,11 @@ async function insertBottle(status, formData) {
   // creation time, never touched by a later manual edit.
   const photoUrl = String(formData.get("photoUrl") || "").trim() || null;
   try {
-    return await prisma.bottle.create({ data: { ...data, status, needsResearch, photoUrl } });
+    const created = await prisma.bottle.create({
+      data: { ...data, status, needsResearch, photoUrl },
+    });
+    invalidateRegionOptions();
+    return created;
   } catch (err) {
     // The scan page can have several of these forms on screen at once, each
     // an independent submission - a transient DB error on one shouldn't
@@ -175,6 +190,7 @@ export async function updateBottle(id, prevState, formData) {
       where: { id },
       data: clearEstimatedFlagIfWindowChanged(data, existing),
     });
+    invalidateRegionOptions();
     revalidatePath(`/bottles/${id}`);
     revalidatePath(pathForStatus(bottle.status));
     return { success: true };
@@ -507,6 +523,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
             results.push({ wine, saveError: true });
           }
         }
+        invalidateRegionOptions();
         return { data: results };
       }
 
@@ -1010,6 +1027,7 @@ export async function applyResearch(id, prevState, formData) {
       where: { id },
       data: { ...clearEstimatedFlagIfWindowChanged(data, existing), needsResearch: false },
     });
+    invalidateRegionOptions();
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/research");
     revalidatePath(pathForStatus(bottle.status));
@@ -1098,16 +1116,70 @@ export async function estimateDrinkWindows(bottleIds) {
       vintage: true,
       type: true,
       variety: true,
+      canonicalVariety: true,
       region: true,
       subRegion: true,
       country: true,
     },
   });
-  if (bottles.length === 0) return { data: { updated: 0, total: 0 } };
+  if (bottles.length === 0) return { data: { updated: 0, total: 0, fromCache: 0 } };
 
-  const listText = bottles
-    .map((bottle) => `id ${bottle.id}: ${describeBottleForWindowEstimate(bottle)}`)
+  // Applies one estimate to every bottle that shares its wine - the answer
+  // is about the wine, not about a particular row.
+  async function applyToBottles(targets, { drinkFrom, drinkTo }) {
+    let applied = 0;
+    for (const bottle of targets) {
+      try {
+        await prisma.bottle.update({
+          where: { id: bottle.id },
+          data: { drinkFrom, drinkTo, drinkWindowEstimated: true },
+        });
+        applied++;
+      } catch (err) {
+        // One bad id (e.g. a bottle deleted mid-run) shouldn't cost the
+        // rest of the batch its otherwise-good estimates.
+        console.error(`Failed to apply drink window estimate for bottle ${bottle.id}:`, err);
+      }
+    }
+    return applied;
+  }
+
+  // Group the batch by wine, so a cellar holding the same wine in two rows
+  // (or the same wine re-added later) asks once rather than once per row.
+  const byKey = new Map();
+  for (const bottle of bottles) {
+    const key = drinkWindowCacheKey(bottle);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(bottle);
+  }
+
+  const cached = await prisma.drinkWindowEstimate.findMany({
+    where: { key: { in: [...byKey.keys()] } },
+  });
+
+  let updated = 0;
+  let fromCache = 0;
+  for (const entry of cached) {
+    const targets = byKey.get(entry.key);
+    if (!targets) continue;
+    const applied = await applyToBottles(targets, entry);
+    updated += applied;
+    fromCache += applied;
+    byKey.delete(entry.key);
+  }
+
+  // Everything left needs asking. One representative bottle per wine goes
+  // to Claude; its answer is then applied to all the rows sharing that key.
+  const toAsk = [...byKey.entries()].map(([key, targets]) => ({ key, bottle: targets[0] }));
+  if (toAsk.length === 0) {
+    revalidatePath("/inventory");
+    return { data: { updated, total: bottles.length, fromCache } };
+  }
+
+  const listText = toAsk
+    .map(({ bottle }) => `id ${bottle.id}: ${describeBottleForWindowEstimate(bottle)}`)
     .join("\n");
+  const keyByBottleId = new Map(toAsk.map(({ key, bottle }) => [bottle.id, key]));
 
   try {
     const response = await anthropic.messages.create({
@@ -1129,27 +1201,29 @@ export async function estimateDrinkWindows(bottleIds) {
     );
     if (!finalCall) return { error: "Couldn't estimate that batch. Please try again." };
 
-    let updated = 0;
     for (const estimate of finalCall.input.estimates) {
+      // An all-null answer is deliberately not cached: the model having
+      // nothing this time shouldn't permanently stop us asking again.
       if (estimate.drinkFrom == null && estimate.drinkTo == null) continue;
+      const key = keyByBottleId.get(estimate.id);
+      if (!key) continue;
+
       try {
-        await prisma.bottle.update({
-          where: { id: estimate.id },
-          data: {
-            drinkFrom: estimate.drinkFrom,
-            drinkTo: estimate.drinkTo,
-            drinkWindowEstimated: true,
-          },
+        await prisma.drinkWindowEstimate.upsert({
+          where: { key },
+          create: { key, drinkFrom: estimate.drinkFrom, drinkTo: estimate.drinkTo },
+          update: { drinkFrom: estimate.drinkFrom, drinkTo: estimate.drinkTo },
         });
-        updated++;
       } catch (err) {
-        // One bad id in a batch (e.g. a bottle deleted mid-run) shouldn't
-        // fail the rest of the batch's otherwise-good estimates.
-        console.error(`Failed to apply drink window estimate for bottle ${estimate.id}:`, err);
+        // Failing to remember the answer is not a reason to discard it.
+        console.error(`Failed to cache drink window estimate for ${key}:`, err);
       }
+
+      updated += await applyToBottles(byKey.get(key) ?? [], estimate);
     }
+
     revalidatePath("/inventory");
-    return { data: { updated, total: bottles.length } };
+    return { data: { updated, total: bottles.length, fromCache } };
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) {
       return { error: "The estimate feature isn't configured correctly (invalid API key)." };

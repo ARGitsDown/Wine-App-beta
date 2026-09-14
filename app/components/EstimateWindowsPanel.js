@@ -39,11 +39,19 @@ export default function EstimateWindowsPanel({ bottles }) {
   const [done, setDone] = useState(0);
   const [updated, setUpdated] = useState(0);
   const [failedBatches, setFailedBatches] = useState(0);
+  // How many came back from the estimate cache rather than a fresh ask.
+  const [reused, setReused] = useState(0);
+  // Frozen when the run starts. Finishing gives every bottle a window, so
+  // the server's "missing a window" list empties underneath this component
+  // - reading the total off the live prop would report "6 of 0".
+  const [total, setTotal] = useState(0);
 
   async function handleStart() {
     setStatus("running");
+    setTotal(bottles.length);
     setDone(0);
     setUpdated(0);
+    setReused(0);
     setFailedBatches(0);
 
     const batches = chunk(
@@ -53,6 +61,7 @@ export default function EstimateWindowsPanel({ bottles }) {
     let doneCount = 0;
     let updatedCount = 0;
     let failCount = 0;
+    let reusedCount = 0;
 
     await runWithConcurrency(batches, CONCURRENCY, async (batch) => {
       const result = await estimateDrinkWindows(batch);
@@ -61,7 +70,9 @@ export default function EstimateWindowsPanel({ bottles }) {
         setFailedBatches(failCount);
       } else {
         updatedCount += result.data.updated;
+        reusedCount += result.data.fromCache ?? 0;
         setUpdated(updatedCount);
+        setReused(reusedCount);
       }
       doneCount += batch.length;
       setDone(doneCount);
@@ -74,8 +85,14 @@ export default function EstimateWindowsPanel({ bottles }) {
     return (
       <div className="flex flex-col gap-2 rounded-lg border border-green-300 p-4 dark:border-green-900">
         <p className="text-sm font-medium text-green-700 dark:text-green-400">
-          ✓ Done — estimated {updated} of {bottles.length} bottles.
+          ✓ Done — estimated {updated} of {total} bottles.
         </p>
+        {reused > 0 && (
+          <p className="text-sm text-zinc-500">
+            {reused} reused an estimate already on file for the same wine,
+            so only {updated - reused} needed asking.
+          </p>
+        )}
         {failedBatches > 0 && (
           <p className="text-sm text-red-600 dark:text-red-400">
             {failedBatches} batch{failedBatches === 1 ? "" : "es"} failed —
@@ -90,6 +107,14 @@ export default function EstimateWindowsPanel({ bottles }) {
     );
   }
 
+  if (bottles.length === 0) {
+    return (
+      <p className="text-sm text-zinc-500">
+        Every inventory bottle already has a drinking window.
+      </p>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -98,7 +123,7 @@ export default function EstimateWindowsPanel({ bottles }) {
       </p>
       {status === "running" ? (
         <div className="text-sm text-zinc-500">
-          <Spinner label={`Estimating… ${done} of ${bottles.length}`} />
+          <Spinner label={`Estimating… ${done} of ${total}`} />
         </div>
       ) : (
         <button
