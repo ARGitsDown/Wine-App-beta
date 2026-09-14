@@ -34,22 +34,22 @@ export default function Spinner({ label, className = "h-4 w-4" }) {
           strokeLinecap="round"
           opacity="0.35"
         />
-        <path
-          d="M11 14a9 7 0 1 1 18 0"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-        >
-          <animateTransform
-            attributeName="transform"
-            type="rotate"
-            from="0 20 14"
-            to="360 20 14"
-            dur="1s"
+        <ellipse cx="20" cy="15" ry="3.2" fill="currentColor">
+          <animate
+            attributeName="rx"
+            values="9;1.5;9"
+            keyTimes="0;0.5;1"
+            dur="1.1s"
             repeatCount="indefinite"
           />
-        </path>
+          <animate
+            attributeName="opacity"
+            values="0.9;0.5;0.9"
+            keyTimes="0;0.5;1"
+            dur="1.1s"
+            repeatCount="indefinite"
+          />
+        </ellipse>
       </svg>
       {label && <span>{label}</span>}
     </span>
