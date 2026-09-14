@@ -880,6 +880,29 @@ export async function dismissResearch(id) {
   revalidatePath("/research");
 }
 
+// Adds one more photo to an already-saved bottle - a back label, a cork, a
+// case, anything worth keeping alongside the original scanned label -
+// akin to how the Research feature adds detail after the fact rather than
+// only at save time. Not read by any AI feature, just stored and shown
+// back. Takes the already-downscaled base64 image straight from the
+// client (same shape as extractWinesFromPhoto), since there's no plain
+// form-post path for a file this large through a Server Action bound to a
+// specific bottle.
+export async function addBottlePhoto(bottleId, base64Image, mediaType) {
+  const url = await uploadLabelPhoto(base64Image, mediaType);
+  if (!url) {
+    return { error: "Couldn't upload that photo — photo storage may not be configured." };
+  }
+  await prisma.bottlePhoto.create({ data: { bottleId, url } });
+  revalidatePath(`/bottles/${bottleId}`);
+  return { success: true };
+}
+
+export async function deleteBottlePhoto(id) {
+  const photo = await prisma.bottlePhoto.delete({ where: { id } });
+  revalidatePath(`/bottles/${photo.bottleId}`);
+}
+
 // A lightweight stand-in for real accounts: a guest just picks a name (no
 // password), looked up case-insensitively so re-entering the same name
 // from a new browser reuses the existing guest record rather than forking

@@ -3,41 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createBottleWithNote, extractWinesFromPhoto } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
-
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(",")[1]);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-// Phone photos can be several MB at very high resolution - more than the
-// photo reader needs and more than is worth paying to send. Shrinking to a
-// modest max dimension keeps requests fast and cheap without hurting
-// readability of the printed text.
-function downscaleImage(file, maxDimension = 1568) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    image.onload = () => {
-      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(image.width * scale);
-      canvas.height = Math.round(image.height * scale);
-      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(objectUrl);
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("Could not process that image"))),
-        "image/jpeg",
-        0.85
-      );
-    };
-    image.onerror = () => reject(new Error("Could not load that image"));
-    image.src = objectUrl;
-  });
-}
+import { fileToBase64, downscaleImage } from "@/lib/client-image";
 
 // Runs `worker` over `items` with at most `concurrency` in flight at once,
 // so selecting a big batch of photos doesn't fire dozens of simultaneous AI

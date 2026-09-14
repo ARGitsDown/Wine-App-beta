@@ -6,9 +6,11 @@ import {
   deleteBottle,
   setBottleStatus,
   addTastingNote,
+  deleteBottlePhoto,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import ResearchPanel from "@/app/components/ResearchPanel";
+import AddPhotoPanel from "@/app/components/AddPhotoPanel";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
         include: {
           tastingNotes: { orderBy: { tastedAt: "desc" } },
           favorites: { include: { guest: true } },
+          photos: { orderBy: { createdAt: "asc" } },
         },
       })
     : null;
@@ -118,6 +121,43 @@ export default async function BottleDetailPage({ params, searchParams }) {
           regionOptions={regionOptions}
           idPrefix="bottle-details"
         />
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <h2 className="font-medium">Photos</h2>
+        {bottle.photoUrl || bottle.photos.length > 0 ? (
+          <div className="flex flex-wrap gap-3">
+            {bottle.photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={bottle.photoUrl}
+                alt={`Label photo for ${bottle.producer}`}
+                className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+              />
+            )}
+            {bottle.photos.map((photo) => (
+              <div key={photo.id} className="flex flex-col items-center gap-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo.url}
+                  alt={`Additional photo for ${bottle.producer}`}
+                  className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+                />
+                <form action={deleteBottlePhoto.bind(null, photo.id)}>
+                  <button
+                    type="submit"
+                    className="text-xs text-zinc-500 underline underline-offset-2"
+                  >
+                    Remove
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500">No photos yet.</p>
+        )}
+        <AddPhotoPanel bottleId={bottle.id} />
       </section>
 
       <ResearchPanel bottle={bottle} regionOptions={regionOptions} />

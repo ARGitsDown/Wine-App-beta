@@ -111,6 +111,21 @@ model Bottle {
   tastingNotes TastingNote[]
   favorites    Favorite[]
   flightPicks  FlightPick[]
+  photos       BottlePhoto[]
+}
+
+// One additional photo attached to an already-saved bottle - `photoUrl`
+// above is the single label photo captured at scan time; this is for
+// anything worth documenting afterward (a back label, a cork, a case),
+// added via "Add a photo" on the bottle's detail page - akin to how the
+// Research feature adds detail after the fact rather than only at save
+// time. Not read by any AI feature, just stored and shown back.
+model BottlePhoto {
+  id        Int      @id @default(autoincrement())
+  bottleId  Int
+  bottle    Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  url       String
+  createdAt DateTime @default(now())
 }
 
 model TastingNote {

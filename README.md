@@ -56,7 +56,9 @@ features like separate cellars per user.
   itself is kept too (uploaded to Vercel Blob storage) and shown back on
   the bottle's list row and detail page - optional, and the rest of
   scanning works exactly the same without it (see `BLOB_READ_WRITE_TOKEN`
-  in `.env.example`).
+  in `.env.example`). "Add a photo" on a bottle's detail page adds more
+  photos afterward - a back label, a cork, a case - beyond the one
+  captured at scan time.
 - **Needs research** (`/research`) — a queue of bottles the scan feature
   flagged as unsure about some field. Open one and hit "Research further"
   on its page to have Claude look it up with an actual web search (not
