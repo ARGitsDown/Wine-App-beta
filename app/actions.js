@@ -894,6 +894,142 @@ export async function dismissResearch(id) {
   revalidatePath("/research");
 }
 
+const DRINK_WINDOW_ESTIMATE_TOOL = {
+  name: "record_drink_window_estimates",
+  description:
+    "Record an estimated drinking window for each wine listed, using general knowledge of the producer, variety, region, and vintage - not a web search. This is a bulk pass across many wines that currently have no drinking window on file at all, so always give your best estimate for every wine rather than leaving one blank; only use null for a field you genuinely have no reasonable basis to guess (e.g. the vintage itself isn't known).",
+  input_schema: {
+    type: "object",
+    properties: {
+      estimates: {
+        type: "array",
+        description: "One entry per wine listed, in the same order, each echoing back its id.",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "integer", description: "The wine's id, exactly as given in the input list." },
+            drinkFrom: {
+              type: ["integer", "null"],
+              description: "Estimated start year of the drinking window.",
+            },
+            drinkTo: {
+              type: ["integer", "null"],
+              description: "Estimated end year of the drinking window.",
+            },
+          },
+          required: ["id", "drinkFrom", "drinkTo"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["estimates"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+const DRINK_WINDOW_SYSTEM_PROMPT =
+  "You estimate drinking windows (the year range a wine is expected to be at its best) for a batch of wines already in a personal cellar, using your general knowledge of the producer, variety, region, and vintage - not a web search. This is a bulk backfill for wines with no window on file at all, so bias toward giving a genuine best estimate rather than null - a rough estimate the owner can refine later is far more useful than a blank field. Call record_drink_window_estimates exactly once with one entry per wine listed, in the same order, echoing back each id.";
+
+function describeBottleForWindowEstimate(bottle) {
+  return [
+    bottle.producer,
+    bottle.bottling,
+    bottle.vintage,
+    bottle.type || bottle.variety,
+    bottle.region,
+    bottle.subRegion,
+    bottle.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+// One-time bulk pass over inventory bottles with no drinking window at all
+// (both drinkFrom and drinkTo null - a partial window someone deliberately
+// left open-ended is never touched). Applies estimates directly rather
+// than reviewing one by one, since that isn't practical at the hundreds-
+// of-bottles scale this is meant for - see BACKLOG.md #7. The caller
+// (EstimateWindowsPanel) chunks the full list client-side and calls this
+// once per chunk, so a single request never has to process the whole
+// cellar at once (and stays well under a serverless function's execution
+// limit).
+export async function estimateDrinkWindows(bottleIds) {
+  const bottles = await prisma.bottle.findMany({
+    where: { id: { in: bottleIds } },
+    select: {
+      id: true,
+      producer: true,
+      bottling: true,
+      vintage: true,
+      type: true,
+      variety: true,
+      region: true,
+      subRegion: true,
+      country: true,
+    },
+  });
+  if (bottles.length === 0) return { data: { updated: 0, total: 0 } };
+
+  const listText = bottles
+    .map((bottle) => `id ${bottle.id}: ${describeBottleForWindowEstimate(bottle)}`)
+    .join("\n");
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-opus-5",
+      max_tokens: 8192,
+      thinking: { type: "adaptive" },
+      system: DRINK_WINDOW_SYSTEM_PROMPT,
+      tools: [DRINK_WINDOW_ESTIMATE_TOOL],
+      messages: [
+        {
+          role: "user",
+          content: `Estimate a drinking window for each of these wines:\n\n${listText}`,
+        },
+      ],
+    });
+
+    const finalCall = response.content.find(
+      (block) => block.type === "tool_use" && block.name === "record_drink_window_estimates"
+    );
+    if (!finalCall) return { error: "Couldn't estimate that batch. Please try again." };
+
+    let updated = 0;
+    for (const estimate of finalCall.input.estimates) {
+      if (estimate.drinkFrom == null && estimate.drinkTo == null) continue;
+      try {
+        await prisma.bottle.update({
+          where: { id: estimate.id },
+          data: {
+            drinkFrom: estimate.drinkFrom,
+            drinkTo: estimate.drinkTo,
+            drinkWindowEstimated: true,
+          },
+        });
+        updated++;
+      } catch (err) {
+        // One bad id in a batch (e.g. a bottle deleted mid-run) shouldn't
+        // fail the rest of the batch's otherwise-good estimates.
+        console.error(`Failed to apply drink window estimate for bottle ${estimate.id}:`, err);
+      }
+    }
+    revalidatePath("/inventory");
+    return { data: { updated, total: bottles.length } };
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { error: "The estimate feature isn't configured correctly (invalid API key)." };
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return { error: "Too many requests at once — wait a moment and try again." };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { error: `Estimate error: ${err.message}` };
+    }
+    return { error: "Something went wrong estimating that batch. Please try again." };
+  }
+}
+
 // A lightweight stand-in for real accounts: a guest just picks a name (no
 // password), looked up case-insensitively so re-entering the same name
 // from a new browser reuses the existing guest record rather than forking

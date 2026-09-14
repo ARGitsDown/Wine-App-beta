@@ -1,0 +1,97 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { estimateDrinkWindows } from "@/app/actions";
+import Spinner from "@/app/components/Spinner";
+
+// Chunked client-side so no single server request has to process the
+// whole cellar at once - keeps each request well under a serverless
+// function's execution limit, and lets the page show live progress
+// across what can be a several-minute run at hundreds of bottles.
+const BATCH_SIZE = 20;
+
+function chunk(items, size) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+export default function EstimateWindowsPanel({ bottles }) {
+  const [status, setStatus] = useState("idle"); // idle | running | done
+  const [done, setDone] = useState(0);
+  const [updated, setUpdated] = useState(0);
+  const [failedBatches, setFailedBatches] = useState(0);
+
+  async function handleStart() {
+    setStatus("running");
+    setDone(0);
+    setUpdated(0);
+    setFailedBatches(0);
+
+    const batches = chunk(
+      bottles.map((bottle) => bottle.id),
+      BATCH_SIZE
+    );
+    let doneCount = 0;
+    let updatedCount = 0;
+    let failCount = 0;
+
+    for (const batch of batches) {
+      const result = await estimateDrinkWindows(batch);
+      if (result.error) {
+        failCount += 1;
+        setFailedBatches(failCount);
+      } else {
+        updatedCount += result.data.updated;
+        setUpdated(updatedCount);
+      }
+      doneCount += batch.length;
+      setDone(doneCount);
+    }
+
+    setStatus("done");
+  }
+
+  if (status === "done") {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-green-300 p-4 dark:border-green-900">
+        <p className="text-sm font-medium text-green-700 dark:text-green-400">
+          ✓ Done — estimated {updated} of {bottles.length} bottles.
+        </p>
+        {failedBatches > 0 && (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {failedBatches} batch{failedBatches === 1 ? "" : "es"} failed —
+            reload this page to retry just the bottles still missing a
+            window.
+          </p>
+        )}
+        <Link href="/inventory" className="text-sm underline underline-offset-2">
+          Back to Inventory →
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        {bottles.length} bottle{bottles.length === 1 ? "" : "s"} currently
+        missing a drinking window.
+      </p>
+      {status === "running" ? (
+        <div className="text-sm text-zinc-500">
+          <Spinner label={`Estimating… ${done} of ${bottles.length}`} />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleStart}
+          className="self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          Start estimating
+        </button>
+      )}
+    </div>
+  );
+}

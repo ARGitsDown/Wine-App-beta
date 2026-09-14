@@ -35,6 +35,16 @@ features like separate cellars per user.
   matches bottles logged under a regional synonym for the same grape (e.g.
   searching "Grenache" also finds one logged as "Garnacha" or "Cannonau") -
   see [`BACKLOG.md`](./BACKLOG.md) #1.
+- **Estimate drinking windows** (`/estimate-windows`, linked from a banner
+  on Inventory whenever any bottle qualifies) — a one-time bulk pass that
+  gives every inventory bottle with no drinking window at all a best
+  estimate from Claude's general knowledge of the producer/variety/
+  region/vintage (no web search - this is meant for backfilling hundreds
+  of bottles at once, not researching one). Applied directly rather than
+  reviewed one by one, and marked "estimated" on the bottle's own page
+  afterward so it's clear which windows are a rough guess worth
+  double-checking versus a confirmed one - see [`BACKLOG.md`](./BACKLOG.md)
+  #7.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
 - **History** (`/consumed`) — bottles you've finished, kept around (with
