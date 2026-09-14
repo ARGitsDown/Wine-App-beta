@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { researchBottle, applyResearch, dismissResearch } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import Spinner from "@/app/components/Spinner";
 
 const primaryButtonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
@@ -65,7 +66,7 @@ export default function ResearchPanel({ bottle, regionOptions }) {
             disabled={loading}
             className={primaryButtonClass}
           >
-            {loading ? "Researching…" : "Research further"}
+            {loading ? <Spinner label="Researching…" /> : "Research further"}
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createBottle, getSuggestions, saveTastingFlight } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import Spinner from "@/app/components/Spinner";
 
 const buttonClass =
   "self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
@@ -77,7 +78,7 @@ export default function SuggestPage() {
           className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         />
         <button type="submit" disabled={loading} className={buttonClass}>
-          {loading ? "Thinking…" : "Get suggestions"}
+          {loading ? <Spinner label="Thinking…" /> : "Get suggestions"}
         </button>
       </form>
 
@@ -112,7 +113,11 @@ export default function SuggestPage() {
                     disabled={flightSave.status === "saving"}
                     className="shrink-0 rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
                   >
-                    {flightSave.status === "saving" ? "Saving…" : "Save this flight"}
+                    {flightSave.status === "saving" ? (
+                      <Spinner label="Saving…" />
+                    ) : (
+                      "Save this flight"
+                    )}
                   </button>
                 )}
               </>
