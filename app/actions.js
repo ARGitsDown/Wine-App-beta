@@ -361,7 +361,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
         // One photo can hold several wines (a tasting sheet) - they all
         // share the same uploaded photo. Never blocks extraction: null
         // (unconfigured storage, a failed upload) just means no photo.
-        const photoUrl = await uploadLabelPhoto(base64Image, mediaType);
+        const { url: photoUrl } = await uploadLabelPhoto(base64Image, mediaType);
         const wines = finalCall.input.wines.map((wine) => ({ ...wine, photoUrl }));
         return { data: wines };
       }
@@ -1018,9 +1018,13 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
 // extractWinesFromPhoto), since there's no plain form-post path for a file
 // this large through a Server Action bound to a specific bottle.
 export async function addBottlePhoto(bottleId, base64Image, mediaType) {
-  const url = await uploadLabelPhoto(base64Image, mediaType);
+  const { url, error } = await uploadLabelPhoto(base64Image, mediaType);
   if (!url) {
-    return { error: "Couldn't upload that photo — photo storage may not be configured." };
+    return {
+      error: error
+        ? `Couldn't upload that photo — ${error}`
+        : "Couldn't upload that photo — photo storage isn't configured.",
+    };
   }
   await prisma.bottlePhoto.create({ data: { bottleId, url } });
   revalidatePath(`/bottles/${bottleId}`);
