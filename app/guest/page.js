@@ -1,19 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentGuest } from "@/lib/guest";
-import { enterAsGuest, switchGuest, toggleFavorite } from "@/app/actions";
+import { getRegionOptions } from "@/lib/bottles";
+import { canonicalizeVarietal } from "@/lib/varietal-match";
+import { enterAsGuest, switchGuest } from "@/app/actions";
+import GuestBottleList from "@/app/components/GuestBottleList";
 
 export const dynamic = "force-dynamic";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 
-function bottleHeader(bottle) {
-  return [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage || null]
-    .filter(Boolean)
-    .join(" ");
-}
-
-export default async function GuestPage() {
+export default async function GuestPage({ searchParams }) {
   const guest = await getCurrentGuest();
 
   if (!guest) {
@@ -39,11 +36,23 @@ export default async function GuestPage() {
     );
   }
 
-  const bottles = await prisma.bottle.findMany({
-    where: { status: "inventory" },
-    include: { favorites: { where: { guestId: guest.id } } },
-    orderBy: { producer: "asc" },
-  });
+  const [rows, regionOptions, filters] = await Promise.all([
+    prisma.bottle.findMany({
+      where: { status: "inventory" },
+      include: { favorites: { where: { guestId: guest.id }, select: { id: true } } },
+      orderBy: { producer: "asc" },
+    }),
+    getRegionOptions(),
+    searchParams,
+  ]);
+
+  const bottles = rows.map(({ favorites, ...bottle }) => ({
+    ...bottle,
+    favorited: favorites.length > 0,
+    // Same fallback as getBottles(): an older row saved before this column
+    // existed still filters by grape synonym correctly.
+    canonicalVariety: bottle.canonicalVariety ?? canonicalizeVarietal(bottle.type, bottle.variety),
+  }));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
@@ -61,40 +70,11 @@ export default async function GuestPage() {
         </form>
       </div>
 
-      {bottles.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nothing in the cellar yet.</p>
-      ) : (
-        <ul className="flex flex-col gap-1.5">
-          {bottles.map((bottle) => {
-            const favorited = bottle.favorites.length > 0;
-            return (
-              <li
-                key={bottle.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-4 py-2.5 dark:border-zinc-800"
-              >
-                <div>
-                  <p className="font-medium">
-                    {bottleHeader(bottle)}
-                    {bottle.type ? ` — ${bottle.type}` : ""}
-                  </p>
-                  <p className="text-sm text-zinc-500">
-                    {[bottle.variety, bottle.region, bottle.country].filter(Boolean).join(" · ")}
-                  </p>
-                </div>
-                <form action={toggleFavorite.bind(null, bottle.id)}>
-                  <button
-                    type="submit"
-                    className="shrink-0 text-xl leading-none"
-                    aria-label={favorited ? "Remove favorite" : "Favorite this bottle"}
-                  >
-                    {favorited ? "❤️" : "🤍"}
-                  </button>
-                </form>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <GuestBottleList
+        bottles={bottles}
+        regionOptions={regionOptions}
+        initialFilters={filters}
+      />
     </div>
   );
 }

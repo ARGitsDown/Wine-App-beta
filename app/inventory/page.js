@@ -2,16 +2,15 @@ import Link from "next/link";
 import { getBottles, getRegionOptions } from "@/lib/bottles";
 import { prisma } from "@/lib/prisma";
 import { createBottle } from "@/app/actions";
-import FilterBar from "@/app/components/FilterBar";
 import BottleForm from "@/app/components/BottleForm";
-import BottleList from "@/app/components/BottleList";
+import FilterableBottleList from "@/app/components/FilterableBottleList";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryPage({ searchParams }) {
   const filters = await searchParams;
   const [bottles, regionOptions, missingWindowCount] = await Promise.all([
-    getBottles("inventory", filters),
+    getBottles("inventory"),
     getRegionOptions(),
     prisma.bottle.count({
       where: { status: "inventory", drinkFrom: null, drinkTo: null },
@@ -40,10 +39,10 @@ export default async function InventoryPage({ searchParams }) {
         </Link>
       )}
 
-      <FilterBar basePath="/inventory" filters={filters} regionOptions={regionOptions} />
-
-      <BottleList
+      <FilterableBottleList
         bottles={bottles}
+        regionOptions={regionOptions}
+        initialFilters={filters}
         emptyMessage="No bottles match. Add one below, or clear your filters."
       />
 

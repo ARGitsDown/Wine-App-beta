@@ -1,13 +1,12 @@
 import { getBottles, getRegionOptions } from "@/lib/bottles";
-import FilterBar from "@/app/components/FilterBar";
-import BottleList from "@/app/components/BottleList";
+import FilterableBottleList from "@/app/components/FilterableBottleList";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConsumedPage({ searchParams }) {
   const filters = await searchParams;
   const [bottles, regionOptions] = await Promise.all([
-    getBottles("consumed", filters),
+    getBottles("consumed"),
     getRegionOptions(),
   ]);
 
@@ -20,10 +19,10 @@ export default async function ConsumedPage({ searchParams }) {
         </p>
       </div>
 
-      <FilterBar basePath="/consumed" filters={filters} regionOptions={regionOptions} />
-
-      <BottleList
+      <FilterableBottleList
         bottles={bottles}
+        regionOptions={regionOptions}
+        initialFilters={filters}
         emptyMessage="Nothing here yet — bottles you mark as finished from Inventory will show up here."
       />
     </div>
