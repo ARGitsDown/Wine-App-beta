@@ -303,6 +303,47 @@ words above are a starting point, not settled - "classic" and
 the wine (natural, orange, low-intervention) rather than a claim about
 how adventurous the *choice* is.
 
+## 12. Summarize a tasting: a title, not a paragraph
+
+A Suggest result leads with `summary`, which the tool schema asks for as
+"a short (1-3 sentence) overall explanation of your recommendation or
+theme." One field is doing two jobs, and the headline job is the one it
+does badly: what you want at the top is a short evocative name for the
+idea - "The Many Faces of Pinot" - with the fuller explanation of the
+theme and why each wine is in it available on a click, not read as a
+paragraph before you can tell what the flight even is.
+
+That split matters most where the summary is persisted and reused as a
+name. `TastingFlight.summary` is the only text a saved flight has, so it
+is the `<h1>` on `/flights/[id]`, the link text in the flights list, and
+- worst - is URL-encoded into `?tastingFlight=` and prefilled into a
+tasting note as "Tasted as part of: ...". Three sentences make a poor
+link, a long URL, and an odd opening line in a note.
+
+The likely shape: add a `title` alongside `summary` in
+`SUGGESTIONS_TOOL`, and a nullable `title` on `TastingFlight`; render the
+title as the heading with `summary` behind a disclosure. Worth settling
+first:
+
+- **Disclosure or separate view?** A `<details>` next to the heading keeps
+  everything on one page and matches how the per-pick reasons already
+  expand. A separate view would have room for more than the theme text -
+  but there isn't more yet, so the disclosure is probably enough.
+- **What happens to flights already saved?** They have no title. Either
+  backfill one (an AI call per flight, which puts this in #8's
+  cost-bearing bucket) or fall back to showing `summary` as the heading
+  for older rows - which keeps the field nullable and costs nothing, at
+  the price of two kinds of flight in the list.
+- **Do pairings need a title at all?** A pairing result is ephemeral - it
+  is never saved, and "goes with the lamb" is already about as short as
+  the summary gets. The title may be worth asking for only in `tasting`
+  mode, which also avoids paying for a field that is thrown away.
+- **Where does the note prefill get its text?** If a flight has a title,
+  "Tasted as part of: The Many Faces of Pinot" is the line that belongs
+  in a tasting note. That argues for passing the flight id rather than
+  the text through the query string, so the note can render whichever
+  field exists.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
