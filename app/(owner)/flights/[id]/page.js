@@ -33,8 +33,16 @@ export default async function FlightDetailPage({ params }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{flight.summary}</h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold">{flight.title || flight.summary}</h1>
+          {/* This page is the expansion - you clicked through to it, so the
+              theme is spelled out here rather than hidden behind a second
+              disclosure. Skipped when the summary IS the heading above. */}
+          {flight.title && (
+            <p className="max-w-prose text-sm text-zinc-600 dark:text-zinc-400">
+              {flight.summary}
+            </p>
+          )}
           <p className="text-sm text-zinc-500">
             Saved {new Date(flight.createdAt).toLocaleDateString()}
           </p>
@@ -82,8 +90,11 @@ export default async function FlightDetailPage({ params }) {
                     Mark as tasted
                   </button>
                 </form>
+                {/* The id, not the text: the note prefill then renders
+                    whichever of title/summary this flight actually has,
+                    instead of freezing a copy into the URL. */}
                 <Link
-                  href={`/bottles/${pick.bottle.id}?tastingFlight=${encodeURIComponent(flight.summary)}`}
+                  href={`/bottles/${pick.bottle.id}?tastingFlight=${flight.id}`}
                   className="self-center text-sm text-zinc-500 underline underline-offset-2"
                 >
                   Log a tasting note →

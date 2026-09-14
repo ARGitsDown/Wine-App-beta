@@ -210,7 +210,14 @@ model Favorite {
 // suggestion mixed into the same result isn't part of "what to pull from
 // the cellar" and can already be added to the wishlist independently.
 model TastingFlight {
-  id        Int          @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+  // A short evocative name for the flight ("The Many Faces of Pinot") -
+  // the heading, and what the flights list links on. Nullable because
+  // flights saved before this existed have only a summary, which they
+  // keep showing as their heading rather than getting a guessed title.
+  title     String?
+  // The fuller explanation of the theme and its ordering. Before `title`
+  // it was doing both jobs, which made for a three-sentence link.
   summary   String
   createdAt DateTime     @default(now())
   picks     FlightPick[]

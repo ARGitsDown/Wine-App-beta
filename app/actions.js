@@ -749,9 +749,15 @@ const SUGGESTIONS_TOOL = {
         enum: ["pairing", "tasting"],
         description: "Which kind of request this was.",
       },
+      title: {
+        type: "string",
+        description:
+          "A short evocative name for this recommendation - a few words, the way a flight is named on a tasting menu ('The Many Faces of Pinot', 'Chalk and Sea Air', 'Three Ways with the Lamb'). Title Case, no trailing punctuation, and specific to these actual wines rather than a generic label like 'Tasting Flight' or 'Pairing Suggestions'. This is the heading on its own - do not restate the explanation here, that is what summary is for.",
+      },
       summary: {
         type: "string",
-        description: "A short (1-3 sentence) overall explanation of your recommendation or theme.",
+        description:
+          "The explanation behind the title: what the theme is, why these wines, and for a flight why they are in this order. Two to four sentences - this sits behind a 'Why these' disclosure, so it has room to be more than a caption.",
       },
       picks: {
         type: "array",
@@ -759,7 +765,7 @@ const SUGGESTIONS_TOOL = {
         items: SUGGESTION_PICK_SCHEMA,
       },
     },
-    required: ["mode", "summary", "picks"],
+    required: ["mode", "title", "summary", "picks"],
     additionalProperties: false,
   },
   strict: true,
@@ -829,7 +835,7 @@ function buildSuggestSystemPrompt(currentYear, includeOutside) {
     ? "They have asked to see wines beyond their own cellar for this request, so you may recommend wines they do not own wherever one would genuinely pair or fit better - not only as a fallback. Still prefer an owned bottle when it is a comparable match, since that is one they can open tonight; a wine they would have to go and buy has to earn its place by being clearly better for this. Record any such wine as a gap suggestion (bottleId null) with a real, specific producer, and say in its reason what it does that the owned options do not."
     : "Recommend only wines from their cellar. If nothing currently owned is a strong match, say so honestly and propose a specific gap suggestion (a real producer/style/region, not a vague category) worth adding to their wishlist, rather than forcing a mediocre owned bottle into the recommendation.";
 
-  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. ${outsideRule} For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Call record_suggestions exactly once, when you're done, with your final answer.`;
+  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. ${outsideRule} For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
 }
 
 // Turns a freeform request (a meal to pair, or a tasting theme/mood) into
@@ -893,7 +899,12 @@ export async function getSuggestions(request, includeOutside = false) {
         }
 
         return {
-          data: { mode: finalCall.input.mode, summary: finalCall.input.summary, picks: resolvedPicks },
+          data: {
+            mode: finalCall.input.mode,
+            title: finalCall.input.title,
+            summary: finalCall.input.summary,
+            picks: resolvedPicks,
+          },
         };
       }
 
@@ -1553,12 +1564,16 @@ export async function toggleFavorite(bottleId) {
 // picks tied to a real owned bottle are stored - a gap suggestion mixed
 // into the same result isn't something to "pull from the cellar" and can
 // already be added to the wishlist independently.
-export async function saveTastingFlight(summary, picks) {
+export async function saveTastingFlight({ title, summary, picks }) {
   const ownedPicks = picks.filter((p) => Number.isInteger(p.bottleId));
   if (ownedPicks.length === 0) return { error: "Nothing in that flight was an owned bottle to save." };
 
   const flight = await prisma.tastingFlight.create({
     data: {
+      // Null rather than falling back to the summary: a flight with no
+      // title of its own should show its summary as the heading because
+      // that's all it has, not because a copy was written into the column.
+      title: title?.trim() || null,
       summary,
       picks: {
         create: ownedPicks.map((pick, index) => ({

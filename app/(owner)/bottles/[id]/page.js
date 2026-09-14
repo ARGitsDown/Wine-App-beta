@@ -47,9 +47,28 @@ function describeDeleteLoss(bottle) {
 const dangerButtonClass =
   "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
 
+// `tastingFlight` arrives as a flight id, so the note prefill can render
+// whichever of the flight's title/summary exists rather than whatever text
+// happened to be current when the link was built. Links made before that -
+// or anything bookmarked - carried the text itself, so a non-numeric value
+// is still used as written. A numeric id that no longer resolves (the
+// flight was deleted) simply prefills nothing.
+async function flightNameFor(param) {
+  const value = String(param ?? "").trim();
+  if (!value) return null;
+  if (!/^\d+$/.test(value)) return value;
+
+  const flight = await prisma.tastingFlight.findUnique({
+    where: { id: Number(value) },
+    select: { title: true, summary: true },
+  });
+  return flight ? flight.title || flight.summary : null;
+}
+
 export default async function BottleDetailPage({ params, searchParams }) {
   const { id } = await params;
   const { pairedWith, tastingFlight } = await searchParams;
+  const flightName = await flightNameFor(tastingFlight);
   const bottleId = Number(id);
 
   // Both together: the region list doesn't depend on the bottle, so
@@ -270,8 +289,8 @@ export default async function BottleDetailPage({ params, searchParams }) {
               defaultValue={
                 pairedWith
                   ? `Paired with: ${pairedWith}\n\n`
-                  : tastingFlight
-                    ? `Tasted as part of: ${tastingFlight}\n\n`
+                  : flightName
+                    ? `Tasted as part of: ${flightName}\n\n`
                     : ""
               }
               className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"

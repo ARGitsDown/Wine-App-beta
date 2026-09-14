@@ -37,11 +37,14 @@ export default async function FlightsPage() {
                 key={flight.id}
                 className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
               >
+                {/* The title, where there is one. A flight saved before
+                    titles existed has only its summary, so that stays its
+                    name rather than being replaced by a guess. */}
                 <Link
                   href={`/flights/${flight.id}`}
                   className="font-medium underline underline-offset-2"
                 >
-                  {flight.summary}
+                  {flight.title || flight.summary}
                 </Link>
                 <p className="mt-1 text-sm text-zinc-500">
                   {remaining} of {flight.picks.length} left to taste ·{" "}
