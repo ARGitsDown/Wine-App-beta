@@ -231,6 +231,16 @@ export default function BottleForm({
           className={inputClass}
         />
       </label>
+      <label className={labelClass}>
+        Critic &amp; winemaker notes
+        <textarea
+          name="criticNotes"
+          rows={3}
+          defaultValue={defaultValues.criticNotes || ""}
+          className={inputClass}
+          placeholder="Filled in by Research — the winery's own notes, critic reviews, etc."
+        />
+      </label>
       {includeTastingNote && (
         <div className="flex flex-col gap-3 rounded border border-zinc-200 p-3 dark:border-zinc-800">
           <p className="text-xs font-medium text-zinc-500">

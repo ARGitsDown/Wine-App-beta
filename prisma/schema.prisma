@@ -88,6 +88,15 @@ model Bottle {
   // "Needs research" queue until someone runs (or dismisses) the "Research
   // further" action on its page - never cleared automatically otherwise.
   needsResearch Boolean @default(false)
+  // Existing winemaking/tasting notes found *about* this wine by the
+  // Research feature - the winery's own description, critic write-ups
+  // (Wine Advocate, Wine Spectator, Halliday, Jancis Robinson, etc.), or
+  // other published reviews - as opposed to `notes` (this cellar owner's
+  // own free-form notes) and `TastingNote` (their own dated tasting
+  // entries). Only ever populated by applying a research result; never set
+  // by scanning or by a plain manual edit, though it's an ordinary
+  // editable field once research has filled it in.
+  criticNotes String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

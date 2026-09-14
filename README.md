@@ -59,7 +59,12 @@ features like separate cellars per user.
   just its training knowledge) and propose corrections - reviewed and
   edited the same way as everywhere else before you save them. Dismiss a
   bottle straight from the queue if the current details already look
-  fine, without spending a search on it.
+  fine, without spending a search on it. Research also looks for existing
+  winemaking/tasting notes about the wine - the winery's own site first,
+  then major critics (Wine Advocate, Wine Spectator, Halliday, Jancis
+  Robinson), then other reviews/wine shops - and proposes them for the
+  bottle's "Critic & winemaker notes" field, kept separate from your own
+  notes and tasting entries.
 - **Suggest** (`/suggest`) — describe tonight's menu for a pairing, or a
   theme/mood for a tasting flight, in one flexible text box; Claude infers
   which you mean. It browses your current inventory (never the wishlist)
