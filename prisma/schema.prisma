@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// A single wine, in one of three states:
+// - wishlist: something to try or buy, not owned yet
+// - inventory: currently owned/in the cellar
+// - consumed: already drunk, kept around so its tasting notes stay attached
+model Bottle {
+  id       Int     @id @default(autoincrement())
+  producer String
+  // The specific bottling, when a producer makes more than one wine from
+  // the same grape/vintage - a vineyard designation (e.g. "Rochioli
+  // Vineyard") or a proprietary/cuvée name (e.g. "Madeleine", "Insignia").
+  // Real labels blur these two concepts constantly (a vineyard-designated
+  // wine often carries a proprietary-sounding name too), so this is
+  // deliberately one flexible field rather than two, the same reasoning as
+  // `region` below.
+  bottling String?
+  vintage  Int?
+  // Short, header-friendly style label - usually just the grape variety
+  // (e.g. "Zinfandel"), but a concise descriptor for blends or wines with
+  // no single named variety (e.g. "Red Bordeaux Blend", "Orange Wine").
+  // `variety` below can hold a fuller, more detailed description.
+  type     String?
+  variety  String?
+  // A grape name from lib/varietals.js's canonical list, auto-matched from
+  // `type`/`variety` on save (see lib/varietal-match.js) whenever they
+  // name exactly one recognized grape - null for a blend or an
+  // unrecognized/obscure variety, rather than guess. Lets filtering match
+  // synonyms (e.g. "Grenache" also finds a bottle logged as "Garnacha")
+  // without changing what's actually printed on the label in `variety`.
+  canonicalVariety String?
+  // The primary sub-country identifier - a US state for domestic wines
+  // (e.g. "California"), or a named wine region/appellation for everything
+  // else (e.g. "Bordeaux", "Burgundy", "Central Otago"). Deliberately just
+  // one flexible field rather than a rigid state/region/subregion
+  // hierarchy, since that hierarchy genuinely differs by country and even
+  // by wine - a fuller drill-down (like Bordeaux -> Medoc -> ...) can be
+  // layered on top of this later without a schema rework.
+  region   String?
+  // An optional finer-grained locator within `region` (e.g. "Margaux"
+  // within region "Bordeaux", or "Gevrey-Chambertin" within "Burgundy") -
+  // BACKLOG.md #2's lightweight step: one more flat, optional field rather
+  // than a rigid multi-level hierarchy tree, so a country/region/
+  // sub-region/appellation drill-down can still be layered on properly
+  // later without this being in the way.
+  subRegion String?
+  country  String?
+  quantity Int     @default(1)
+  status   String  @default("wishlist")
+  notes    String?
+  // Alcohol by volume, as printed on the label (e.g. 14.5 for "14.5%").
+  // Legally required on nearly every label, so easy to capture during
+  // scanning, and useful for style/pairing reasoning (a 15.5% Zinfandel
+  // behaves very differently at the table than a 12.5% Riesling).
+  abv      Float?
+  // A small fixed vocabulary (Red/White/Rosé/Orange/Sparkling/Dessert/
+  // Fortified - see WINE_COLORS in app/actions.js), distinct from `type`
+  // (which names the grape/style, not the color) so "show me all my
+  // whites" works regardless of how `type` happens to be worded. A plain
+  // String rather than a Prisma enum, same reasoning as `status` below -
+  // easier to extend the vocabulary later without a migration. Not
+  // auto-guessed from type/variety on manual entry (the same grape can
+  // make wines of different colors - a Pinot Noir rosé, for instance - so
+  // a text-based guess could confidently mislabel one); the scan feature
+  // does infer it, since it can actually see the label/context.
+  wineColor String?
+  // The drinking window: the year range this wine is expected to be at its
+  // best (e.g. drinkFrom 2026, drinkTo 2034). Both nullable and independent
+  // - a wine can have a known start with no known end, or vice versa. Feeds
+  // the Suggest feature's reasoning (don't recommend something not ready
+  // yet, or already past peak) - see BACKLOG.md #4.
+  drinkFrom Int?
+  drinkTo   Int?
+  // True when drinkFrom/drinkTo came from an AI guess (scan, Research's
+  // fallback, a bulk backfill, or a dedicated estimate action - see
+  // BACKLOG.md #7) rather than something stated on the label, found via a
+  // real Research citation, or typed by hand. Shown as a distinct badge so
+  // it's clear which windows are worth double-checking. Only ever set by
+  // those estimate-producing actions; a plain edit through updateBottle
+  // clears it back to false when the years actually change (the human has
+  // now made the call), and leaves it alone otherwise.
+  drinkWindowEstimated Boolean @default(false)
+  // Set when the scan feature wasn't confident about every field it filled
+  // in (see `confident` on the scan tool). Surfaces the bottle in the
+  // "Needs research" queue until someone runs (or dismisses) the "Research
+  // further" action on its page - never cleared automatically otherwise.
+  needsResearch Boolean @default(false)
+  // Existing winemaking/tasting notes found *about* this wine by the
+  // Research feature - the winery's own description, critic write-ups
+  // (Wine Advocate, Wine Spectator, Halliday, Jancis Robinson, etc.), or
+  // other published reviews - as opposed to `notes` (this cellar owner's
+  // own free-form notes) and `TastingNote` (their own dated tasting
+  // entries). Only ever populated by applying a research result; never set
+  // by scanning or by a plain manual edit, though it's an ordinary
+  // editable field once research has filled it in.
+  criticNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tastingNotes TastingNote[]
+  favorites    Favorite[]
+  flightPicks  FlightPick[]
+}
+
+model TastingNote {
+  id       Int      @id @default(autoincrement())
+  bottleId Int
+  bottle   Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  note     String
+  // Nullable: a note can be logged without a personal score - e.g. a shop's
+  // own tasting-sheet write-up brought in via the scan feature, before (or
+  // instead of) rating it yourself.
+  rating   Int?
+  tastedAt DateTime @default(now())
+}
+
+// A friend/family member browsing the cellar at /guest to shortlist bottles
+// for their next visit - not a real account (no password), just a name
+// remembered via a cookie so favoriting works across visits from the same
+// browser. Looked up case-insensitively on entry so the same person typing
+// their name again reuses their existing guest record instead of forking
+// it. This is deliberately lightweight; real multi-user accounts (separate
+// cellars per person) are a much bigger, separate future capability - see
+// FUTURE_CAPABILITIES.md.
+model Guest {
+  id        Int        @id @default(autoincrement())
+  name      String
+  createdAt DateTime   @default(now())
+  favorites Favorite[]
+}
+
+// One guest's shortlist pick from the (inventory-only) cellar they browsed
+// at /guest - surfaced back to the owner so they know what to pull before
+// that guest's next visit.
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  guestId   Int
+  guest     Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  bottleId  Int
+  bottle    Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([guestId, bottleId])
+}
+
+// A saved Suggest tasting-flight result (mode: "tasting") - unlike a
+// pairing recommendation, which is ephemeral and logs straight into a
+// tasting note, a themed flight is worth keeping around as a queue to pull
+// bottles from over time. Only real owned-bottle picks are saved; a gap
+// suggestion mixed into the same result isn't part of "what to pull from
+// the cellar" and can already be added to the wishlist independently.
+model TastingFlight {
+  id        Int          @id @default(autoincrement())
+  summary   String
+  createdAt DateTime     @default(now())
+  picks     FlightPick[]
+}
+
+// One bottle's place in a saved flight, in tasting order.
+model FlightPick {
+  id       Int           @id @default(autoincrement())
+  flightId Int
+  flight   TastingFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  bottleId Int
+  bottle   Bottle        @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  order    Int
+  reason   String
+  consumed Boolean       @default(false)
+}
