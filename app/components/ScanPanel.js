@@ -129,7 +129,7 @@ function entriesFromScanResults(results, intent) {
 }
 
 // `initialIntent` comes from the route's ?intent= param, so Wishlist and
-// Inventory can link straight here with the right answer already picked.
+// The cellar can link straight here with the right answer already picked.
 // It only seeds the control - the picker below stays visible and editable,
 // because a link that silently locked the destination would undo the one
 // thing the picker was added to fix.
@@ -369,7 +369,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                       <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                         <legend className="mb-1 text-zinc-500">Saved to</legend>
                         {[
-                          ["inventory", "Inventory"],
+                          ["inventory", "Cellar"],
                           ["wishlist", "Wishlist"],
                           ["consumed", "Tasted"],
                         ].map(([value, label]) => (
@@ -428,7 +428,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                       <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                         <legend className="mb-1 text-zinc-500">Save to</legend>
                         {[
-                          ["inventory", "Inventory"],
+                          ["inventory", "Cellar"],
                           ["wishlist", "Wishlist"],
                           ["consumed", "Tasted"],
                         ].map(([value, label]) => (

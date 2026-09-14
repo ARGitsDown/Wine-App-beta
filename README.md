@@ -1,6 +1,6 @@
 # Wine Tracker
 
-A personal wine cellar tracker: inventory, wishlist, and tasting notes. See
+A personal wine cellar tracker: cellar, wishlist, and tasting notes. See
 [`PROJECT.md`](./PROJECT.md) for the full project spec and reasoning behind
 the technical choices, [`BACKLOG.md`](./BACKLOG.md) for known data-model
 gaps worth revisiting later, and
@@ -9,7 +9,7 @@ features like separate cellars per user.
 
 ## What's here so far
 
-- **Inventory** (`/inventory`) — bottles you own, with add/edit/remove, a
+- **Cellar** (`/inventory`) — bottles you own, with add/edit/remove, a
   free-text search box (producer, bottling, region, vintage - whatever you
   remember about it), and filtering by variety, region, sub-region,
   country, color, vintage, and rating. Searching and filtering happen in
@@ -45,8 +45,8 @@ features like separate cellars per user.
   searching "Grenache" also finds one logged as "Garnacha" or "Cannonau") -
   see [`BACKLOG.md`](./BACKLOG.md) #1.
 - **Estimate drinking windows** (`/estimate-windows`, linked from a banner
-  on Inventory whenever any bottle qualifies) — a one-time bulk pass that
-  gives every inventory bottle with no drinking window at all a best
+  on the Cellar whenever any bottle qualifies) — a one-time bulk pass that
+  gives every bottle with no drinking window at all a best
   estimate from Claude's general knowledge of the producer/variety/
   region/vintage (no web search - this is meant for backfilling hundreds
   of bottles at once, not researching one). Applied directly rather than
@@ -58,7 +58,7 @@ features like separate cellars per user.
   re-adding it months later, reuses the earlier estimate instead of paying
   to ask the same question again.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
-  "Bought it" button moves a bottle into inventory.
+  "Bought it" button moves a bottle into the cellar.
 - **Research** (`/research`) — bottles the scan feature wasn't confident
   about, and what a web search turned up for them. Each can be researched
   in one click from the list, or all at once behind a confirmation that
@@ -72,7 +72,7 @@ features like separate cellars per user.
   so owning several and drinking one just decrements the count ("Tasted
   one — 5 left"); it only moves here once the last one is gone, or via
   "Tasted all N" if you're clearing the whole lot at once. Counts can
-  also be corrected with a +/- stepper right on an inventory row, without
+  also be corrected with a +/- stepper right on a cellar row, without
   opening the bottle. Each bottle records when it was emptied, so this
   page sorts by "Recently emptied" — the date is stamped automatically and
   editable on the bottle's page, and bottles that got here before this
@@ -128,7 +128,7 @@ features like separate cellars per user.
   notes and tasting entries.
 - **Suggest** (`/suggest`) — describe tonight's menu for a pairing, or a
   theme/mood for a tasting flight, in one flexible text box; Claude infers
-  which you mean. It browses your current inventory (never the wishlist)
+  which you mean. It browses your cellar (never the wishlist)
   for real candidates, explains its reasoning, and - when nothing owned is
   a strong match - proposes a specific gap suggestion you can add to the
   wishlist in one click instead of forcing a mediocre pick. Ticking
@@ -155,8 +155,8 @@ features like separate cellars per user.
 - **Tasting flights** (`/flights`) — a themed flight kept as a queue to
   pull bottles from over time rather than disappearing once you leave the
   page. Either ask Suggest for one and save it, or start one yourself with
-  a theme name and search your inventory for the bottles, in the order
-  you'd pour them. Any inventory bottle can also be added to a flight from
+  a theme name and search your cellar for the bottles, in the order
+  you'd pour them. Any bottle you own can also be added to a flight from
   its card or its own page, via **Add to a tasting** — which lists the
   flights still on the go and offers to start a new one. Picks can be
   reordered or removed, marked "tasted" once you open them, or linked
@@ -167,18 +167,18 @@ features like separate cellars per user.
   flight - a gap suggestion in the same result isn't something to "pull
   from the cellar," and can already be added to the wishlist independently.
 - **Guest favoriting** (`/guest`) — a link you hand to friends and family
-  so they can browse your current inventory (read-only) and favorite
+  so they can browse your cellar (read-only) and favorite
   bottles they'd like pulled for their next visit. The `/guest` chip on
-  Inventory opens your phone's share sheet, or copies the link where
+  the Cellar opens your phone's share sheet, or copies the link where
   there isn't one, rather than making you retype it. Guests get the same
-  instant search and filtering as Inventory (minus the rating filter and
+  instant search and filtering as the Cellar (minus the rating filter and
   the drink-soon sort, since your own scores and drinking windows aren't
   shown to them) — a cellar worth browsing is usually one too big to
   scroll. No account or password — a
   guest just enters a name (reused if they type the same one again from a
   new device), remembered via a cookie so their favorites persist across
   visits. Favorites show up back on `/inventory` as a ❤️ with who picked
-  it. A guest sees only this page — no nav into the owner's Inventory,
+  it. A guest sees only this page — no nav into the owner's Cellar,
   Scan, or anything else — which is why the app's routes are split into
   `app/(owner)` and `app/(guest)` route groups, each with its own header,
   rather than sharing one. This is deliberately lightweight; everyone getting their own
@@ -202,7 +202,7 @@ features like separate cellars per user.
   name top-left, its count bottom-left (centered under the icon, so the
   figure reads as belonging to it) and its description bottom-right, each cut
   short enough to sit on one line at phone width. Only
-  Inventory, Wishlist, Tasting notes and Flights carry a count — a number
+  Cellar, Wishlist, Tasting notes and Flights carry a count — a number
   on "Scan" would be meaningless, so Scan and Suggest give their
   description the whole bottom row instead. Where there is a count, the
   card reads as two columns: icon over number on the left, name over

@@ -9,7 +9,7 @@ import { flightName, isOpenFlight } from "@/lib/flights";
 
 export const dynamic = "force-dynamic";
 
-export default async function InventoryPage({ searchParams }) {
+export default async function CellarPage({ searchParams }) {
   const filters = await searchParams;
   const [bottles, regionOptions, missingWindowCount, allFlights] = await Promise.all([
     getBottles("inventory"),
@@ -37,7 +37,7 @@ export default async function InventoryPage({ searchParams }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
       <div>
-        <h1 className="text-2xl font-semibold">Inventory</h1>
+        <h1 className="text-2xl font-semibold">Cellar</h1>
         <p className="text-sm text-zinc-500">
           Bottles currently in your cellar. Share <GuestLinkButton /> with
           friends and family so they can favorite what they&apos;d like
@@ -77,7 +77,7 @@ export default async function InventoryPage({ searchParams }) {
 
         <details className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
           <summary className="cursor-pointer font-medium">
-            Add a bottle to inventory
+            Add a bottle to your cellar
           </summary>
           <div className="mt-4">
             <BottleForm

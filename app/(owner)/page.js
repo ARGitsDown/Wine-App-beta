@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   ScanIcon,
   SuggestIcon,
-  InventoryIcon,
+  CellarIcon,
   WishlistIcon,
   TastingHistoryIcon,
   FlightsIcon,
@@ -90,10 +90,10 @@ export default async function HomePage() {
     },
     {
       href: "/inventory",
-      label: "Inventory",
+      label: "Cellar",
       count: inventoryCount,
-      description: "Bottles cellared",
-      Icon: InventoryIcon,
+      description: "Bottles",
+      Icon: CellarIcon,
       accent: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
     },
     {

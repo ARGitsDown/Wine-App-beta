@@ -101,7 +101,7 @@ export default function EstimateWindowsPanel({ bottles }) {
           </p>
         )}
         <Link href="/inventory" className="text-sm underline underline-offset-2">
-          Back to Inventory →
+          Back to your cellar →
         </Link>
       </div>
     );
@@ -110,7 +110,7 @@ export default function EstimateWindowsPanel({ bottles }) {
   if (bottles.length === 0) {
     return (
       <p className="text-sm text-zinc-500">
-        Every inventory bottle already has a drinking window.
+        Every bottle in your cellar already has a drinking window.
       </p>
     );
   }

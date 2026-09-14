@@ -47,7 +47,7 @@ function QuantityStepper({ bottle }) {
   );
 }
 
-// `flights` is how a list opts into the add-to-a-tasting control: Inventory
+// `flights` is how a list opts into the add-to-a-tasting control: the cellar
 // passes the open flights, everything else passes nothing and the control
 // never renders. A flight is a queue of bottles you can open, so it has no
 // business on the wishlist, on history, or on a guest's view.

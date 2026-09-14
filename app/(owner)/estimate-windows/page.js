@@ -29,7 +29,7 @@ export default async function EstimateWindowsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Estimate drinking windows</h1>
         <p className="text-sm text-zinc-500">
-          A one-time pass across every inventory bottle currently missing a
+          A one-time pass across every bottle in your cellar currently missing a
           drinking window. Claude proposes a best estimate for each from its
           general knowledge of the producer/variety/region/vintage - no web
           search - applied directly rather than reviewed one by one, since

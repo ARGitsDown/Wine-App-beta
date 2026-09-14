@@ -16,7 +16,7 @@ export default function FilterableBottleList({
   // something, which is moot once it's been drunk.
   showDrinkSoon = true,
   showEmptied = false,
-  // Only Inventory supplies this; see BottleList for why.
+  // Only the cellar supplies this; see BottleList for why.
   flights = null,
 }) {
   const { filters, visible, update, clear } = useBottleFilters(bottles, initialFilters);

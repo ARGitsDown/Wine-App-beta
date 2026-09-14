@@ -74,7 +74,7 @@ export default function SuggestPage() {
         <h1 className="text-2xl font-semibold">Suggest</h1>
         <p className="text-sm text-zinc-500">
           Describe tonight&apos;s menu for a pairing, or a theme/mood for a
-          tasting flight. Claude looks through your current inventory (not
+          tasting flight. Claude looks through your cellar (not
           your wishlist) and figures out which one you mean.
         </p>
       </div>

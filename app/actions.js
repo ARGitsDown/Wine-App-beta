@@ -297,7 +297,7 @@ export async function markOneTasted(id) {
 // to markOneTasted's "I drank one". Deliberately floors at 1: dropping to
 // zero is the same thing as no longer owning any, which is what
 // markOneTasted is for, and doing it here would strand a bottle in
-// Inventory at quantity 0.
+// the cellar at quantity 0.
 export async function adjustBottleQuantity(id, delta) {
   const bottle = await prisma.bottle.findUnique({
     where: { id },

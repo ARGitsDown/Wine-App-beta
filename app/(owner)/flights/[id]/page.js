@@ -39,7 +39,7 @@ export default async function FlightDetailPage({ params }) {
 
   if (!flight) notFound();
 
-  // Inventory only, matching what Suggest saves: a flight is a queue of
+  // Cellar only, matching what Suggest saves: a flight is a queue of
   // things you can actually open. Already-picked bottles are filtered out
   // here so the picker can't offer a duplicate the action would refuse.
   const picked = new Set(flight.picks.map((pick) => pick.bottleId));

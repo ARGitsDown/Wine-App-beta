@@ -210,7 +210,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
             className={dangerButtonClass}
           />
         </div>
-        {/* Inventory only, like the card control: a flight is a queue of
+        {/* Cellar only, like the card control: a flight is a queue of
             bottles you can actually open. */}
         {bottle.status === "inventory" && (
           <AddToFlight bottleId={bottle.id} flights={openFlights} />

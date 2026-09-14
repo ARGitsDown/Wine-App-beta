@@ -11,7 +11,7 @@ function bottleHeader(bottle) {
     .join(" ");
 }
 
-// The guest view gets the same instant filtering as the owner's Inventory -
+// The guest view gets the same instant filtering as the owner's cellar -
 // a cellar worth browsing is a cellar too big to scroll - minus the rating
 // filter, since a guest is never shown the owner's own scores.
 export default function GuestBottleList({ bottles, regionOptions, initialFilters }) {

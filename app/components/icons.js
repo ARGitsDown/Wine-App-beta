@@ -176,7 +176,7 @@ export function SuggestIcon({ className = "h-6 w-6" }) {
   return <Icon paths={SUGGEST} className={className} />;
 }
 
-export function InventoryIcon({ className = "h-6 w-6" }) {
+export function CellarIcon({ className = "h-6 w-6" }) {
   return <Icon paths={INVENTORY} className={className} />;
 }
 

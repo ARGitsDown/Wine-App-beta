@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { addBottleToFlight } from "@/app/actions";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 
-// Searching happens in memory over the inventory the server already sent,
+// Searching happens in memory over the cellar the server already sent,
 // the same trade the filter bar makes: typing narrows the list instantly
 // instead of waiting on a round trip per keystroke.
 export default function FlightBottlePicker({ flightId, bottles, defaultOpen = false }) {
@@ -61,7 +61,7 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
   const body =
     bottles.length === 0 ? (
       <p className="text-sm text-zinc-500">
-        Every bottle in your inventory is already in this flight.
+        Every bottle in your cellar is already in this flight.
       </p>
     ) : (
       <div className="flex flex-col gap-2">
@@ -69,13 +69,13 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search your inventory…"
-        aria-label="Search your inventory"
+        placeholder="Search your cellar…"
+        aria-label="Search your cellar"
         className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
       />
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {matches.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nothing in inventory matches that.</p>
+        <p className="text-sm text-zinc-500">Nothing in your cellar matches that.</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {matches.map((bottle) => (

@@ -1,6 +1,6 @@
 // What a visiting friend or family member sees: the cellar's name and
 // nothing else. No nav, because every other page in the app belongs to the
-// owner - a guest who could click "Inventory" would land in the owner's
+// owner - a guest who could click "Cellar" would land in the owner's
 // editable view, which is not what "browse the cellar read-only" means.
 export default function GuestLayout({ children }) {
   return (

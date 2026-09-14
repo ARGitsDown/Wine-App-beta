@@ -76,7 +76,7 @@ implied ones, and can't distinguish them:
   is stamped by whichever action moves a row into History (the "Tasted"
   buttons, a scan card set to History, a wine created straight into it)
   and cleared if it ever moves back out, so a bottle returned to
-  Inventory can't keep claiming a date. Editable on the bottle's page,
+  the cellar can't keep claiming a date. Editable on the bottle's page,
   which also lets rows that reached History before the column existed be
   backfilled - they read "Emptied date unknown" rather than showing a
   wrong date. History gains a "Recently emptied" sort, which is the
@@ -136,8 +136,8 @@ blank you have to remember to fill in yourself. Plan:
   false when the years actually change, and leaves it alone otherwise
   (e.g. editing Notes doesn't clear it).
 - ~~**A one-time bulk backfill action**~~ — done. `/estimate-windows`
-  (linked from a banner on Inventory when any bottle qualifies) estimates
-  every inventory bottle with no window at all (both `drinkFrom` and
+  (linked from a banner on the Cellar when any bottle qualifies) estimates
+  every bottle you own with no window at all (both `drinkFrom` and
   `drinkTo` null - a partial window left open-ended on purpose is never
   touched) and applies the results directly, not reviewed one-by-one,
   since that isn't practical at hundreds of bottles. Chunked client-side
@@ -177,7 +177,7 @@ until that trade is worth making. The free speed work (client-side
 filtering, `loading.js` skeletons, trimming over-fetched queries, DB
 indexes) is tracked separately as ordinary work, not here.
 
-- **Optimized label thumbnails.** Inventory rows and the bottle detail
+- **Optimized label thumbnails.** Cellar rows and the bottle detail
   page render label photos through a plain `<img>` pointed straight at the
   full-size Blob upload, then scale it down to a ~64×80 thumbnail in CSS.
   A phone on cell data downloads every full-resolution photo to show a
@@ -213,7 +213,7 @@ bite someone actually using the app.
   moves the row to History only on the last, with "Tasted all N" kept
   alongside for retiring a whole lot at once. Tasting notes stay attached
   either way, and since each carries its own date they remain the record
-  of when each bottle was actually drunk. Inventory and Wishlist rows
+  of when each bottle was actually drunk. Cellar and Wishlist rows
   also got an inline +/- stepper (floored at 1 - dropping to zero is what
   finishing is for), so correcting a count no longer means opening the
   bottle's page and saving a form.
@@ -236,7 +236,7 @@ bite someone actually using the app.
   alone: discarding cards you didn't want is the normal path through that
   review flow, not an accident worth interrupting.
 - ~~**Sharing the guest link is manual**~~ — done. The `/guest` mention
-  on Inventory is a button now: it opens the native share sheet where
+  on the Cellar is a button now: it opens the native share sheet where
   one exists (which is how you'd actually send this to someone from a
   phone) and otherwise copies the full URL, with a brief "Link copied"
   confirmation.

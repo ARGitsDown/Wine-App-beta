@@ -40,7 +40,7 @@ export function SkeletonRows({ count = 6 }) {
   );
 }
 
-// The shell every list route (Inventory/Wishlist/History/Guest) shares.
+// The shell every list route (Cellar/Wishlist/Tasting notes/Guest) shares.
 export function SkeletonListPage({ rows = 6 }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">

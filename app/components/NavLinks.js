@@ -8,7 +8,7 @@ const NAV_LINKS = [
   { href: "/scan", label: "Scan" },
   { href: "/suggest", label: "Suggest" },
   { href: "/flights", label: "Flights" },
-  { href: "/inventory", label: "Inventory" },
+  { href: "/inventory", label: "Cellar" },
   { href: "/wishlist", label: "Wishlist" },
   { href: "/consumed", label: "Tasting notes" },
 ];
