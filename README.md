@@ -123,7 +123,12 @@ features like separate cellars per user.
   which you mean. It browses your current inventory (never the wishlist)
   for real candidates, explains its reasoning, and - when nothing owned is
   a strong match - proposes a specific gap suggestion you can add to the
-  wishlist in one click instead of forcing a mediocre pick. It knows each
+  wishlist in one click instead of forcing a mediocre pick. Ticking
+  "Include wines not in my cellar" widens that: a wine you don't own can
+  then be recommended on its merits wherever it would genuinely pair
+  better, not just as a fallback, still marked "Not in your cellar" and
+  still addable to the wishlist. Off by default, since the usual question
+  is what to open tonight. It knows each
   candidate's drinking window (if one is set) and steers toward a bottle
   that's actually ready over one that's too young or past peak. A pairing
   recommendation is ephemeral (not saved anywhere) but links each pick

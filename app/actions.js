@@ -821,8 +821,15 @@ async function browseCellar(filters) {
   }));
 }
 
-function buildSuggestSystemPrompt(currentYear) {
-  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. If nothing currently owned is a strong match, say so honestly and propose a specific gap suggestion (a real producer/style/region, not a vague category) worth adding to their wishlist, rather than forcing a mediocre owned bottle into the recommendation. For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Call record_suggestions exactly once, when you're done, with your final answer.`;
+function buildSuggestSystemPrompt(currentYear, includeOutside) {
+  // The cellar is always the default source. The difference is whether a
+  // wine they don't own may be recommended on its merits, or only as an
+  // admission that nothing owned fits.
+  const outsideRule = includeOutside
+    ? "They have asked to see wines beyond their own cellar for this request, so you may recommend wines they do not own wherever one would genuinely pair or fit better - not only as a fallback. Still prefer an owned bottle when it is a comparable match, since that is one they can open tonight; a wine they would have to go and buy has to earn its place by being clearly better for this. Record any such wine as a gap suggestion (bottleId null) with a real, specific producer, and say in its reason what it does that the owned options do not."
+    : "Recommend only wines from their cellar. If nothing currently owned is a strong match, say so honestly and propose a specific gap suggestion (a real producer/style/region, not a vague category) worth adding to their wishlist, rather than forcing a mediocre owned bottle into the recommendation.";
+
+  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. ${outsideRule} For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Call record_suggestions exactly once, when you're done, with your final answer.`;
 }
 
 // Turns a freeform request (a meal to pair, or a tasting theme/mood) into
@@ -831,12 +838,12 @@ function buildSuggestSystemPrompt(currentYear) {
 // wishlist) where nothing owned fits well. Bottle data for owned picks is
 // re-fetched fresh from the database rather than trusting the model's
 // echoed fields, so what's displayed always matches what's actually saved.
-export async function getSuggestions(request) {
+export async function getSuggestions(request, includeOutside = false) {
   const text = String(request || "").trim();
   if (!text) return { error: "Describe what you're working with first." };
 
   const messages = [{ role: "user", content: text }];
-  const systemPrompt = buildSuggestSystemPrompt(new Date().getFullYear());
+  const systemPrompt = buildSuggestSystemPrompt(new Date().getFullYear(), includeOutside);
 
   try {
     // Bounded to a few turns: normally some browse_cellar calls (possibly

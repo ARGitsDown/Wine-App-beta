@@ -265,6 +265,44 @@ bite someone actually using the app.
   inference and the `bottling` field are where a regression would show up
   first.
 
+## 11. Steering the character of a suggestion
+
+Suggest currently takes one freeform box and infers everything from it:
+pairing vs tasting flight, and what "good" means. The second inference is
+the shakier one. Asked for something with roast chicken, a sound answer
+could be a white Burgundy (classic), a Jura Savagnin (exploratory), or a
+chilled Trousseau (avant-garde) - all defensible, and which one you want
+depends on the evening, not on the dish.
+
+A small control alongside the request - **Classic / Exploratory /
+Avant-garde / Balanced** - would say which, the way the new
+"include wines not in my cellar" checkbox says where to look. Worth
+settling first:
+
+- **Does it belong on pairings, flights, or both?** A flight already has
+  a theme in the text box, so the axis may be redundant there and most
+  useful on pairings.
+- **Is "balanced" a fourth option or the default?** Probably the default,
+  in which case the control has three explicit settings plus an
+  unset state - and an unset state that behaves like "balanced" is
+  simpler than four equal choices.
+- **Does it change the picks or only the ordering?** Steering toward
+  exploratory should surface a different bottle, not the same bottle with
+  a more adventurous write-up. That's a prompt question, and worth
+  checking against a real cellar before trusting it.
+- **How does it interact with the cellar/outside toggle?** "Avant-garde"
+  against a conservative cellar will mostly produce wines you don't own,
+  which is fine when outside wines are allowed and frustrating when they
+  aren't. The two controls may need to acknowledge each other.
+
+Cheap to build (it's a clause in the system prompt, like the outside-wines
+rule) and easy to get subtly wrong, so it's worth trying against a real
+cellar and real menus before deciding the vocabulary is right. The four
+words above are a starting point, not settled - "classic" and
+"exploratory" are clear, "avant-garde" may read as a style claim about
+the wine (natural, orange, low-intervention) rather than a claim about
+how adventurous the *choice* is.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for

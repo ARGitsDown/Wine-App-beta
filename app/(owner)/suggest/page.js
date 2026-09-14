@@ -24,6 +24,7 @@ export default function SuggestPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [includeOutside, setIncludeOutside] = useState(false);
   const [savedGapIds, setSavedGapIds] = useState(new Set());
   const [flightSave, setFlightSave] = useState({ status: "idle" });
 
@@ -36,7 +37,7 @@ export default function SuggestPage() {
     setResult(null);
     setFlightSave({ status: "idle" });
 
-    const response = await getSuggestions(request);
+    const response = await getSuggestions(request, includeOutside);
     if (response.error) {
       setError(response.error);
     } else {
@@ -77,7 +78,27 @@ export default function SuggestPage() {
           placeholder="e.g. grilled salmon with lemon butter, roasted asparagus — or: something exploratory for a rainy Sunday"
           className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         />
-        <button type="submit" disabled={loading} className={buttonClass}>
+        {/* Off by default: the point of the feature is what you can open
+            tonight. Turning it on lets a wine you don't own be recommended
+            on its merits rather than only as an admission that nothing in
+            the cellar fits. */}
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={includeOutside}
+            onChange={(event) => setIncludeOutside(event.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            Include wines not in my cellar
+            <span className="block text-xs text-zinc-500">
+              Suggests bottles you&apos;d have to buy when they&apos;d pair
+              better — each one marked &ldquo;Not in your cellar&rdquo; and
+              addable to your wishlist.
+            </span>
+          </span>
+        </label>
+        <button type="submit" disabled={loading} className={`self-start ${buttonClass}`}>
           {loading ? <Spinner label="Thinking…" /> : "Get suggestions"}
         </button>
       </form>
