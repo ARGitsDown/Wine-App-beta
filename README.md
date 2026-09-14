@@ -60,9 +60,11 @@ features like separate cellars per user.
   For each, it checks your own saved bottles for anything similar and
   infers what it can (e.g. the grape variety for a Bordeaux or Burgundy
   labeled only by region), and carries over any tasting-note-style text the
-  source document already had. Nothing saves until you confirm each wine;
-  saving one doesn't interrupt the rest of the batch. A wine it wasn't
-  fully confident about is flagged "Needs research" when saved.
+  source document already had. Each wine is saved as soon as it's read,
+  rather than waiting on a manual confirm - so navigating away (or the tab
+  closing) mid-batch never loses a wine that already came back; review and
+  correct each card afterward, or remove one you don't want. A wine it
+  wasn't fully confident about is flagged "Needs research" once saved.
 - **Needs research** (`/research`) — a queue of bottles the scan feature
   flagged as unsure about some field. Open one and hit "Research further"
   on its page to have Claude look it up with an actual web search (not

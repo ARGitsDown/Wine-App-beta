@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createBottleWithNote, extractWinesFromPhoto } from "@/app/actions";
+import {
+  createBottleWithNote,
+  extractWinesFromPhoto,
+  updateBottle,
+  setBottleStatus,
+  removeScannedBottle,
+} from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import Spinner from "@/app/components/Spinner";
 
@@ -57,12 +63,13 @@ async function runWithConcurrency(items, concurrency, worker) {
 let nextPhotoId = 0;
 let nextEntryId = 0;
 
-// One photo can hold several wines (e.g. a shop's tasting sheet), so each
-// extracted wine becomes its own entry - reviewed, edited, and saved
-// independently of its siblings and of the photo's own loading/error state.
-function entriesFromWines(wines) {
+// An unsaved draft card - for when reading a photo fails outright, or (rarely)
+// a specific wine was read successfully but its save to the database failed.
+// Nothing exists yet; the existing manual "Save bottle" flow creates it.
+function draftEntriesFromWines(wines) {
   return wines.map((extracted) => ({
     localId: nextEntryId++,
+    kind: "draft",
     extracted,
     // A wine pulled from a document with its own tasting-note text is
     // treated as already-tasted by default; a plain label defaults to
@@ -71,6 +78,18 @@ function entriesFromWines(wines) {
     saveStatus: extracted.note ? "consumed" : "inventory",
     status: "ready",
   }));
+}
+
+// A card for a wine extractWinesFromPhoto already saved as a real bottle -
+// see that action for why scan saves immediately instead of waiting on a
+// manual click. A save failure for one wine falls back to the same draft
+// card as a fully-failed photo, rather than losing that wine's read.
+function entriesFromScanResults(results) {
+  return results.map((result) =>
+    result.bottle
+      ? { localId: nextEntryId++, kind: "saved", bottle: result.bottle }
+      : draftEntriesFromWines([result.wine])[0]
+  );
 }
 
 export default function ScanPage() {
@@ -100,6 +119,24 @@ export default function ScanPage() {
     );
   }
 
+  // Same shallow-merge idea as updateEntry, but merges into a saved
+  // entry's `bottle` (e.g. after changing its status) rather than the
+  // entry itself.
+  function updateEntryBottle(photoId, localId, patch) {
+    setPhotos((prev) =>
+      prev.map((p) =>
+        p.id !== photoId
+          ? p
+          : {
+              ...p,
+              entries: p.entries.map((e) =>
+                e.localId === localId ? { ...e, bottle: { ...e.bottle, ...patch } } : e
+              ),
+            }
+      )
+    );
+  }
+
   function removeEntry(photoId, localId) {
     setPhotos((prev) =>
       prev.map((p) =>
@@ -108,6 +145,16 @@ export default function ScanPage() {
           : { ...p, entries: p.entries.filter((e) => e.localId !== localId) }
       )
     );
+  }
+
+  // A "saved" entry's bottle already exists in the database, so removing
+  // its card has to actually delete that row - a "draft" entry is still
+  // just unsaved local state, same as before.
+  async function handleRemove(photo, entry) {
+    if (entry.kind === "saved") {
+      await removeScannedBottle(entry.bottle.id);
+    }
+    removeEntry(photo.id, entry.localId);
   }
 
   async function processPhoto(photo) {
@@ -122,16 +169,16 @@ export default function ScanPage() {
         updatePhoto(photo.id, {
           status: "error",
           error: result.error,
-          entries: entriesFromWines([{}]),
+          entries: draftEntriesFromWines([{}]),
         });
       } else {
-        updatePhoto(photo.id, { status: "ready", entries: entriesFromWines(result.data) });
+        updatePhoto(photo.id, { status: "ready", entries: entriesFromScanResults(result.data) });
       }
     } catch {
       updatePhoto(photo.id, {
         status: "error",
         error: "Something went wrong reading that photo. Please try again.",
-        entries: entriesFromWines([{}]),
+        entries: draftEntriesFromWines([{}]),
       });
     }
   }
@@ -178,9 +225,9 @@ export default function ScanPage() {
         <p className="text-sm text-zinc-500">
           Take or choose one or more photos - a bottle label, or a document
           like a shop&apos;s tasting sheet listing several wines. The AI reads
-          each one, checks your own cellar for anything similar, and fills in
-          what it can &mdash; you review and confirm each wine before it&apos;s
-          saved.
+          each one, checks your own cellar for anything similar, and saves
+          what it finds right away &mdash; review and correct anything below,
+          or remove a card you don&apos;t want.
         </p>
       </div>
 
@@ -234,7 +281,63 @@ export default function ScanPage() {
                   key={entry.localId}
                   className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
                 >
-                  {entry.status === "saved" ? (
+                  {entry.kind === "saved" ? (
+                    <>
+                      {entry.bottle.needsResearch && (
+                        <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
+                          Not fully confident about this one &mdash; it&apos;s
+                          already saved, but please double-check the fields
+                          below.
+                        </p>
+                      )}
+
+                      <fieldset className="flex gap-4 text-sm">
+                        <legend className="mb-1 text-zinc-500">Saved to</legend>
+                        {[
+                          ["inventory", "Inventory"],
+                          ["wishlist", "Wishlist"],
+                          ["consumed", "History"],
+                        ].map(([value, label]) => (
+                          <label key={value} className="flex items-center gap-1.5">
+                            <input
+                              type="radio"
+                              name={`scan-status-${entry.localId}`}
+                              checked={entry.bottle.status === value}
+                              onChange={async () => {
+                                updateEntryBottle(photo.id, entry.localId, { status: value });
+                                await setBottleStatus(entry.bottle.id, value);
+                              }}
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </fieldset>
+
+                      {entry.bottle.scannedNote && (
+                        <p className="text-xs text-zinc-500">
+                          Tasting note logged from the photo:{" "}
+                          <span className="italic">
+                            &ldquo;{entry.bottle.scannedNote}&rdquo;
+                          </span>
+                        </p>
+                      )}
+
+                      <BottleForm
+                        action={updateBottle.bind(null, entry.bottle.id)}
+                        defaultValues={entry.bottle}
+                        submitLabel="Save changes"
+                        idPrefix={`scan-entry-${entry.localId}`}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(photo, entry)}
+                        className="self-start text-xs text-zinc-500 underline underline-offset-2"
+                      >
+                        Remove this one
+                      </button>
+                    </>
+                  ) : entry.status === "saved" ? (
                     <p className="text-sm font-medium text-green-700 dark:text-green-400">
                       ✓ Saved
                     </p>
@@ -283,7 +386,7 @@ export default function ScanPage() {
 
                       <button
                         type="button"
-                        onClick={() => removeEntry(photo.id, entry.localId)}
+                        onClick={() => handleRemove(photo, entry)}
                         className="self-start text-xs text-zinc-500 underline underline-offset-2"
                       >
                         Remove this one

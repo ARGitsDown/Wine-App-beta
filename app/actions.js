@@ -73,6 +73,33 @@ function pathForStatus(status) {
   return "/wishlist";
 }
 
+// Same shape as bottleDataFromForm, but reads directly from a wine object
+// (one entry of the scan tool's own output) instead of a FormData - used
+// when scan auto-saves each extracted wine immediately (see
+// extractWinesFromPhoto) rather than waiting on a manual form submission.
+function bottleDataFromWine(wine) {
+  const type = wine.type || null;
+  const variety = wine.variety || null;
+  return {
+    producer: wine.producer,
+    bottling: wine.bottling || null,
+    vintage: wine.vintage ?? null,
+    type,
+    variety,
+    canonicalVariety: canonicalizeVarietal(type, variety),
+    region: wine.region || null,
+    subRegion: wine.subRegion || null,
+    country: wine.country || null,
+    quantity: 1,
+    notes: null,
+    abv: wine.abv ?? null,
+    wineColor: WINE_COLORS.includes(wine.wineColor) ? wine.wineColor : null,
+    drinkFrom: wine.drinkFrom ?? null,
+    drinkTo: wine.drinkTo ?? null,
+    criticNotes: null,
+  };
+}
+
 async function insertBottle(status, formData) {
   const data = bottleDataFromForm(formData);
   if (!data.producer) return null;
@@ -165,6 +192,15 @@ export async function deleteBottle(id) {
   const bottle = await prisma.bottle.delete({ where: { id } });
   revalidatePath(pathForStatus(bottle.status));
   redirect(pathForStatus(bottle.status));
+}
+
+// Same delete as above, minus the redirect - for removing one card from a
+// scan batch (where the user should stay on /scan reviewing whatever's
+// left), not the bottle's own detail page (where navigating back to its
+// list afterward makes sense).
+export async function removeScannedBottle(id) {
+  const bottle = await prisma.bottle.delete({ where: { id } });
+  revalidatePath(pathForStatus(bottle.status));
 }
 
 export async function addTastingNote(bottleId, formData) {
@@ -333,9 +369,11 @@ const LABEL_SYSTEM_PROMPT =
 
 // Reads a photo - one bottle label, or a document listing several wines -
 // optionally researching the user's own saved bottles and the model's wine
-// knowledge along the way, and returns a structured entry per wine found,
-// for the scan flow to prefill an editable add-bottle form per entry. The
-// user still reviews and confirms before anything is saved.
+// knowledge along the way, and saves each wine found as a real bottle
+// right away (see the save loop below for why), returning the saved
+// records for the scan flow to show as editable review cards. Each
+// result is either { bottle } on success, or { wine, saveError: true } if
+// reading succeeded but that one wine's save didn't.
 export async function extractWinesFromPhoto(base64Image, mediaType) {
   const messages = [
     {
@@ -373,7 +411,46 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
         if (finalCall.input.wines.length === 0) {
           return { error: "Couldn't find any wines in that photo. Try a clearer, well-lit photo." };
         }
-        return { data: finalCall.input.wines };
+        // Each wine is saved immediately rather than held only in the
+        // browser's memory pending a manual "Save" click - clicking away
+        // (or the tab closing) mid-review used to silently discard a
+        // completed scan, since the bottle didn't exist anywhere until
+        // that click. By the time this action returns, every bottle
+        // below is already in the database - still fully editable
+        // afterward, and still flagged needsResearch when Claude wasn't
+        // confident, exactly as before; only the timing of the save
+        // moved earlier. A per-wine save failure (rare - a DB hiccup)
+        // doesn't lose the rest of the batch's otherwise-successful
+        // saves; that one wine falls back to the same unsaved-draft card
+        // used when reading a photo fails outright.
+        const results = [];
+        for (const wine of finalCall.input.wines) {
+          const status = wine.note ? "consumed" : "inventory";
+          try {
+            const bottle = await prisma.bottle.create({
+              data: {
+                ...bottleDataFromWine(wine),
+                status,
+                needsResearch: wine.confident === false,
+              },
+            });
+            if (wine.note) {
+              try {
+                await prisma.tastingNote.create({
+                  data: { bottleId: bottle.id, note: wine.note, rating: null },
+                });
+              } catch (err) {
+                console.error("Failed to save scanned tasting note:", err);
+              }
+            }
+            revalidatePath(pathForStatus(status));
+            results.push({ bottle: { ...bottle, scannedNote: wine.note ?? null } });
+          } catch (err) {
+            console.error("Failed to save scanned bottle:", err);
+            results.push({ wine, saveError: true });
+          }
+        }
+        return { data: results };
       }
 
       const searchCalls = toolUses.filter((t) => t.name === "search_cellar");
