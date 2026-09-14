@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createBottleWithNote, extractWinesFromPhoto } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
-import SavedWatcher from "@/app/components/SavedWatcher";
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -274,13 +273,12 @@ export default function ScanPage() {
                         submitLabel="Save bottle"
                         includeTastingNote
                         idPrefix={`scan-entry-${entry.localId}`}
-                      >
-                        <SavedWatcher
-                          onSaved={() =>
-                            updateEntry(photo.id, entry.localId, { status: "saved" })
+                        onResult={(result) => {
+                          if (result.success) {
+                            updateEntry(photo.id, entry.localId, { status: "saved" });
                           }
-                        />
-                      </BottleForm>
+                        }}
+                      />
 
                       <button
                         type="button"

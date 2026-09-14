@@ -84,17 +84,25 @@ async function insertBottle(status, formData) {
   }
 }
 
-export async function createBottle(status, formData) {
+// The BottleForm components below all use useActionState, so these return
+// { error } or { success: true } instead of silently doing nothing on
+// failure - previously a whitespace-only producer or a swallowed DB error
+// still made the form report "✓ Saved", since that indicator only watched
+// for the form's pending state going true→false, not whether anything
+// actually got written.
+export async function createBottle(status, prevState, formData) {
   const bottle = await insertBottle(status, formData);
-  if (bottle) revalidatePath(pathForStatus(status));
+  if (!bottle) return { error: "Couldn't save that bottle - check the producer name and try again." };
+  revalidatePath(pathForStatus(status));
+  return { success: true };
 }
 
 // Used by the scan flow, where every card offers an optional tasting note
 // alongside the usual bottle fields (e.g. a shop tasting sheet's own
 // write-up, prefilled for the user to edit or add their own rating to).
-export async function createBottleWithNote(status, formData) {
+export async function createBottleWithNote(status, prevState, formData) {
   const bottle = await insertBottle(status, formData);
-  if (!bottle) return;
+  if (!bottle) return { error: "Couldn't save that bottle - check the producer name and try again." };
 
   const note = String(formData.get("note") || "").trim();
   if (note) {
@@ -111,15 +119,22 @@ export async function createBottleWithNote(status, formData) {
 
   revalidatePath(pathForStatus(status));
   revalidatePath(`/bottles/${bottle.id}`);
+  return { success: true };
 }
 
-export async function updateBottle(id, formData) {
+export async function updateBottle(id, prevState, formData) {
   const data = bottleDataFromForm(formData);
-  if (!data.producer) return;
+  if (!data.producer) return { error: "Producer is required." };
 
-  const bottle = await prisma.bottle.update({ where: { id }, data });
-  revalidatePath(`/bottles/${id}`);
-  revalidatePath(pathForStatus(bottle.status));
+  try {
+    const bottle = await prisma.bottle.update({ where: { id }, data });
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath(pathForStatus(bottle.status));
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to update bottle:", err);
+    return { error: "Couldn't save those changes. Please try again." };
+  }
 }
 
 export async function setBottleStatus(id, status) {
@@ -830,17 +845,23 @@ export async function researchBottle(id) {
 // research flag - a dedicated action (rather than routing through
 // updateBottle) so a plain details-page edit never clears the flag as a
 // side effect.
-export async function applyResearch(id, formData) {
+export async function applyResearch(id, prevState, formData) {
   const data = bottleDataFromForm(formData);
-  if (!data.producer) return;
+  if (!data.producer) return { error: "Producer is required." };
 
-  const bottle = await prisma.bottle.update({
-    where: { id },
-    data: { ...data, needsResearch: false },
-  });
-  revalidatePath(`/bottles/${id}`);
-  revalidatePath("/research");
-  revalidatePath(pathForStatus(bottle.status));
+  try {
+    const bottle = await prisma.bottle.update({
+      where: { id },
+      data: { ...data, needsResearch: false },
+    });
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/research");
+    revalidatePath(pathForStatus(bottle.status));
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to apply research:", err);
+    return { error: "Couldn't save those changes. Please try again." };
+  }
 }
 
 // Clears the research flag without changing any fields - for when the

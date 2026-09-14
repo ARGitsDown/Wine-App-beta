@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { researchBottle, applyResearch, dismissResearch } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
-import SavedWatcher from "@/app/components/SavedWatcher";
 
 const primaryButtonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
@@ -101,9 +100,10 @@ export default function ResearchPanel({ bottle, regionOptions }) {
             submitLabel="Apply these changes"
             regionOptions={regionOptions}
             idPrefix="bottle-research"
-          >
-            <SavedWatcher onSaved={() => setApplied(true)} />
-          </BottleForm>
+            onResult={(actionResult) => {
+              if (actionResult.success) setApplied(true);
+            }}
+          />
         </div>
       )}
     </section>

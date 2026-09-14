@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { createBottle, getSuggestions, saveTastingFlight } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
-import SavedWatcher from "@/app/components/SavedWatcher";
 
 const buttonClass =
   "self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
@@ -192,13 +191,12 @@ export default function SuggestPage() {
                           }}
                           submitLabel="Add to wishlist"
                           idPrefix={`suggest-gap-${index}`}
-                        >
-                          <SavedWatcher
-                            onSaved={() =>
-                              setSavedGapIds((prev) => new Set(prev).add(index))
+                          onResult={(result) => {
+                            if (result.success) {
+                              setSavedGapIds((prev) => new Set(prev).add(index));
                             }
-                          />
-                        </BottleForm>
+                          }}
+                        />
                       </div>
                     </details>
                   )}
