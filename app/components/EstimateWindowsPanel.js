@@ -11,10 +11,27 @@ import Spinner from "@/app/components/Spinner";
 // across what can be a several-minute run at hundreds of bottles.
 const BATCH_SIZE = 20;
 
+// A handful of batches in flight at once (same pattern as scan's photo
+// processing) so a large cellar's backfill isn't gated on one batch
+// finishing before the next starts, while still capping how many
+// concurrent estimate requests go out at once.
+const CONCURRENCY = 3;
+
 function chunk(items, size) {
   const chunks = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   return chunks;
+}
+
+async function runWithConcurrency(items, concurrency, worker) {
+  let index = 0;
+  async function next() {
+    while (index < items.length) {
+      const item = items[index++];
+      await worker(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, next));
 }
 
 export default function EstimateWindowsPanel({ bottles }) {
@@ -37,7 +54,7 @@ export default function EstimateWindowsPanel({ bottles }) {
     let updatedCount = 0;
     let failCount = 0;
 
-    for (const batch of batches) {
+    await runWithConcurrency(batches, CONCURRENCY, async (batch) => {
       const result = await estimateDrinkWindows(batch);
       if (result.error) {
         failCount += 1;
@@ -48,7 +65,7 @@ export default function EstimateWindowsPanel({ bottles }) {
       }
       doneCount += batch.length;
       setDone(doneCount);
-    }
+    });
 
     setStatus("done");
   }
