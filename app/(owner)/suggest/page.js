@@ -5,6 +5,10 @@ import Link from "next/link";
 import { createBottle, getSuggestions, saveTastingFlight } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import Spinner from "@/app/components/Spinner";
+import {
+  SUGGESTION_CHARACTERS,
+  DEFAULT_CHARACTER,
+} from "@/lib/suggestion-character";
 
 const buttonClass =
   "self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
@@ -25,6 +29,7 @@ export default function SuggestPage() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [includeOutside, setIncludeOutside] = useState(false);
+  const [character, setCharacter] = useState(DEFAULT_CHARACTER);
   const [savedGapIds, setSavedGapIds] = useState(new Set());
   const [flightSave, setFlightSave] = useState({ status: "idle" });
 
@@ -37,7 +42,7 @@ export default function SuggestPage() {
     setResult(null);
     setFlightSave({ status: "idle" });
 
-    const response = await getSuggestions(request, includeOutside);
+    const response = await getSuggestions(request, includeOutside, character);
     if (response.error) {
       setError(response.error);
     } else {
@@ -102,6 +107,36 @@ export default function SuggestPage() {
             </span>
           </span>
         </label>
+        {/* How adventurous the pick should be - a separate question from
+            the request itself, since "something with roast chicken" is
+            equally well answered by a white Burgundy, a Jura Savagnin or
+            a chilled Trousseau, and which one you want depends on the
+            evening. Balanced is the default and adds nothing to the
+            prompt; it's here as a visible name for leaving it alone. */}
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+            Character
+          </legend>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {SUGGESTION_CHARACTERS.map((option) => (
+              <label key={option.value} className="flex items-center gap-1.5 text-sm">
+                <input
+                  type="radio"
+                  name="character"
+                  value={option.value}
+                  checked={character === option.value}
+                  onChange={() => setCharacter(option.value)}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          {/* Only the selected option's hint, rather than four lines of
+              explanation competing with the request box above. */}
+          <p className="text-xs text-zinc-500">
+            {SUGGESTION_CHARACTERS.find((option) => option.value === character)?.hint}
+          </p>
+        </fieldset>
         <button type="submit" disabled={loading} className={`self-start ${buttonClass}`}>
           {loading ? <Spinner label="Thinking…" /> : "Get suggestions"}
         </button>

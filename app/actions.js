@@ -10,6 +10,7 @@ import { cookies } from "next/headers";
 import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
+import { characterRule } from "@/lib/suggestion-character";
 import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
@@ -827,7 +828,7 @@ async function browseCellar(filters) {
   }));
 }
 
-function buildSuggestSystemPrompt(currentYear, includeOutside) {
+function buildSuggestSystemPrompt(currentYear, includeOutside, character) {
   // The cellar is always the default source. The difference is whether a
   // wine they don't own may be recommended on its merits, or only as an
   // admission that nothing owned fits.
@@ -835,7 +836,15 @@ function buildSuggestSystemPrompt(currentYear, includeOutside) {
     ? "They have asked to see wines beyond their own cellar for this request, so you may recommend wines they do not own wherever one would genuinely pair or fit better - not only as a fallback. Still prefer an owned bottle when it is a comparable match, since that is one they can open tonight; a wine they would have to go and buy has to earn its place by being clearly better for this. Record any such wine as a gap suggestion (bottleId null) with a real, specific producer, and say in its reason what it does that the owned options do not."
     : "Recommend only wines from their cellar. If nothing currently owned is a strong match, say so honestly and propose a specific gap suggestion (a real producer/style/region, not a vague category) worth adding to their wishlist, rather than forcing a mediocre owned bottle into the recommendation.";
 
-  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. ${outsideRule} For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
+  // Deliberately after outsideRule: how adventurous to be is a question
+  // asked of whatever sources that rule has already allowed, and the
+  // steer's own wording refers back to it. Empty - with no stray spacing -
+  // when the character is Balanced, so an unsteered prompt is byte-for-byte
+  // what it was before this control existed.
+  const steer = characterRule(character);
+  const steerRule = steer ? `${steer} ` : "";
+
+  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. ${outsideRule} ${steerRule}For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
 }
 
 // Turns a freeform request (a meal to pair, or a tasting theme/mood) into
@@ -844,12 +853,16 @@ function buildSuggestSystemPrompt(currentYear, includeOutside) {
 // wishlist) where nothing owned fits well. Bottle data for owned picks is
 // re-fetched fresh from the database rather than trusting the model's
 // echoed fields, so what's displayed always matches what's actually saved.
-export async function getSuggestions(request, includeOutside = false) {
+export async function getSuggestions(request, includeOutside = false, character = null) {
   const text = String(request || "").trim();
   if (!text) return { error: "Describe what you're working with first." };
 
   const messages = [{ role: "user", content: text }];
-  const systemPrompt = buildSuggestSystemPrompt(new Date().getFullYear(), includeOutside);
+  const systemPrompt = buildSuggestSystemPrompt(
+    new Date().getFullYear(),
+    includeOutside,
+    character
+  );
 
   try {
     // Bounded to a few turns: normally some browse_cellar calls (possibly
