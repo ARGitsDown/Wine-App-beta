@@ -334,31 +334,27 @@ text, so the prefill renders whichever of title/summary the flight
 actually has instead of a copy frozen into the URL. Non-numeric values
 still pass through, so older links and bookmarks keep working.
 
-## 13. Scan straight into the wishlist
+## ~~13. Scan straight into the wishlist~~ — done
 
-`/scan` already asks what a batch is for and `wishlist` is one of the three
-answers (see `lib/scan-intent.js`), so the capability exists - it just
-isn't reachable from the page where you'd want it. Standing in a shop
-photographing shelf talkers, you go Home → Scan → pick "Noting for later",
-when the obvious move is a Scan button on Wishlist itself.
+`/scan` already asked what a batch was for, and `wishlist` was one of the
+three answers - it just wasn't reachable from the page where you'd want
+it. Both Wishlist and Inventory now carry a **Scan a label or shelf**
+link, sitting with the by-hand add form rather than somewhere else, since
+they're the two ways to add a bottle. The intent travels in the link
+(`?intent=wishlist`, `?intent=cellar`), so the scanner opens already
+pointed at the right place instead of defaulting to the cellar and needing
+correcting.
 
-The work is plumbing, not features:
+The scanner moved to `app/components/ScanPanel.js` behind a thin server
+`page.js` that awaits `searchParams` - the same shape every other page
+uses, and it avoids `useSearchParams()` wrapping the whole scanner in a
+Suspense boundary for one string. An unknown, empty or missing value falls
+back to the cellar (`normalizeScanIntent`), so a stale link can't land on
+an invented selection.
 
-- A **Scan bottles** control on `/wishlist`, linking to `/scan?intent=wishlist`.
-- `/scan` reads that param as its initial intent. The page is currently one
-  big client component, so this wants a thin server `page.js` that reads
-  `searchParams` and passes `initialIntent` down - the same shape every
-  other page in the app already uses, and it avoids `useSearchParams`
-  forcing a Suspense boundary around the whole scanner.
-- The intent picker stays visible and changeable. A link that silently
-  locks the intent would be worse than the status quo, because the one
-  thing the picker fixed was scans going somewhere you didn't choose.
-
-No schema, no new AI calls. Worth doing the same for Inventory
-(`?intent=cellar`) in the same pass, since it's the identical change and
-the asymmetry would be odd.
-
-**Size: small.** One file split, one param, two buttons.
+The picker stays visible and editable after arriving through a link. A
+link that silently locked the destination would undo the thing the picker
+was added to fix.
 
 ## 14. Research: one click from the list, and a review queue
 

@@ -46,17 +46,30 @@ export default async function InventoryPage({ searchParams }) {
         emptyMessage="No bottles match. Add one below, or clear your filters."
       />
 
-      <details className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <summary className="cursor-pointer font-medium">
-          Add a bottle to inventory
-        </summary>
-        <div className="mt-4">
-          <BottleForm
-            action={createBottle.bind(null, "inventory")}
-            regionOptions={regionOptions}
-          />
-        </div>
-      </details>
+      {/* The other way to add bottles, next to the by-hand form rather than
+          somewhere else entirely. The intent travels in the link, so the
+          scanner opens already pointed here instead of defaulting to the
+          cellar and needing to be corrected. */}
+      <div className="flex flex-col gap-3">
+        <Link
+          href="/scan?intent=cellar"
+          className="self-start rounded border border-zinc-300 px-3 py-1.5 text-sm hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-600"
+        >
+          Scan a label or shelf →
+        </Link>
+
+        <details className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+          <summary className="cursor-pointer font-medium">
+            Add a bottle to inventory
+          </summary>
+          <div className="mt-4">
+            <BottleForm
+              action={createBottle.bind(null, "inventory")}
+              regionOptions={regionOptions}
+            />
+          </div>
+        </details>
+      </div>
     </div>
   );
 }
