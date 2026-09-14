@@ -66,6 +66,42 @@ much wine you actually have.
 feature when printed on the label (nearly always), and editable manually
 otherwise.
 
+## 7. Drinking window: default to an estimate, never leave blank
+
+Today's scan/Research only fill `drinkFrom`/`drinkTo` when there's a
+stated date or a "genuinely confident" basis - otherwise both stay null,
+which conveys nothing. For a cellar large enough that bottles are
+actively passing their peak, a rough estimate you can refine beats a
+blank you have to remember to fill in yourself. Plan, once built:
+
+- **New field**: `drinkWindowEstimated` (bool) distinguishes an AI guess
+  from a confirmed window (label text, a real Research citation, or
+  anything a person typed by hand) - shown as a distinct badge so it's
+  clear which windows are worth double-checking.
+- **Every add path fills it in, not just a one-time pass**: the scan
+  tool's schema changes from "only if confident" to "always propose your
+  best estimate," and Research's fallback (when its web search finds
+  nothing stated) does the same instead of leaving the field untouched.
+  A lightweight "Estimate" action (producer/variety/region/vintage only,
+  no web search - cheaper and faster than full Research) covers manual
+  entry.
+- **A small cache** (keyed on producer/bottling/canonicalVariety/region/
+  vintage) reuses a past estimate for an identical wine instead of
+  re-asking Claude every time - not a hand-curated reference table (which
+  would need the same domain judgment we're already asking the model
+  for, just harder to keep current), just avoiding redundant calls for
+  bottles you own multiples of.
+- **A one-time bulk backfill action** applies estimates directly (not
+  reviewed one-by-one - at hundreds of bottles that isn't practical)
+  across every bottle currently missing a window, for the existing
+  cellar and the hundreds about to be added.
+- **A "drink soon" sort/view** on Inventory, ordered by urgency (past
+  peak -> ending soon -> ready -> too young), since an estimate sitting
+  on a detail page nobody visits doesn't actually help prioritize pulls.
+
+This turns "estimate the backlog" from a one-time fix into how the field
+behaves going forward.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
