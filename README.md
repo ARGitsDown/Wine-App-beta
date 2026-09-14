@@ -9,9 +9,14 @@ features like separate cellars per user.
 
 ## What's here so far
 
-- **Inventory** (`/inventory`) — bottles you own, with add/edit/remove and
-  filtering by variety, region, sub-region, country, color, vintage, and
-  rating. Also tracks ABV and a drinking window (from/to year) - both
+- **Inventory** (`/inventory`) — bottles you own, with add/edit/remove, a
+  free-text search box (producer, bottling, region, vintage - whatever you
+  remember about it), and filtering by variety, region, sub-region,
+  country, color, vintage, and rating. Searching and filtering happen in
+  the browser as you type: the whole list is already there, so narrowing
+  it is instant rather than a round-trip per keystroke. The filter panel
+  starts collapsed so the bottles themselves are what's on screen first,
+  and a narrowed list still has a shareable URL. Also tracks ABV and a drinking window (from/to year) - both
   filled in automatically when scanned, editable by hand otherwise. Lists
   show
   just each bottle's header line by default (producer, bottling, vintage,
@@ -107,7 +112,10 @@ features like separate cellars per user.
   from the cellar," and can already be added to the wishlist independently.
 - **Guest favoriting** (`/guest`) — share this link with friends/family so
   they can browse your current inventory (read-only) and favorite bottles
-  they'd like pulled for their next visit. No account or password — a
+  they'd like pulled for their next visit. Guests get the same instant
+  search and filtering as Inventory (minus the rating filter, since your
+  own scores aren't shown to them) — a cellar worth browsing is usually
+  one too big to scroll. No account or password — a
   guest just enters a name (reused if they type the same one again from a
   new device), remembered via a cookie so their favorites persist across
   visits. Favorites show up back on `/inventory` as a ❤️ with who picked
@@ -127,7 +135,10 @@ features like separate cellars per user.
   links. Anywhere the app is doing something that takes a moment (saving
   a bottle, researching, getting suggestions, reading a scanned photo) it
   shows a small animated "glass swirl" indicator instead of static text,
-  so a busy screen reads as working rather than stuck.
+  so a busy screen reads as working rather than stuck. Navigating between
+  pages shows a page-shaped placeholder while the data loads, rather than
+  leaving the old screen up with nothing happening, and the nav marks
+  which page you're on.
 
 ## Running it locally
 
