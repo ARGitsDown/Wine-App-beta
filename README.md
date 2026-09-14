@@ -144,14 +144,18 @@ features like separate cellars per user.
   straight to "log this pairing," which prefills the dish into a new
   tasting note. A tasting-flight result can be saved via "Save this
   flight" - see **Tasting flights** below.
-- **Tasting flights** (`/flights`) — a themed flight saved from Suggest,
-  kept as a queue to pull bottles from over time rather than disappearing
-  once you leave the page. A flight is listed and headed by its title,
-  with the theme spelled out on its own page; one saved before titles
-  existed keeps showing its summary as its name rather than getting a
-  backfilled guess. Each pick can be marked "tasted" once you open
-  it, or linked straight to logging a tasting note for it (prefilled with
-  which flight it was part of). Only real owned bottles are saved into a
+- **Tasting flights** (`/flights`) — a themed flight kept as a queue to
+  pull bottles from over time rather than disappearing once you leave the
+  page. Either ask Suggest for one and save it, or start one yourself with
+  a theme name and search your inventory for the bottles, in the order
+  you'd pour them. Any inventory bottle can also be added to a flight from
+  its card or its own page, via **Add to a tasting** — which lists the
+  flights still on the go and offers to start a new one. Picks can be
+  reordered or removed, marked "tasted" once you open them, or linked
+  straight to logging a tasting note (prefilled with which flight it was
+  part of). A flight is listed and headed by its title; one saved before
+  titles existed keeps showing its summary as its name rather than getting
+  a backfilled guess, and a hand-built one needs no description at all. Only real owned bottles are saved into a
   flight - a gap suggestion in the same result isn't something to "pull
   from the cellar," and can already be added to the wishlist independently.
 - **Guest favoriting** (`/guest`) — a link you hand to friends and family

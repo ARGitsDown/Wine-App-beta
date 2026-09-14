@@ -13,6 +13,8 @@ import {
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
+import AddToFlight from "@/app/components/AddToFlight";
+import { flightName as nameOfFlight, isOpenFlight } from "@/lib/flights";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
 import InlineDateEditor from "@/app/components/InlineDateEditor";
@@ -62,13 +64,22 @@ async function flightNameFor(param) {
     where: { id: Number(value) },
     select: { title: true, summary: true },
   });
-  return flight ? flight.title || flight.summary : null;
+  return flight ? nameOfFlight(flight) : null;
 }
 
 export default async function BottleDetailPage({ params, searchParams }) {
   const { id } = await params;
   const { pairedWith, tastingFlight } = await searchParams;
-  const flightName = await flightNameFor(tastingFlight);
+  const [flightName, allFlights] = await Promise.all([
+    flightNameFor(tastingFlight),
+    prisma.tastingFlight.findMany({
+      select: { id: true, title: true, summary: true, picks: { select: { consumed: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  const openFlights = allFlights
+    .filter(isOpenFlight)
+    .map((flight) => ({ id: flight.id, name: nameOfFlight(flight) }));
   const bottleId = Number(id);
 
   // Both together: the region list doesn't depend on the bottle, so
@@ -195,6 +206,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
             className={dangerButtonClass}
           />
         </div>
+        {/* Inventory only, like the card control: a flight is a queue of
+            bottles you can actually open. */}
+        {bottle.status === "inventory" && (
+          <AddToFlight bottleId={bottle.id} flights={openFlights} />
+        )}
       </div>
 
       <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">

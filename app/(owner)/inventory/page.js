@@ -5,18 +5,34 @@ import { createBottle } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import FilterableBottleList from "@/app/components/FilterableBottleList";
 import GuestLinkButton from "@/app/components/GuestLinkButton";
+import { flightName, isOpenFlight } from "@/lib/flights";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryPage({ searchParams }) {
   const filters = await searchParams;
-  const [bottles, regionOptions, missingWindowCount] = await Promise.all([
+  const [bottles, regionOptions, missingWindowCount, allFlights] = await Promise.all([
     getBottles("inventory"),
     getRegionOptions(),
     prisma.bottle.count({
       where: { status: "inventory", drinkFrom: null, drinkTo: null },
     }),
+    prisma.tastingFlight.findMany({
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        picks: { select: { consumed: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
+
+  // Only the flights still worth adding to, reduced to what the control
+  // actually renders - a finished flight is a record, not a queue.
+  const openFlights = allFlights
+    .filter(isOpenFlight)
+    .map((flight) => ({ id: flight.id, name: flightName(flight) }));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
@@ -44,6 +60,7 @@ export default async function InventoryPage({ searchParams }) {
         regionOptions={regionOptions}
         initialFilters={filters}
         emptyMessage="No bottles match. Add one below, or clear your filters."
+        flights={openFlights}
       />
 
       {/* The other way to add bottles, next to the by-hand form rather than

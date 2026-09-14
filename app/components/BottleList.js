@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { adjustBottleQuantity } from "@/app/actions";
+import AddToFlight from "@/app/components/AddToFlight";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 
 const stepperClass =
@@ -46,7 +47,11 @@ function QuantityStepper({ bottle }) {
   );
 }
 
-export default function BottleList({ bottles, emptyMessage }) {
+// `flights` is how a list opts into the add-to-a-tasting control: Inventory
+// passes the open flights, everything else passes nothing and the control
+// never renders. A flight is a queue of bottles you can open, so it has no
+// business on the wishlist, on history, or on a guest's view.
+export default function BottleList({ bottles, emptyMessage, flights = null }) {
   const [expandedIds, setExpandedIds] = useState(new Set());
 
   function toggle(id) {
@@ -139,6 +144,9 @@ export default function BottleList({ bottles, emptyMessage }) {
                     <div className="text-xs text-zinc-400">Qty: {bottle.quantity}</div>
                   ) : (
                     <QuantityStepper bottle={bottle} />
+                  )}
+                  {flights !== null && bottle.status === "inventory" && (
+                    <AddToFlight bottleId={bottle.id} flights={flights} />
                   )}
                   <Link
                     href={`/bottles/${bottle.id}`}

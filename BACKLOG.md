@@ -411,56 +411,44 @@ Decided:
 into two sections, a diff review component, client-side batching if the
 bulk button ships, and staleness handling.
 
-## 15. Building a flight by hand
+## ~~15. Building a flight by hand~~ — done
 
-Flights only exist as Suggest output. There is no way to say "I want a
-Barolo evening" and assemble it yourself, which is the more obvious way to
-plan a tasting than asking for one and hoping.
+Flights no longer only come out of Suggest. **Start a flight yourself** on
+`/flights` takes a theme name (and an optional description), then drops you
+on the flight's own page, where a search over your inventory adds bottles
+in the order you'd pour them. Each pick gains ↑/↓ and **Remove from
+flight**, so the running order is editable rather than fixed at add-time.
 
-Two entry points, and they want to agree with each other:
+**Add to a tasting** sits on every inventory bottle - on the card once
+expanded, and on the bottle's own page - listing the flights still on the
+go plus a box to start a new one. Every choice saves immediately. A flight
+whose picks are all drunk drops off that list: it's a record now, not a
+queue.
 
-- **`/flights/new`** - a theme name, then search your inventory and add
-  bottles in tasting order.
-- **Add to a tasting** on each bottle card, so a flight can be built while
-  browsing rather than only from a dedicated page.
+Two schema columns became nullable, because every flight until now came
+from a model that always wrote both. `TastingFlight.summary` is null for a
+hand-built flight with nothing more to say than its name, and
+`FlightPick.reason` is null for a bottle you added yourself, which has a
+place in the running order but no argument attached. Neither column can be
+NOT NULL on its own, so "at least one of title/summary" is guaranteed where
+flights are written and read through one `flightName()` helper rather than
+trusted from the schema.
 
-Two schema facts make this more than a UI job. `TastingFlight.summary` is
-**required** and `FlightPick.reason` is **required**, because every flight
-so far came from a model that always wrote both. A hand-built flight has a
-title and, often, nothing else to say - so both need to become nullable,
-and the three places that render them need to stop assuming a string. The
-`title || summary` fallback added in #12 also has to hold when `summary`
-is null, which means guaranteeing at least one of the two is set at write
-time rather than trusting the column.
+The open questions, as settled by building it:
 
-Decided:
+- **Inventory only**, matching what Suggest saves. A flight is a queue of
+  things you can actually open.
+- **Order is editable** - ↑/↓ per pick, swapping positions in a
+  transaction rather than doing arithmetic on `order`, which is only
+  guaranteed to increase (a removal leaves a gap and nothing renumbers).
+- **The description is optional and not prompted for.** A flight with only
+  a name reads fine: the page simply has no theme paragraph under the
+  heading.
 
-- **"Add to a tasting" opens a menu of unfinished flights, plus "New
-  flight…".** Every add saves immediately, there is no draft state to lose
-  or to leak between devices, and the control works the first time it is
-  tapped. A browse-and-collect draft was the alternative and is the nicer
-  flow; it needs somewhere to hold the draft, which is a decision worth
-  making on its own rather than smuggling into this one.
-
-Still open:
-
-- **Inventory only, or anything?** Suggest only ever saves owned bottles,
-  on the reasoning that a flight is a queue to pull from. A hand-built
-  flight might reasonably include a wishlist bottle bought for the
-  occasion. Defaulting to inventory-only keeps parity with Suggest and is
-  the easy thing to relax later; the reverse is not.
-- **Does the order matter enough to edit?** A flight is a sequence and
-  `FlightPick.order` already exists. Add-order plus up/down controls is
-  the plan unless that proves fiddly; drag is out of scope.
-- **Is a description optional or prompted?** `summary` becomes nullable
-  either way. A flight with none loses its "Why these" disclosure, which
-  may make the flight page look unfinished - worth seeing once before
-  deciding to prompt for it.
-
-**Size: medium-large.** Two nullable migrations and their render sites, a
-create page with an inventory picker (reusing `lib/filter-bottles.js`), a
-per-card control on inventory and the bottle page, and one new action.
-Guest views must not get any of it.
+Duplicates are refused in `addBottleToFlight` rather than by a unique
+constraint on (flightId, bottleId). Flights saved from Suggest before this
+existed could already contain a repeat, and a migration that fails on live
+data is a worse trade than a guard in the one function that adds picks.
 
 ## Lower priority / optional
 

@@ -218,7 +218,11 @@ model TastingFlight {
   title     String?
   // The fuller explanation of the theme and its ordering. Before `title`
   // it was doing both jobs, which made for a three-sentence link.
-  summary   String
+  // Nullable since flights can be built by hand: a flight you assembled
+  // yourself has a theme name and often nothing else to say. At least one
+  // of title/summary is always set - guaranteed where flights are written,
+  // not by the columns, since neither can be NOT NULL on its own.
+  summary   String?
   createdAt DateTime     @default(now())
   picks     FlightPick[]
 }
@@ -231,7 +235,10 @@ model FlightPick {
   bottleId Int
   bottle   Bottle        @relation(fields: [bottleId], references: [id], onDelete: Cascade)
   order    Int
-  reason   String
+  // Why this bottle is in this flight, in the model's words. Null for a
+  // pick added by hand, which has a position in the running order but no
+  // argument attached to it.
+  reason   String?
   consumed Boolean       @default(false)
 
   @@index([flightId])

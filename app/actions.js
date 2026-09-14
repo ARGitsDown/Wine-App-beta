@@ -1601,6 +1601,100 @@ export async function saveTastingFlight({ title, summary, picks }) {
   return { data: { id: flight.id } };
 }
 
+// Starts an empty flight by hand. A theme name is the only thing actually
+// required - the description is where you say what the theme is *for*, and
+// plenty of flights don't need one.
+export async function createFlight(prevState, formData) {
+  const title = String(formData.get("title") || "").trim();
+  const summary = String(formData.get("summary") || "").trim();
+  if (!title) return { error: "Give the flight a theme name." };
+
+  const flight = await prisma.tastingFlight.create({
+    data: { title, summary: summary || null },
+  });
+  revalidatePath("/flights");
+  redirect(`/flights/${flight.id}`);
+}
+
+// Appends a bottle to the end of a flight's running order. Called from the
+// flight's own page and from a bottle card anywhere in inventory, so it
+// can't assume the caller knew what was already in there.
+export async function addBottleToFlight(flightId, bottleId) {
+  const [flight, bottle] = await Promise.all([
+    prisma.tastingFlight.findUnique({
+      where: { id: flightId },
+      select: { id: true, title: true, summary: true },
+    }),
+    prisma.bottle.findUnique({ where: { id: bottleId }, select: { id: true } }),
+  ]);
+  if (!flight) return { error: "That flight no longer exists." };
+  if (!bottle) return { error: "That bottle no longer exists." };
+
+  // Checked here rather than with a unique constraint on (flightId,
+  // bottleId): flights saved from Suggest before this existed could
+  // already contain a repeat, and a migration that fails on live data is
+  // a worse trade than a guard in the one function that adds picks.
+  const existing = await prisma.flightPick.findFirst({
+    where: { flightId, bottleId },
+    select: { id: true },
+  });
+  if (existing) return { error: "That bottle is already in this flight." };
+
+  const last = await prisma.flightPick.findFirst({
+    where: { flightId },
+    orderBy: { order: "desc" },
+    select: { order: true },
+  });
+
+  await prisma.flightPick.create({
+    data: { flightId, bottleId, order: (last?.order ?? -1) + 1, reason: null },
+  });
+  revalidatePath(`/flights/${flightId}`);
+  revalidatePath("/flights");
+  return { data: { flightName: flight.title || flight.summary || "the flight" } };
+}
+
+export async function removeFlightPick(pickId) {
+  const pick = await prisma.flightPick.delete({ where: { id: pickId } });
+  revalidatePath(`/flights/${pick.flightId}`);
+  revalidatePath("/flights");
+}
+
+// Swaps a pick with its neighbour. Works off position in the sorted list
+// rather than arithmetic on `order`, because orders are only guaranteed to
+// be increasing - a removal leaves a gap, and nothing renumbers them.
+export async function moveFlightPick(pickId, direction) {
+  const pick = await prisma.flightPick.findUnique({
+    where: { id: pickId },
+    select: { id: true, flightId: true },
+  });
+  if (!pick) return;
+
+  const picks = await prisma.flightPick.findMany({
+    where: { flightId: pick.flightId },
+    orderBy: { order: "asc" },
+    select: { id: true, order: true },
+  });
+
+  const index = picks.findIndex((p) => p.id === pickId);
+  const target = index + (direction === "up" ? -1 : 1);
+  if (index === -1 || target < 0 || target >= picks.length) return;
+
+  // Both rows or neither: a half-applied swap would put two picks on the
+  // same order and make the list's sequence arbitrary.
+  await prisma.$transaction([
+    prisma.flightPick.update({
+      where: { id: picks[index].id },
+      data: { order: picks[target].order },
+    }),
+    prisma.flightPick.update({
+      where: { id: picks[target].id },
+      data: { order: picks[index].order },
+    }),
+  ]);
+  revalidatePath(`/flights/${pick.flightId}`);
+}
+
 export async function markFlightPickConsumed(pickId) {
   const pick = await prisma.flightPick.update({
     where: { id: pickId },

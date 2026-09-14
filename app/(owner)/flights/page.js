@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { flightName } from "@/lib/flights";
+import NewFlightForm from "@/app/components/NewFlightForm";
 
 export const dynamic = "force-dynamic";
 
@@ -14,19 +16,19 @@ export default async function FlightsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Tasting flights</h1>
         <p className="text-sm text-zinc-500">
-          Themed flights saved from Suggest - a queue to pull bottles from
-          over time. Get one by asking Suggest for a tasting flight and
-          hitting &quot;Save this flight.&quot;
+          Themed flights - a queue to pull bottles from over time. Ask
+          Suggest for one and hit &quot;Save this flight,&quot; or start one
+          yourself and pick the bottles.
         </p>
       </div>
 
       {flights.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          No saved flights yet. Try{" "}
+          No flights yet. Ask{" "}
           <Link href="/suggest" className="underline underline-offset-2">
             Suggest
-          </Link>
-          .
+          </Link>{" "}
+          for one, or build your own below.
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -44,7 +46,7 @@ export default async function FlightsPage() {
                   href={`/flights/${flight.id}`}
                   className="font-medium underline underline-offset-2"
                 >
-                  {flight.title || flight.summary}
+                  {flightName(flight)}
                 </Link>
                 <p className="mt-1 text-sm text-zinc-500">
                   {remaining} of {flight.picks.length} left to taste ·{" "}
@@ -55,6 +57,15 @@ export default async function FlightsPage() {
           })}
         </ul>
       )}
+
+      <details className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <summary className="cursor-pointer font-medium">
+          Start a flight yourself
+        </summary>
+        <div className="mt-4">
+          <NewFlightForm />
+        </div>
+      </details>
     </div>
   );
 }
