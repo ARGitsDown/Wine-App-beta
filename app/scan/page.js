@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createBottleWithNote, extractWinesFromPhoto } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import Spinner from "@/app/components/Spinner";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
 
 // Runs `worker` over `items` with at most `concurrency` in flight at once,
@@ -172,7 +173,7 @@ export default function ScanPage() {
               <div className="flex flex-1 flex-col gap-2">
                 {photo.status === "loading" && (
                   <p className="text-sm text-zinc-500">
-                    Reading the photo and checking your cellar…
+                    <Spinner label="Reading the photo and checking your cellar…" />
                   </p>
                 )}
 

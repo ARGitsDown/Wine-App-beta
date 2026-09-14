@@ -107,6 +107,12 @@ features like separate cellars per user.
   "Add to Home Screen" (iOS/Android) gives it its own icon and a
   standalone window (no browser address bar) instead of just a bookmarked
   tab, per the mobile-web-app plan in [`PROJECT.md`](./PROJECT.md).
+- **Design touches** — the home page's Inventory/Wishlist/History cards
+  each carry a small icon and color accent instead of being plain text
+  links. Anywhere the app is doing something that takes a moment (saving
+  a bottle, researching, getting suggestions, reading a scanned photo) it
+  shows a small animated "glass swirl" indicator instead of static text,
+  so a busy screen reads as working rather than stuck.
 
 ## Running it locally
 
