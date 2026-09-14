@@ -79,6 +79,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
                     if (bottle.drinkTo && year > bottle.drinkTo) return " (past peak)";
                     return " (ready)";
                   })()}
+                  {bottle.drinkWindowEstimated && (
+                    <span className="italic text-zinc-400 dark:text-zinc-500"> · estimated</span>
+                  )}
                 </span>
               )}
             </div>
