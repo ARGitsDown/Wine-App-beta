@@ -42,3 +42,6 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# Claude Code agent worktrees (scratch, not project deliverables)
+/.claude/worktrees/
