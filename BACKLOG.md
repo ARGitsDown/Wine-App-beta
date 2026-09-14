@@ -386,30 +386,30 @@ exist. A queue means persisting the proposal:
   field by field. That is strictly better than today's prefilled form,
   which shows you the answer but never tells you what it changed.
 
-Worth settling first:
+Decided:
 
-- **How much does one click cost?** Research is the app's only web-search
-  call and its most expensive by a distance. A per-row button is one
-  bottle's worth of spend and is safe. A "Research all 12" button is
-  twelve, in one tap, and belongs behind a count and a confirmation - or
-  in #8 with the other cost-bearing work. The two aren't mutually
-  exclusive; the question is whether the bulk button ships at all.
-- **Approve whole, or field by field?** Research is routinely right about
-  four fields and wrong about one, which argues for per-field checkboxes.
-  Whole-proposal approval is much less work and can be edited before
-  saving, which is what the current form does. This is the biggest fork in
-  the build.
-- **What happens to a stale proposal?** If the bottle is edited after
-  research runs, the proposal was computed against values that no longer
-  exist. Either store the "before" snapshot and flag the ones that moved,
-  or drop proposals whenever their bottle is updated. The second is a line
-  of code; the first is honest about what you're approving.
-- **How is the proposal stored?** One `Json` column is flexible and never
-  needs a migration when the research schema changes, but can't be queried
-  or type-checked. Mirrored nullable columns (about twelve of them) are
-  typed and diffable but duplicate the Bottle schema. For a personal app
-  the Json column is probably right, with the shape documented next to
-  `RESEARCH_TOOL`, which is already its single source of truth.
+- **Approval is whole-proposal, editable before saving.** The diff shows
+  what changed; the values stay editable, so a proposal that is right
+  about four fields and wrong about one gets fixed in place rather than
+  rejected. Per-field checkboxes were the alternative and are the better
+  UX, but not for the size of the build - revisit if editing round a bad
+  field turns out to be the common case rather than the rare one.
+- **Both buttons ship**: a per-row Research, and a "Research all N"
+  behind a count and a confirmation naming the number of web searches it
+  is about to run. Batched client-side with limited concurrency, the same
+  shape as `/estimate-windows`, so no single request can time out across
+  a large queue.
+- **Staleness is flagged, not prevented.** A proposal whose bottle has
+  been edited since it was made (`bottle.updatedAt > proposal.createdAt`)
+  is marked as such in the review UI rather than silently discarded.
+  Because approval is whole-proposal and editable, you can see the current
+  values beside it and decide - which is exactly the case the diff exists
+  for.
+- **Stored as one `Json` column**, with the shape documented beside
+  `RESEARCH_TOOL`, which is already its single source of truth. Mirrored
+  columns would be typed and queryable but would duplicate a dozen Bottle
+  fields and need a migration every time the research schema moves; the
+  proposal is only ever read back whole and rendered.
 
 **Size: large.** Schema plus migration, new actions, `/research` rebuilt
 into two sections, a diff review component, client-side batching if the
@@ -437,26 +437,29 @@ and the three places that render them need to stop assuming a string. The
 is null, which means guaranteeing at least one of the two is set at write
 time rather than trusting the column.
 
-Worth settling first:
+Decided:
 
-- **Where does "add to a tasting" put the bottle?** Either a menu of
-  existing unfinished flights plus "New flight…", which works immediately
-  and needs no new state; or a draft you accumulate while browsing and
-  name at the end, which is the nicer flow and needs somewhere to hold a
-  draft (a `draft` flag on the flight, or browser storage that can't be
-  read back by anything else).
+- **"Add to a tasting" opens a menu of unfinished flights, plus "New
+  flight…".** Every add saves immediately, there is no draft state to lose
+  or to leak between devices, and the control works the first time it is
+  tapped. A browse-and-collect draft was the alternative and is the nicer
+  flow; it needs somewhere to hold the draft, which is a decision worth
+  making on its own rather than smuggling into this one.
+
+Still open:
+
 - **Inventory only, or anything?** Suggest only ever saves owned bottles,
   on the reasoning that a flight is a queue to pull from. A hand-built
-  flight might reasonably include a wishlist bottle you intend to buy for
-  the occasion.
+  flight might reasonably include a wishlist bottle bought for the
+  occasion. Defaulting to inventory-only keeps parity with Suggest and is
+  the easy thing to relax later; the reverse is not.
 - **Does the order matter enough to edit?** A flight is a sequence and
-  `FlightPick.order` already exists. Add-order alone is the cheap version;
-  up/down controls are a small addition; drag is not.
-- **Is a description optional or prompted?** Making `summary` nullable is
-  the schema answer, but a flight with no description loses the "Why
-  these" disclosure entirely. An optional field that most people skip is
-  fine; the question is whether the flight page looks unfinished without
-  it.
+  `FlightPick.order` already exists. Add-order plus up/down controls is
+  the plan unless that proves fiddly; drag is out of scope.
+- **Is a description optional or prompted?** `summary` becomes nullable
+  either way. A flight with none loses its "Why these" disclosure, which
+  may make the flight page look unfinished - worth seeing once before
+  deciding to prompt for it.
 
 **Size: medium-large.** Two nullable migrations and their render sites, a
 create page with an inventory picker (reusing `lib/filter-bottles.js`), a
