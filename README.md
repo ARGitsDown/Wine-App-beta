@@ -53,7 +53,12 @@ features like separate cellars per user.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
 - **History** (`/consumed`) — bottles you've finished, kept around (with
-  their tasting notes) via "Mark as finished" on an inventory bottle.
+  their tasting notes). A row is a wine rather than an individual bottle,
+  so owning several and drinking one just decrements the count ("Drink
+  one — 5 left"); it only moves here once the last one is gone, or via
+  "Finish all N" if you're retiring the whole lot at once. Counts can
+  also be corrected with a +/- stepper right on an inventory row, without
+  opening the bottle.
 - **Tasting notes** — a note and an optional 1–5 rating logged against any
   bottle, regardless of its current status. Rating is optional so a note
   can be logged without a personal score yet (e.g. a shop's own write-up

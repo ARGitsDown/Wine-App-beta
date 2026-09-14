@@ -146,14 +146,17 @@ anything to build - they're here because they were found in one pass and
 shouldn't live only in a chat log. Roughly in order of how often they'd
 bite someone actually using the app.
 
-- **Changing quantity takes a full page load and a form.** Drinking one
-  of six bottles is the single most common daily action, and it currently
-  means opening the bottle's page, editing the Details form, and saving.
-  A +/- control on the expanded inventory row would make it one tap.
-  Related, and arguably the same fix: **"Mark as finished" ignores
-  quantity entirely** - it flips a bottle to History whether you own one
-  or six, so the count silently stops meaning anything once you drink
-  from a case.
+- ~~**Changing quantity takes a full page load and a form**, and **"Mark
+  as finished" ignores quantity entirely**~~ — done. A row is the wine
+  rather than an individual bottle, so "finished" only means anything
+  once the last one is gone: `finishOneBottle` decrements above one and
+  moves the row to History only on the last, with "Finish all N" kept
+  alongside for retiring a whole lot at once. Tasting notes stay attached
+  either way, and since each carries its own date they remain the record
+  of when each bottle was actually drunk. Inventory and Wishlist rows
+  also got an inline +/- stepper (floored at 1 - dropping to zero is what
+  finishing is for), so correcting a count no longer means opening the
+  bottle's page and saving a form.
 - **No sort control.** Lists are always producer A-Z. Recently added,
   vintage, and rating are all obvious wants; the drink-soon ordering in
   #7 above is the one that actually helps prioritize pulls, and would

@@ -5,6 +5,7 @@ import {
   updateBottle,
   deleteBottle,
   setBottleStatus,
+  finishOneBottle,
   addTastingNote,
   deleteBottlePhoto,
 } from "@/app/actions";
@@ -17,6 +18,8 @@ export const dynamic = "force-dynamic";
 
 const buttonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
+const secondaryButtonClass =
+  "rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700";
 const dangerButtonClass =
   "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
 
@@ -104,11 +107,25 @@ export default async function BottleDetailPage({ params, searchParams }) {
             </form>
           )}
           {bottle.status === "inventory" && (
-            <form action={setBottleStatus.bind(null, bottle.id, "consumed")}>
-              <button className={buttonClass} type="submit">
-                Mark as finished
-              </button>
-            </form>
+            <>
+              <form action={finishOneBottle.bind(null, bottle.id)}>
+                <button className={buttonClass} type="submit">
+                  {bottle.quantity > 1
+                    ? `Drink one — ${bottle.quantity - 1} left`
+                    : "Mark as finished"}
+                </button>
+              </form>
+              {/* Still a way to retire the whole lot at once (gave the case
+                  away, fixing a bad count) - the button above only ever
+                  moves the last bottle to History. */}
+              {bottle.quantity > 1 && (
+                <form action={setBottleStatus.bind(null, bottle.id, "consumed")}>
+                  <button className={secondaryButtonClass} type="submit">
+                    Finish all {bottle.quantity}
+                  </button>
+                </form>
+              )}
+            </>
           )}
           <form action={deleteBottle.bind(null, bottle.id)}>
             <button className={dangerButtonClass} type="submit">

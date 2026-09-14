@@ -1,8 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { adjustBottleQuantity } from "@/app/actions";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
+
+const stepperClass =
+  "flex h-6 w-6 items-center justify-center rounded border border-zinc-300 text-sm leading-none disabled:opacity-40 dark:border-zinc-700";
+
+// Adjusting the count is the most common thing you do to a bottle you
+// already own, and it used to mean opening the bottle's page and saving a
+// form. Inline here, it's one tap. Floors at 1 - see adjustBottleQuantity.
+function QuantityStepper({ bottle }) {
+  const [pending, startTransition] = useTransition();
+
+  function step(delta) {
+    startTransition(() => adjustBottleQuantity(bottle.id, delta));
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-zinc-400">
+      <span>Qty:</span>
+      <button
+        type="button"
+        onClick={() => step(-1)}
+        disabled={pending || bottle.quantity <= 1}
+        aria-label={`Decrease quantity of ${bottle.producer}`}
+        className={stepperClass}
+      >
+        −
+      </button>
+      <span className="min-w-4 text-center tabular-nums text-zinc-600 dark:text-zinc-300">
+        {bottle.quantity}
+      </span>
+      <button
+        type="button"
+        onClick={() => step(1)}
+        disabled={pending}
+        aria-label={`Increase quantity of ${bottle.producer}`}
+        className={stepperClass}
+      >
+        +
+      </button>
+    </div>
+  );
+}
 
 export default function BottleList({ bottles, emptyMessage }) {
   const [expandedIds, setExpandedIds] = useState(new Set());
@@ -91,9 +133,13 @@ export default function BottleList({ bottles, emptyMessage }) {
                       ❤️ Favorited by {bottle.favoritedBy.join(", ")}
                     </div>
                   )}
-                  <div className="text-xs text-zinc-400">
-                    Qty: {bottle.quantity}
-                  </div>
+                  {/* History is a record of what's gone, so its count is
+                      not something to nudge up and down after the fact. */}
+                  {bottle.status === "consumed" ? (
+                    <div className="text-xs text-zinc-400">Qty: {bottle.quantity}</div>
+                  ) : (
+                    <QuantityStepper bottle={bottle} />
+                  )}
                   <Link
                     href={`/bottles/${bottle.id}`}
                     className="self-start text-sm text-zinc-500 underline underline-offset-2"
