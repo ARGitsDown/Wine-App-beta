@@ -1,4 +1,4 @@
-# Wine Tracker
+# Cellarmaster
 
 A personal wine cellar tracker: cellar, wishlist, and tasting notes. See
 [`PROJECT.md`](./PROJECT.md) for the full project spec and reasoning behind
@@ -195,7 +195,14 @@ features like separate cellars per user.
 - **Add to home screen** — the app has a real icon and manifest, so
   "Add to Home Screen" (iOS/Android) gives it its own icon and a
   standalone window (no browser address bar) instead of just a bookmarked
-  tab, per the mobile-web-app plan in [`PROJECT.md`](./PROJECT.md).
+  tab, per the mobile-web-app plan in [`PROJECT.md`](./PROJECT.md). The
+  mark is a cellar vault with a bunch hanging in it, drawn as plain shapes
+  in `app/components/AppMark.js` rather than an image asset, so there is
+  nothing to host and it renders identically wherever `ImageResponse` runs.
+  `app/icon.js` draws it at 512px for the favicon and the manifest,
+  `app/apple-icon.js` at 180px for the iOS home screen. Note that iOS
+  snapshots the name and icon when you add it — changing either later
+  won't update a bookmark that already exists.
 - **Design touches** — the home page is six cards and nothing else: no
   title, no section labels, since six labelled cards say what the app holds
   better than a heading above them does. Each card carries its icon and

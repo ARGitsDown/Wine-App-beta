@@ -7,7 +7,7 @@ export default function GuestLayout({ children }) {
     <>
       <header className="border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto max-w-3xl px-4 py-3 text-sm font-medium">
-          Wine Tracker
+          Cellarmaster
         </div>
       </header>
       <main className="flex flex-1 flex-col">{children}</main>

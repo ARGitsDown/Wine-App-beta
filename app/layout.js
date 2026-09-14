@@ -12,16 +12,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Wine Tracker",
+  title: "Cellarmaster",
   description: "A personal wine cellar, wishlist, and tasting log.",
   appleWebApp: {
-    title: "Wine Tracker",
+    title: "Cellarmaster",
     statusBarStyle: "black-translucent",
   },
 };
 
+// Matches the app icon's ground, so the status bar carries the mark's
+// color when the app runs standalone.
 export const viewport = {
-  themeColor: "#18181b",
+  themeColor: "#4a1523",
 };
 
 // Only the document shell lives here. The header is deliberately not in it:

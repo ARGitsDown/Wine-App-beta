@@ -128,7 +128,7 @@ export default async function HomePage() {
       {/* The cards are the screen now - no title, no section labels. The
           heading stays for screen readers, which would otherwise land on a
           page with nothing naming it. */}
-      <h1 className="sr-only">Wine tracker</h1>
+      <h1 className="sr-only">Cellarmaster</h1>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {cards.map((card) => (
