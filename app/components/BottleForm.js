@@ -1,6 +1,9 @@
+"use client";
+
+import { useActionState, useEffect } from "react";
 import { allVarietalNames } from "@/lib/varietal-match";
 import { KNOWN_REGIONS } from "@/lib/regions";
-import { WINE_COLORS } from "@/lib/wine-colors";
+import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -25,13 +28,27 @@ export default function BottleForm({
   // instance's <datalist> id unique so browsers don't get confused about
   // which list an input's suggestions should come from.
   idPrefix = "bottle-form",
+  // Called with the action's returned state ({ success: true } or { error })
+  // after every submission - lets a caller react to a save that actually
+  // happened, rather than inferring it from the form merely going idle
+  // again (which also happens on a silently swallowed failure).
+  onResult,
   children,
 }) {
+  const [state, formAction, pending] = useActionState(action, null);
+
+  useEffect(() => {
+    if (state) onResult?.(state);
+    // Only re-run when a new result comes in - onResult is typically a
+    // fresh closure every render and isn't meant to retrigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
   const varietyListId = `${idPrefix}-variety-options`;
   const regionListId = `${idPrefix}-region-options`;
 
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form action={formAction} className="flex flex-col gap-3">
       {defaultValues.confident === false && (
         <input type="hidden" name="needsResearch" value="true" />
       )}
@@ -124,7 +141,7 @@ export default function BottleForm({
           Color
           <select
             name="wineColor"
-            defaultValue={defaultValues.wineColor || ""}
+            defaultValue={normalizeWineColor(defaultValues.wineColor) || ""}
             className={inputClass}
           >
             <option value="">Not set</option>
@@ -217,11 +234,15 @@ export default function BottleForm({
           </label>
         </div>
       )}
+      {state?.error && (
+        <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
+      )}
       <button
         type="submit"
+        disabled={pending}
         className="self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
       >
-        {submitLabel}
+        {pending ? "Saving…" : submitLabel}
       </button>
       {children}
     </form>
