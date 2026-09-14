@@ -11,26 +11,33 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const sectionLabelClass =
+  "text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500";
+
 const cardClass =
-  "flex flex-col gap-3 rounded-xl border border-zinc-200 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md dark:border-zinc-800 dark:hover:border-zinc-600";
+  "flex flex-col gap-2 rounded-xl border border-zinc-200 p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md dark:border-zinc-800 dark:hover:border-zinc-600";
 
 function Card({ card }) {
   return (
     <Link href={card.href} className={cardClass}>
-      <span
-        className={`inline-flex h-10 w-10 items-center justify-center rounded-full ${card.accent}`}
-      >
-        <card.Icon />
-      </span>
-      <div>
+      {/* Icon and count share a row. Stacked, they cost a line per card,
+          which across six cards was most of a phone screen. */}
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${card.accent}`}
+        >
+          <card.Icon className="h-5 w-5" />
+        </span>
         {/* Only the collections carry a number. Scan and Suggest are things
             you do rather than piles of bottles, and a count on them would
             either be meaningless or quietly invented. */}
         {card.count !== undefined && (
-          <div className="text-2xl font-semibold">{card.count}</div>
+          <span className="text-xl font-semibold leading-none">{card.count}</span>
         )}
-        <div className="font-medium">{card.label}</div>
-        <div className="text-sm text-zinc-500">{card.description}</div>
+      </div>
+      <div>
+        <div className="text-sm font-medium">{card.label}</div>
+        <div className="text-xs text-zinc-500">{card.description}</div>
       </div>
     </Link>
   );
@@ -101,33 +108,28 @@ export default async function HomePage() {
   ];
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-12">
-      <div>
-        <h1 className="text-3xl font-semibold">Wine tracker</h1>
-        <p className="mt-1 text-zinc-500">
-          Your cellar, wishlist, and tasting notes in one place.
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6">
+      {/* No tagline under the title: six labelled cards say what the app
+          holds more precisely than a sentence summarising three of them. */}
+      <h1 className="text-2xl font-semibold">Wine tracker</h1>
 
       {/* Start here sits first: on a phone this is the top of the screen,
           and scanning a label or asking what to open is more often why
           you opened the app than reading a count is. */}
-      <div className="flex flex-col gap-3">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-          Start here
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+      <div className="flex flex-col gap-2">
+        <h2 className={sectionLabelClass}>Start here</h2>
+        {/* Two across even on the narrowest phone. One card per row read
+            as a stack of banners and pushed Flights off the screen. */}
+        <div className="grid grid-cols-2 gap-3">
           {actions.map((card) => (
             <Card key={card.href} card={card} />
           ))}
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-          Your wines
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex flex-col gap-2">
+        <h2 className={sectionLabelClass}>Your wines</h2>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {collections.map((card) => (
             <Card key={card.href} card={card} />
           ))}
