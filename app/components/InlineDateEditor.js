@@ -1,14 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { updateTastingNoteDate } from "@/app/actions";
 import { formatTastedDate, toDateInputValue, todayInputValue } from "@/lib/tasting-date";
 
-// The date on an existing note, editable in place. Notes written before
-// this existed were all stamped with whenever they were typed up rather
-// than when the bottle was actually opened, so being able to correct one
-// matters as much as setting it correctly the first time.
-export default function TastedDateEditor({ note }) {
+// A date shown as text until you click it, then an input with Save/Cancel.
+// Used for both a tasting note's date and a bottle's emptied date: in each
+// case the stored value is a standing guess ("now", at the moment you
+// pressed a button) that's right when you log as you go and wrong whenever
+// you're catching up afterward.
+//
+// `action` is a bound Server Action taking a FormData with `name`; the
+// caller owns which field that is so one component serves both.
+export default function InlineDateEditor({
+  date,
+  action,
+  name,
+  emptyLabel = "Set a date",
+  title = "Change this date",
+}) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState(null);
 
@@ -17,10 +26,14 @@ export default function TastedDateEditor({ note }) {
       <button
         type="button"
         onClick={() => setEditing(true)}
-        title="Change this date"
-        className="underline decoration-dotted underline-offset-2"
+        title={title}
+        className={
+          date
+            ? "underline decoration-dotted underline-offset-2"
+            : "italic underline decoration-dotted underline-offset-2"
+        }
       >
-        {formatTastedDate(note.tastedAt)}
+        {date ? formatTastedDate(date) : emptyLabel}
       </button>
     );
   }
@@ -28,7 +41,7 @@ export default function TastedDateEditor({ note }) {
   return (
     <form
       action={async (formData) => {
-        const result = await updateTastingNoteDate(note.id, formData);
+        const result = await action(formData);
         if (result?.error) setError(result.error);
         else setEditing(false);
       }}
@@ -36,9 +49,11 @@ export default function TastedDateEditor({ note }) {
     >
       <input
         type="date"
-        name="tastedAt"
+        name={name}
         required
-        defaultValue={toDateInputValue(note.tastedAt)}
+        // A row with no date yet opens on today rather than blank, since
+        // that's the likeliest answer and saves a tap.
+        defaultValue={date ? toDateInputValue(date) : todayInputValue()}
         max={todayInputValue()}
         className="rounded border border-zinc-300 px-1.5 py-0.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
       />

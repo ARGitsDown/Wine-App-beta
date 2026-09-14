@@ -15,6 +15,7 @@ export default function FilterableBottleList({
   // History turns this off: a drinking window is advice about when to open
   // something, which is moot once it's been drunk.
   showDrinkSoon = true,
+  showEmptied = false,
 }) {
   const { filters, visible, update, clear } = useBottleFilters(bottles, initialFilters);
 
@@ -26,6 +27,7 @@ export default function FilterableBottleList({
         onClear={clear}
         regionOptions={regionOptions}
         showDrinkSoon={showDrinkSoon}
+        showEmptied={showEmptied}
         resultCount={visible.length}
         totalCount={bottles.length}
       />

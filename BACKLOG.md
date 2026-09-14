@@ -72,13 +72,21 @@ implied ones, and can't distinguish them:
   treats as "when it entered the cellar". For a bottle scanned off a shop
   shelf into the wishlist, or one scanned from a tasting sheet straight
   into History, that reading is wrong.
-- Nothing records **when a bottle was emptied**. "Tasted" moves a row to
-  History without noting the date; the tasting notes are the only trace,
-  and only if one was written.
+- ~~Nothing records **when a bottle was emptied**~~ — done. `emptiedAt`
+  is stamped by whichever action moves a row into History (the "Tasted"
+  buttons, a scan card set to History, a wine created straight into it)
+  and cleared if it ever moves back out, so a bottle returned to
+  Inventory can't keep claiming a date. Editable on the bottle's page,
+  which also lets rows that reached History before the column existed be
+  backfilled - they read "Emptied date unknown" rather than showing a
+  wrong date. History gains a "Recently emptied" sort, which is the
+  ordering that page actually wanted ("recently added" on a consumed
+  bottle means when the row was typed in, which is close to meaningless
+  there).
 
-That first item is now done. The rest needs a decision first, and it's
-the one scan raises: **what is the app recording when a wine is added?**
-Today scan infers status from
+Only the middle item is left, and it needs a decision first - the one
+scan raises: **what is the app recording when a wine is added?** Today
+scan infers status from
 whether the source document carried tasting-note text (a shop sheet's
 write-up ⇒ History; a plain label ⇒ Inventory), which is a reasonable
 guess but is never explained and can't be corrected as an intent - only
@@ -94,12 +102,12 @@ as a status radio after the fact. Worth settling:
   simply renamed in the UI and left alone? A separate nullable
   `acquiredAt` avoids rewriting history for existing rows.
 
-The tasting-note date shipped on its own, as recommended - it was useful
-immediately and committed to none of the above. The scan-intent flow and
-any acquired-date column remain a separate piece of work, waiting on the
-question above. Of what's left, "when was it emptied" is arguably the
-bigger hole than acquisition, and is easier now that a tasting date
-exists to hang it off.
+The tasting-note and emptied dates both shipped on their own, as
+recommended - each was useful immediately and committed to none of the
+above. What remains is only the acquired date, which still waits on the
+scan-intent question: until scan says whether you're stocking the cellar
+or drinking now, there's no reliable moment for an acquired date to
+attach to.
 
 ## 5. Bottle size / format
 

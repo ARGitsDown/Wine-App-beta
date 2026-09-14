@@ -7,13 +7,15 @@ import {
   setBottleStatus,
   markOneTasted,
   addTastingNote,
+  updateTastingNoteDate,
+  updateEmptiedDate,
   deleteBottlePhoto,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
-import TastedDateEditor from "@/app/components/TastedDateEditor";
+import InlineDateEditor from "@/app/components/InlineDateEditor";
 import { todayInputValue } from "@/lib/tasting-date";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 
@@ -113,6 +115,20 @@ export default async function BottleDetailPage({ params, searchParams }) {
                 </span>
               )}
             </div>
+            {bottle.status === "consumed" && (
+              // A div, not a p: the editor renders a <form> once open, and
+              // a form can't legally nest inside a paragraph.
+              <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-zinc-500">
+                <span>Emptied</span>
+                <InlineDateEditor
+                  date={bottle.emptiedAt}
+                  action={updateEmptiedDate.bind(null, bottle.id)}
+                  name="emptiedAt"
+                  emptyLabel="date unknown"
+                  title="Set when this was emptied"
+                />
+              </div>
+            )}
             {bottle.favorites.length > 0 && (
               <p className="mt-1 text-sm text-zinc-500">
                 ❤️ Favorited by {bottle.favorites.map((f) => f.guest.name).join(", ")}
@@ -225,7 +241,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
               className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
             >
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-500">
-                <TastedDateEditor note={tastingNote} />
+                <InlineDateEditor
+                  date={tastingNote.tastedAt}
+                  action={updateTastingNoteDate.bind(null, tastingNote.id)}
+                  name="tastedAt"
+                />
                 <span>
                   {tastingNote.rating !== null
                     ? `${tastingNote.rating} / 5 ★`

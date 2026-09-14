@@ -23,10 +23,15 @@ export default function FilterBar({
   regionOptions = KNOWN_REGIONS,
   showRating = true,
   showDrinkSoon = true,
+  showEmptied = false,
   resultCount,
   totalCount,
 }) {
-  const sortOptions = sortOptionsFor({ rating: showRating, drinkWindow: showDrinkSoon });
+  const sortOptions = sortOptionsFor({
+    rating: showRating,
+    drinkWindow: showDrinkSoon,
+    emptied: showEmptied,
+  });
   // Seeded once from whether the page loaded with a filter already applied
   // (a shared or bookmarked URL), then left to the user. Deriving it from
   // the current filters instead would snap the panel shut the moment you

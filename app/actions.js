@@ -10,7 +10,7 @@ import { cookies } from "next/headers";
 import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
-import { parseTastedDate } from "@/lib/tasting-date";
+import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
 import { WINE_COLORS } from "@/lib/wine-colors";
 import { uploadLabelPhoto } from "@/lib/blob";
 
@@ -125,7 +125,16 @@ async function insertBottle(status, formData) {
   const photoUrl = String(formData.get("photoUrl") || "").trim() || null;
   try {
     const created = await prisma.bottle.create({
-      data: { ...data, status, needsResearch, photoUrl },
+      // A wine logged straight into History was drunk at some point; "now"
+      // is the same standing guess the tasting note's date makes, and is
+      // correctable afterward.
+      data: {
+        ...data,
+        status,
+        needsResearch,
+        photoUrl,
+        emptiedAt: emptiedAtForStatus(status, null),
+      },
     });
     invalidateRegionOptions();
     return created;
@@ -201,12 +210,53 @@ export async function updateBottle(id, prevState, formData) {
   }
 }
 
+// emptiedAt only means something while a row is in History, so it's derived
+// from the status change rather than set independently: stamped on the way
+// in, cleared on the way out. Every path that moves a bottle between states
+// goes through here so none of them can forget.
+//
+// An existing date is never overwritten - re-selecting "History" on a scan
+// card that's already there shouldn't silently reset when you drank it -
+// but leaving and returning does re-stamp, because by then the old date is
+// describing a different event.
+function emptiedAtForStatus(status, existingEmptiedAt) {
+  if (status !== "consumed") return null;
+  return existingEmptiedAt ?? todayAtNoonUtc();
+}
+
 export async function setBottleStatus(id, status) {
-  await prisma.bottle.update({ where: { id }, data: { status } });
+  const existing = await prisma.bottle.findUnique({
+    where: { id },
+    select: { emptiedAt: true },
+  });
+  if (!existing) return;
+
+  await prisma.bottle.update({
+    where: { id },
+    data: { status, emptiedAt: emptiedAtForStatus(status, existing.emptiedAt) },
+  });
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/inventory");
   revalidatePath("/wishlist");
   revalidatePath("/consumed");
+}
+
+// Correcting when a bottle was actually emptied, the same way a tasting
+// note's date can be corrected - the button stamps "now", which is right
+// when you log as you drink and wrong when you're catching up later.
+export async function updateEmptiedDate(id, formData) {
+  const emptiedAt = parseTastedDate(formData.get("emptiedAt"));
+  if (!emptiedAt) return { error: "That date doesn't look right." };
+
+  try {
+    await prisma.bottle.update({ where: { id }, data: { emptiedAt } });
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/consumed");
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to update emptied date:", err);
+    return { error: "Couldn't save that date. Please try again." };
+  }
 }
 
 // Tasting one bottle out of several you own. This used to go through
@@ -221,14 +271,18 @@ export async function setBottleStatus(id, status) {
 export async function markOneTasted(id) {
   const bottle = await prisma.bottle.findUnique({
     where: { id },
-    select: { quantity: true },
+    select: { quantity: true, emptiedAt: true },
   });
   if (!bottle) return;
 
   const data =
     bottle.quantity > 1
       ? { quantity: bottle.quantity - 1 }
-      : { status: "consumed", quantity: 1 };
+      : {
+          status: "consumed",
+          quantity: 1,
+          emptiedAt: emptiedAtForStatus("consumed", bottle.emptiedAt),
+        };
 
   await prisma.bottle.update({ where: { id }, data });
   revalidatePath(`/bottles/${id}`);
@@ -528,6 +582,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
               data: {
                 ...bottleDataFromWine(wine),
                 status,
+                emptiedAt: emptiedAtForStatus(status, null),
                 needsResearch: wine.confident === false,
                 photoUrl,
               },

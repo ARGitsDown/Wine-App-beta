@@ -24,6 +24,7 @@ export default async function ConsumedPage({ searchParams }) {
         regionOptions={regionOptions}
         initialFilters={filters}
         showDrinkSoon={false}
+        showEmptied
         emptyMessage="Nothing here yet — bottles you mark as finished from Inventory will show up here."
       />
     </div>

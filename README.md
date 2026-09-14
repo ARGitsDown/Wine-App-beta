@@ -65,7 +65,10 @@ features like separate cellars per user.
   one — 5 left"); it only moves here once the last one is gone, or via
   "Tasted all N" if you're clearing the whole lot at once. Counts can
   also be corrected with a +/- stepper right on an inventory row, without
-  opening the bottle.
+  opening the bottle. Each bottle records when it was emptied, so History
+  sorts by "Recently emptied" — the date is stamped automatically and
+  editable on the bottle's page, and bottles that reached History before
+  this existed read "Emptied date unknown" until you fill one in.
 - **Tasting notes** — a note, an optional 1–5 rating, and the date you
   tasted it, logged against any bottle regardless of its current status.
   The date defaults to today, so logging as you drink stays one tap, but a

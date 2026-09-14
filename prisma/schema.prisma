@@ -104,6 +104,15 @@ model Bottle {
   // optional). One photo can hold several wines (a shop's tasting sheet),
   // in which case each of those bottles shares the same photoUrl.
   photoUrl String?
+  // When the last bottle of this wine actually left the cellar. Nullable
+  // and only meaningful for a `consumed` row: set on whichever action moved
+  // it there, cleared if it ever moves back out, so a bottle returned to
+  // Inventory doesn't keep claiming a date it was emptied on. Rows that
+  // reached History before this column existed have null, which reads as
+  // "emptied, date unknown" rather than as a wrong date - see BACKLOG.md
+  // #10. Stored like TastingNote.tastedAt, anchored at noon UTC: see
+  // lib/tasting-date.js for why a date-only value needs that.
+  emptiedAt DateTime?
   // Existing winemaking/tasting notes found *about* this wine by the
   // Research feature - the winery's own description, critic write-ups
   // (Wine Advocate, Wine Spectator, Halliday, Jancis Robinson, etc.), or
