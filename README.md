@@ -58,7 +58,10 @@ features like separate cellars per user.
   scanning works exactly the same without it (see `BLOB_READ_WRITE_TOKEN`
   in `.env.example`). "Add a photo" on a bottle's detail page adds more
   photos afterward - a back label, a cork, a case - beyond the one
-  captured at scan time.
+  captured at scan time. Each one it's read too: Claude looks for anything
+  new it shows (an ABV or tasting note printed on a back label, a vintage
+  on a case) and proposes field updates the same reviewable way as
+  Research - nothing changes until you review and save.
 - **Needs research** (`/research`) — a queue of bottles the scan feature
   flagged as unsure about some field. Open one and hit "Research further"
   on its page to have Claude look it up with an actual web search (not

@@ -880,14 +880,143 @@ export async function dismissResearch(id) {
   revalidatePath("/research");
 }
 
+const PHOTO_DETAILS_TOOL = {
+  name: "record_photo_details",
+  description:
+    "Record updated fields for this already-saved wine, based on what this new photo shows (e.g. a back label, a cork, a case) - not the original front-label photo already on file. Only change a field when this photo actually shows or confirms something new; otherwise repeat the current value back rather than guess.",
+  input_schema: {
+    type: "object",
+    properties: {
+      bottling: {
+        type: ["string", "null"],
+        description: "Vineyard designation or proprietary/cuvée name, if any.",
+      },
+      vintage: { type: ["integer", "null"], description: "The vintage year." },
+      type: {
+        type: ["string", "null"],
+        description: "Short, header-friendly style label (e.g. 'Zinfandel', 'Red Bordeaux Blend').",
+      },
+      variety: {
+        type: ["string", "null"],
+        description: "Fuller grape variety/blend description.",
+      },
+      region: { type: ["string", "null"], description: "Primary sub-country region or US state." },
+      subRegion: {
+        type: ["string", "null"],
+        description: "A finer-grained locator within region, if known (e.g. 'Margaux' within Bordeaux).",
+      },
+      country: { type: ["string", "null"], description: "Country of origin." },
+      abv: {
+        type: ["number", "null"],
+        description: "Alcohol by volume, e.g. 14.5 for '14.5%'.",
+      },
+      wineColor: {
+        type: ["string", "null"],
+        description: `One of ${WINE_COLORS.join(", ")} (exactly this spelling/casing), or null.`,
+      },
+      drinkFrom: {
+        type: ["integer", "null"],
+        description: "Start of the drinking window (a year), only if genuinely well-supported.",
+      },
+      drinkTo: {
+        type: ["integer", "null"],
+        description: "End of the drinking window (a year), same standard as drinkFrom.",
+      },
+      criticNotes: {
+        type: ["string", "null"],
+        description:
+          "Winemaking/tasting-note text visible on this photo (e.g. a back label's own description) - merged with what's already on file if useful, rather than dropped. Null if nothing relevant is visible.",
+      },
+      summary: {
+        type: "string",
+        description: "A short explanation of what this photo shows and what you changed.",
+      },
+    },
+    required: [
+      "bottling",
+      "vintage",
+      "type",
+      "variety",
+      "region",
+      "subRegion",
+      "country",
+      "abv",
+      "wineColor",
+      "drinkFrom",
+      "drinkTo",
+      "criticNotes",
+      "summary",
+    ],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+const PHOTO_DETAILS_SYSTEM_PROMPT =
+  "You help fill in gaps or correct uncertain details for one wine already saved in a personal cellar-tracking app, based on a new photo the user just took of it (a back label, a cork, a case - not the original front-label photo already on file). Read what's actually visible in the photo and propose updated fields; don't invent or guess at anything not shown. Keep a field as its current value rather than guess. Call record_photo_details exactly once, when you're done reading the photo, with your final answer.";
+
+// Reads an additional photo of an already-saved bottle (added alongside
+// addBottlePhoto below) and proposes field updates from what it actually
+// shows - a back label's ABV or tasting notes, a case's vintage, etc. Same
+// review-before-save trust model as researchBottle: nothing is saved
+// automatically, the bottle page shows this as an editable, prefilled form.
+export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType) {
+  const bottle = await prisma.bottle.findUnique({ where: { id: bottleId } });
+  if (!bottle) return { error: "That bottle no longer exists." };
+
+  const messages = [
+    {
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: { type: "base64", media_type: mediaType, data: base64Image },
+        },
+        {
+          type: "text",
+          text: `Read this photo and propose updated details for this already-saved wine:\n\n${describeBottleForResearch(bottle)}`,
+        },
+      ],
+    },
+  ];
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-opus-5",
+      max_tokens: 4096,
+      thinking: { type: "adaptive" },
+      system: PHOTO_DETAILS_SYSTEM_PROMPT,
+      tools: [PHOTO_DETAILS_TOOL],
+      messages,
+    });
+
+    const finalCall = response.content.find(
+      (block) => block.type === "tool_use" && block.name === "record_photo_details"
+    );
+    if (finalCall) return { data: finalCall.input };
+    return { error: "Couldn't read that photo. Please try again." };
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { error: "The photo reader isn't configured correctly (invalid API key)." };
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return { error: "Too many requests at once — wait a moment and try again." };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { error: `Photo reader error: ${err.message}` };
+    }
+    return { error: "Something went wrong reading that photo. Please try again." };
+  }
+}
+
 // Adds one more photo to an already-saved bottle - a back label, a cork, a
 // case, anything worth keeping alongside the original scanned label -
 // akin to how the Research feature adds detail after the fact rather than
-// only at save time. Not read by any AI feature, just stored and shown
-// back. Takes the already-downscaled base64 image straight from the
-// client (same shape as extractWinesFromPhoto), since there's no plain
-// form-post path for a file this large through a Server Action bound to a
-// specific bottle.
+// only at save time. Not read by any AI feature itself, just stored and
+// shown back (extractBottlePhotoDetails above is what reads it). Takes the
+// already-downscaled base64 image straight from the client (same shape as
+// extractWinesFromPhoto), since there's no plain form-post path for a file
+// this large through a Server Action bound to a specific bottle.
 export async function addBottlePhoto(bottleId, base64Image, mediaType) {
   const url = await uploadLabelPhoto(base64Image, mediaType);
   if (!url) {

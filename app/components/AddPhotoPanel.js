@@ -1,41 +1,57 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { addBottlePhoto } from "@/app/actions";
+import { addBottlePhoto, extractBottlePhotoDetails, updateBottle } from "@/app/actions";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
+import BottleForm from "@/app/components/BottleForm";
 import Spinner from "@/app/components/Spinner";
 
 // Lets a bottle collect more than one photo over time - a back label, a
-// cork, a case - beyond the single label photo captured at scan time.
-// Same trust model as the rest of the app's photo handling: pick a file,
-// it's uploaded and attached immediately (there's nothing to review/edit
-// about a photo the way there is for scanned/researched fields).
-export default function AddPhotoPanel({ bottleId }) {
+// cork, a case - beyond the single label photo captured at scan time. The
+// photo itself is always stored (addBottlePhoto); alongside that, it's
+// also read for anything new it shows (extractBottlePhotoDetails) - same
+// review-before-save trust model as the Research panel: nothing is
+// applied until the user reviews and submits the prefilled form below.
+export default function AddPhotoPanel({ bottle, regionOptions }) {
   const fileInputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState(null);
+  const [working, setWorking] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [readError, setReadError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [applied, setApplied] = useState(false);
 
   async function handleFileChange(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
 
-    setUploading(true);
-    setError(null);
+    setWorking(true);
+    setUploadError(null);
+    setReadError(null);
+    setResult(null);
+    setApplied(false);
     try {
       const resized = await downscaleImage(file);
       const base64 = await fileToBase64(resized);
-      const result = await addBottlePhoto(bottleId, base64, "image/jpeg");
-      if (result.error) setError(result.error);
+      const [uploadResult, detailsResult] = await Promise.all([
+        addBottlePhoto(bottle.id, base64, "image/jpeg"),
+        extractBottlePhotoDetails(bottle.id, base64, "image/jpeg"),
+      ]);
+      if (uploadResult.error) setUploadError(uploadResult.error);
+      if (detailsResult.error) {
+        setReadError(detailsResult.error);
+      } else {
+        setResult(detailsResult.data);
+      }
     } catch {
-      setError("Something went wrong uploading that photo. Please try again.");
+      setUploadError("Something went wrong with that photo. Please try again.");
     } finally {
-      setUploading(false);
+      setWorking(false);
     }
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <input
         ref={fileInputRef}
         type="file"
@@ -46,12 +62,38 @@ export default function AddPhotoPanel({ bottleId }) {
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
+        disabled={working}
         className="self-start rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
       >
-        {uploading ? <Spinner label="Uploading…" /> : "Add a photo"}
+        {working ? <Spinner label="Reading photo…" /> : "Add a photo"}
       </button>
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {uploadError && <p className="text-sm text-red-600 dark:text-red-400">{uploadError}</p>}
+      {readError && <p className="text-sm text-red-600 dark:text-red-400">{readError}</p>}
+
+      {applied && (
+        <p className="text-sm font-medium text-green-700 dark:text-green-400">
+          ✓ Applied — details above are updated.
+        </p>
+      )}
+
+      {result && !applied && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-300 p-4 dark:border-amber-900">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{result.summary}</p>
+          <p className="text-xs text-zinc-500">
+            Review and edit below — nothing changes until you save.
+          </p>
+          <BottleForm
+            action={updateBottle.bind(null, bottle.id)}
+            defaultValues={{ ...bottle, ...result }}
+            submitLabel="Apply these changes"
+            regionOptions={regionOptions}
+            idPrefix="bottle-photo-details"
+            onResult={(actionResult) => {
+              if (actionResult.success) setApplied(true);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

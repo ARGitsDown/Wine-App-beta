@@ -157,7 +157,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
         ) : (
           <p className="text-sm text-zinc-500">No photos yet.</p>
         )}
-        <AddPhotoPanel bottleId={bottle.id} />
+        <AddPhotoPanel bottle={bottle} regionOptions={regionOptions} />
       </section>
 
       <ResearchPanel bottle={bottle} regionOptions={regionOptions} />
