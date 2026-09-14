@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
-  BottleIcon,
-  HeartIcon,
-  ClockIcon,
-  CameraIcon,
-  SparkleIcon,
-  FlightIcon,
+  ScanIcon,
+  SuggestIcon,
+  InventoryIcon,
+  WishlistIcon,
+  TastingHistoryIcon,
+  FlightsIcon,
 } from "@/app/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +58,7 @@ export default async function HomePage() {
       label: "Inventory",
       count: inventoryCount,
       description: "Bottles currently in your cellar",
-      Icon: BottleIcon,
+      Icon: InventoryIcon,
       accent: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
     },
     {
@@ -66,7 +66,7 @@ export default async function HomePage() {
       label: "Wishlist",
       count: wishlistCount,
       description: "Bottles to try or buy",
-      Icon: HeartIcon,
+      Icon: WishlistIcon,
       accent: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
     },
     {
@@ -74,7 +74,7 @@ export default async function HomePage() {
       label: "Tasting history",
       count: tastingNoteCount,
       description: "Tasting notes logged",
-      Icon: ClockIcon,
+      Icon: TastingHistoryIcon,
       accent: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
     },
     {
@@ -82,7 +82,7 @@ export default async function HomePage() {
       label: "Flights",
       count: flightCount,
       description: "Themed flights saved from Suggest",
-      Icon: FlightIcon,
+      Icon: FlightsIcon,
       accent:
         "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400",
     },
@@ -93,7 +93,7 @@ export default async function HomePage() {
       href: "/scan",
       label: "Scan",
       description: "Read a label or tasting sheet from a photo",
-      Icon: CameraIcon,
+      Icon: ScanIcon,
       accent:
         "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
     },
@@ -101,7 +101,7 @@ export default async function HomePage() {
       href: "/suggest",
       label: "Suggest",
       description: "What to open tonight, or a flight to build",
-      Icon: SparkleIcon,
+      Icon: SuggestIcon,
       accent:
         "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-400",
     },

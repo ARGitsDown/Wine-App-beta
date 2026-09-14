@@ -191,7 +191,10 @@ features like separate cellars per user.
   number on "Scan" would be meaningless. The icons are hand-written SVG
   paths in `app/components/icons.js` rather than image assets or an icon
   library — nothing to host or license, and they inherit the surrounding
-  text color so one copy works in both themes. Anywhere the app is doing something that takes a moment (saving
+  text color so one copy works in both themes. They're built from a few
+  shared parts (a bottle, a glass, a coil) rather than drawn one at a time,
+  since four of the six contain a bottle and three contain a glass — which
+  is what keeps the set looking like a set. Anywhere the app is doing something that takes a moment (saving
   a bottle, researching, getting suggestions, reading a scanned photo) it
   shows a small animated "glass swirl" indicator instead of static text,
   so a busy screen reads as working rather than stuck. Navigating between
