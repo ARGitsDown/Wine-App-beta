@@ -5,6 +5,7 @@ import { allVarietalNames } from "@/lib/varietal-match";
 import { KNOWN_REGIONS } from "@/lib/regions";
 import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 import Spinner from "@/app/components/Spinner";
+import AutoTextarea from "@/app/components/AutoTextarea";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -230,18 +231,21 @@ export default function BottleForm({
       </div>
       <label className={labelClass}>
         Notes
-        <textarea
+        <AutoTextarea
           name="notes"
-          rows={2}
+          minRows={3}
           defaultValue={defaultValues.notes || ""}
           className={inputClass}
         />
       </label>
       <label className={labelClass}>
         Critic &amp; winemaker notes
-        <textarea
+        {/* The one field that routinely holds several paragraphs, so it
+            starts taller and is allowed to grow further than the rest. */}
+        <AutoTextarea
           name="criticNotes"
-          rows={3}
+          minRows={6}
+          maxHeight={480}
           defaultValue={defaultValues.criticNotes || ""}
           className={inputClass}
           placeholder="Filled in by Research — the winery's own notes, critic reviews, etc."
@@ -254,9 +258,9 @@ export default function BottleForm({
           </p>
           <label className={labelClass}>
             Note
-            <textarea
+            <AutoTextarea
               name="note"
-              rows={2}
+              minRows={3}
               defaultValue={defaultValues.note || ""}
               className={inputClass}
             />
