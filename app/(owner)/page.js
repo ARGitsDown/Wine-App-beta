@@ -33,15 +33,16 @@ function Card({ card }) {
           either be meaningless or quietly invented - so their description
           takes the whole bottom row instead of sitting beside a gap. */}
       {hasCount ? (
-        <div className="flex items-end justify-between gap-2">
-          {/* The same width as the icon above it, centred: the figure reads
-              as belonging to that icon rather than to the card's edge. */}
+        /* Two columns, top to bottom: the icon and the count share the left
+           one at the same 44px width, so the figure sits under its icon;
+           the name and the description share the right one, both starting
+           at the same edge. The description centres on the count rather
+           than sitting on its baseline, which left it looking dropped. */
+        <div className="flex items-center gap-2.5">
           <span className="w-11 shrink-0 text-center text-[26px] font-semibold leading-none tabular-nums">
             {card.count}
           </span>
-          <span className="text-right text-[12.5px] text-zinc-500">
-            {card.description}
-          </span>
+          <span className="text-[12.5px] text-zinc-500">{card.description}</span>
         </div>
       ) : (
         <span className="text-[12.5px] text-zinc-500">{card.description}</span>
@@ -51,11 +52,19 @@ function Card({ card }) {
 }
 
 export default async function HomePage() {
-  const [inventoryCount, wishlistCount, tastingNoteCount, flightCount] =
+  const [inventoryCount, wishlistCount, tastedCount, flightCount] =
     await Promise.all([
       prisma.bottle.count({ where: { status: "inventory" } }),
       prisma.bottle.count({ where: { status: "wishlist" } }),
-      prisma.tastingNote.count(),
+      // Wines tasted, not notes written. A bottle you finished without
+      // writing anything down still counts - knowing you have had a wine
+      // before is the useful fact, and it does not depend on having had
+      // something to say about it. Counted per bottle row, which is a wine
+      // rather than an individual bottle, so three of the same Rochioli is
+      // one wine tasted.
+      prisma.bottle.count({
+        where: { OR: [{ status: "consumed" }, { tastingNotes: { some: {} } }] },
+      }),
       prisma.tastingFlight.count(),
     ]);
 
@@ -97,8 +106,8 @@ export default async function HomePage() {
     },
     {
       href: "/consumed",
-      label: "Tasting history",
-      count: tastingNoteCount,
+      label: "Tasting notes",
+      count: tastedCount,
       description: "Wines tasted",
       Icon: TastingHistoryIcon,
       accent: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-400",

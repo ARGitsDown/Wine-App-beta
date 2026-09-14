@@ -59,7 +59,7 @@ features like separate cellars per user.
   to ask the same question again.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
-- **Tasting history** (`/consumed`) — bottles you've finished, kept around
+- **Tasting notes** (`/consumed`) — bottles you've finished, kept around
   (with their tasting notes). A row is a wine rather than an individual bottle,
   so owning several and drinking one just decrements the count ("Tasted
   one — 5 left"); it only moves here once the last one is gone, or via
@@ -194,9 +194,13 @@ features like separate cellars per user.
   name top-left, its count bottom-left (centered under the icon, so the
   figure reads as belonging to it) and its description bottom-right, each cut
   short enough to sit on one line at phone width. Only
-  Inventory, Wishlist, Tasting history and Flights carry a count — a number
+  Inventory, Wishlist, Tasting notes and Flights carry a count — a number
   on "Scan" would be meaningless, so Scan and Suggest give their
-  description the whole bottom row instead. The whole screen fits above the
+  description the whole bottom row instead. Where there is a count, the
+  card reads as two columns: icon over number on the left, name over
+  description on the right. "Wines tasted" counts wines you have actually
+  drunk, whether or not you wrote anything down — a bottle finished in
+  silence still means you have had it. The whole screen fits above the
   fold on a small phone. The icons are hand-written SVG paths in
   `app/components/icons.js` rather than image assets or an icon library —
   nothing to host or license, and they inherit the surrounding text color

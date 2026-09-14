@@ -371,7 +371,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                         {[
                           ["inventory", "Inventory"],
                           ["wishlist", "Wishlist"],
-                          ["consumed", "Tasting history"],
+                          ["consumed", "Tasted"],
                         ].map(([value, label]) => (
                           <label key={value} className="flex items-center gap-1.5">
                             <input
@@ -430,7 +430,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                         {[
                           ["inventory", "Inventory"],
                           ["wishlist", "Wishlist"],
-                          ["consumed", "Tasting history"],
+                          ["consumed", "Tasted"],
                         ].map(([value, label]) => (
                           <label key={value} className="flex items-center gap-1.5">
                             <input
