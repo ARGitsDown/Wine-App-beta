@@ -2,7 +2,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
-import { anthropic } from "@/lib/anthropic";
+import { anthropic, EXTRACTION_MODEL, REASONING_MODEL } from "@/lib/anthropic";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -401,7 +401,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
     // record_wines, but this caps it in case the model keeps searching.
     for (let turn = 0; turn < 6; turn++) {
       const response = await anthropic.messages.create({
-        model: "claude-opus-5",
+        model: EXTRACTION_MODEL,
         max_tokens: 8192,
         thinking: { type: "adaptive" },
         system: LABEL_SYSTEM_PROMPT,
@@ -694,7 +694,7 @@ export async function getSuggestions(request) {
     // record_suggestions, but this caps it in case the model keeps browsing.
     for (let turn = 0; turn < 6; turn++) {
       const response = await anthropic.messages.create({
-        model: "claude-opus-5",
+        model: REASONING_MODEL,
         max_tokens: 8192,
         thinking: { type: "adaptive" },
         system: systemPrompt,
@@ -909,7 +909,7 @@ export async function researchBottle(id) {
     // appended) to continue rather than a fresh tool_result.
     for (let turn = 0; turn < 4; turn++) {
       const response = await anthropic.messages.create({
-        model: "claude-opus-5",
+        model: EXTRACTION_MODEL,
         max_tokens: 8192,
         thinking: { type: "adaptive" },
         system: RESEARCH_SYSTEM_PROMPT,
@@ -1064,7 +1064,7 @@ export async function estimateDrinkWindows(bottleIds) {
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-opus-5",
+      model: EXTRACTION_MODEL,
       max_tokens: 8192,
       thinking: { type: "adaptive" },
       system: DRINK_WINDOW_SYSTEM_PROMPT,
@@ -1219,7 +1219,7 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-opus-5",
+      model: EXTRACTION_MODEL,
       max_tokens: 4096,
       thinking: { type: "adaptive" },
       system: PHOTO_DETAILS_SYSTEM_PROMPT,

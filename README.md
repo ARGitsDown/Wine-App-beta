@@ -159,7 +159,12 @@ rest of the app.
   reads wine photos for the scan feature (`extractWinesFromPhoto`), reasons
   over the cellar for pairing/tasting suggestions (`getSuggestions`), and
   looks up an uncertain bottle with a real web search (`researchBottle`).
-  All three in `app/actions.js`.
+  All three in `app/actions.js`. Which model each call uses is set in one
+  place (`lib/anthropic.js`): structured extraction against a known schema
+  (scanning, research, drinking-window estimates, reading an added photo)
+  runs on a faster mid-tier model, while open-ended judgment over the whole
+  cellar (Suggest) stays on the heavier one — so the calls that just need
+  careful reading aren't paying for reasoning they don't use.
 
 Data mutations (adding a bottle, logging a tasting note, etc.) go through
 Next.js Server Actions in [`app/actions.js`](./app/actions.js) — plain
