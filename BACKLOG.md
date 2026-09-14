@@ -334,6 +334,135 @@ text, so the prefill renders whichever of title/summary the flight
 actually has instead of a copy frozen into the URL. Non-numeric values
 still pass through, so older links and bookmarks keep working.
 
+## 13. Scan straight into the wishlist
+
+`/scan` already asks what a batch is for and `wishlist` is one of the three
+answers (see `lib/scan-intent.js`), so the capability exists - it just
+isn't reachable from the page where you'd want it. Standing in a shop
+photographing shelf talkers, you go Home → Scan → pick "Noting for later",
+when the obvious move is a Scan button on Wishlist itself.
+
+The work is plumbing, not features:
+
+- A **Scan bottles** control on `/wishlist`, linking to `/scan?intent=wishlist`.
+- `/scan` reads that param as its initial intent. The page is currently one
+  big client component, so this wants a thin server `page.js` that reads
+  `searchParams` and passes `initialIntent` down - the same shape every
+  other page in the app already uses, and it avoids `useSearchParams`
+  forcing a Suspense boundary around the whole scanner.
+- The intent picker stays visible and changeable. A link that silently
+  locks the intent would be worse than the status quo, because the one
+  thing the picker fixed was scans going somewhere you didn't choose.
+
+No schema, no new AI calls. Worth doing the same for Inventory
+(`?intent=cellar`) in the same pass, since it's the identical change and
+the asymmetry would be odd.
+
+**Size: small.** One file split, one param, two buttons.
+
+## 14. Research: one click from the list, and a review queue
+
+Today research is three clicks and a page change per bottle: open
+`/research`, click into the wine, click Research, wait, review the
+prefilled form, save. For a scan that flagged a dozen bottles that's a
+dozen round trips, and `/research` itself is a list of links that can't
+actually *do* anything.
+
+Two changes, and the second is the one with teeth:
+
+**One-click from the list.** Each row gets a Research button that runs the
+call without leaving the page.
+
+**A review queue.** This is the part that needs new storage. A research
+result currently lives in React state on the bottle page and is gone if
+you navigate away - there is nowhere for "researched, not yet approved" to
+exist. A queue means persisting the proposal:
+
+- A **`ResearchProposal`** row per bottle (unique on `bottleId`), holding
+  the proposed values, the model's summary, and its source URLs.
+- `/research` splits into two sections: **To research** (`needsResearch`,
+  no proposal yet) and **Ready to review** (a proposal is waiting).
+- Reviewing shows a real **diff** - current value beside proposed value,
+  field by field. That is strictly better than today's prefilled form,
+  which shows you the answer but never tells you what it changed.
+
+Worth settling first:
+
+- **How much does one click cost?** Research is the app's only web-search
+  call and its most expensive by a distance. A per-row button is one
+  bottle's worth of spend and is safe. A "Research all 12" button is
+  twelve, in one tap, and belongs behind a count and a confirmation - or
+  in #8 with the other cost-bearing work. The two aren't mutually
+  exclusive; the question is whether the bulk button ships at all.
+- **Approve whole, or field by field?** Research is routinely right about
+  four fields and wrong about one, which argues for per-field checkboxes.
+  Whole-proposal approval is much less work and can be edited before
+  saving, which is what the current form does. This is the biggest fork in
+  the build.
+- **What happens to a stale proposal?** If the bottle is edited after
+  research runs, the proposal was computed against values that no longer
+  exist. Either store the "before" snapshot and flag the ones that moved,
+  or drop proposals whenever their bottle is updated. The second is a line
+  of code; the first is honest about what you're approving.
+- **How is the proposal stored?** One `Json` column is flexible and never
+  needs a migration when the research schema changes, but can't be queried
+  or type-checked. Mirrored nullable columns (about twelve of them) are
+  typed and diffable but duplicate the Bottle schema. For a personal app
+  the Json column is probably right, with the shape documented next to
+  `RESEARCH_TOOL`, which is already its single source of truth.
+
+**Size: large.** Schema plus migration, new actions, `/research` rebuilt
+into two sections, a diff review component, client-side batching if the
+bulk button ships, and staleness handling.
+
+## 15. Building a flight by hand
+
+Flights only exist as Suggest output. There is no way to say "I want a
+Barolo evening" and assemble it yourself, which is the more obvious way to
+plan a tasting than asking for one and hoping.
+
+Two entry points, and they want to agree with each other:
+
+- **`/flights/new`** - a theme name, then search your inventory and add
+  bottles in tasting order.
+- **Add to a tasting** on each bottle card, so a flight can be built while
+  browsing rather than only from a dedicated page.
+
+Two schema facts make this more than a UI job. `TastingFlight.summary` is
+**required** and `FlightPick.reason` is **required**, because every flight
+so far came from a model that always wrote both. A hand-built flight has a
+title and, often, nothing else to say - so both need to become nullable,
+and the three places that render them need to stop assuming a string. The
+`title || summary` fallback added in #12 also has to hold when `summary`
+is null, which means guaranteeing at least one of the two is set at write
+time rather than trusting the column.
+
+Worth settling first:
+
+- **Where does "add to a tasting" put the bottle?** Either a menu of
+  existing unfinished flights plus "New flight…", which works immediately
+  and needs no new state; or a draft you accumulate while browsing and
+  name at the end, which is the nicer flow and needs somewhere to hold a
+  draft (a `draft` flag on the flight, or browser storage that can't be
+  read back by anything else).
+- **Inventory only, or anything?** Suggest only ever saves owned bottles,
+  on the reasoning that a flight is a queue to pull from. A hand-built
+  flight might reasonably include a wishlist bottle you intend to buy for
+  the occasion.
+- **Does the order matter enough to edit?** A flight is a sequence and
+  `FlightPick.order` already exists. Add-order alone is the cheap version;
+  up/down controls are a small addition; drag is not.
+- **Is a description optional or prompted?** Making `summary` nullable is
+  the schema answer, but a flight with no description loses the "Why
+  these" disclosure entirely. An optional field that most people skip is
+  fine; the question is whether the flight page looks unfinished without
+  it.
+
+**Size: medium-large.** Two nullable migrations and their render sites, a
+create page with an inventory picker (reusing `lib/filter-bottles.js`), a
+per-card control on inventory and the bottle page, and one new action.
+Guest views must not get any of it.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
