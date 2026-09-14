@@ -1,67 +1,77 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { dismissResearch } from "@/app/actions";
+import { getRegionOptions } from "@/lib/bottles";
+import ResearchProposalCard from "@/app/components/ResearchProposalCard";
+import ResearchQueue from "@/app/components/ResearchQueue";
 
 export const dynamic = "force-dynamic";
 
-function bottleHeader(bottle) {
-  return [
-    bottle.producer,
-    bottle.bottling ? `“${bottle.bottling}”` : null,
-    bottle.vintage || null,
-    bottle.type || null,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
 export default async function ResearchQueuePage() {
-  const bottles = await prisma.bottle.findMany({
-    where: { needsResearch: true },
-    orderBy: { producer: "asc" },
-  });
+  // Two states, one flag plus one table: a bottle is waiting to be
+  // researched (needsResearch, no proposal) or waiting to be reviewed (a
+  // proposal exists). A proposal can also exist for a bottle nobody
+  // flagged - you can research anything from its own page - so the review
+  // list is driven by the proposals, not by the flag.
+  const [proposals, toResearch, regionOptions] = await Promise.all([
+    prisma.researchProposal.findMany({
+      include: { bottle: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.bottle.findMany({
+      where: { needsResearch: true, researchProposal: { is: null } },
+      orderBy: { producer: "asc" },
+    }),
+    getRegionOptions(),
+  ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
       <div>
-        <h1 className="text-2xl font-semibold">Needs research</h1>
+        <h1 className="text-2xl font-semibold">Research</h1>
         <p className="text-sm text-zinc-500">
-          Bottles the scan feature wasn&apos;t fully confident about, across
-          inventory, wishlist, and history. Open one to run a real web
-          search, or dismiss it here if the current details look fine.
+          Bottles the scan feature wasn&apos;t fully confident about, and
+          what a web search turned up for them. Nothing is saved until you
+          accept it.
         </p>
       </div>
 
-      {bottles.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nothing needs research right now.</p>
-      ) : (
-        <ul className="flex flex-col gap-1.5">
-          {bottles.map((bottle) => (
-            <li
-              key={bottle.id}
-              className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-4 py-2.5 dark:border-zinc-800"
-            >
-              <Link
-                href={`/bottles/${bottle.id}`}
-                className="font-medium underline underline-offset-2"
-              >
-                {bottleHeader(bottle)}
-              </Link>
-              <div className="flex shrink-0 items-center gap-3">
-                <span className="text-xs capitalize text-zinc-500">{bottle.status}</span>
-                <form action={dismissResearch.bind(null, bottle.id)}>
-                  <button
-                    type="submit"
-                    className="text-xs text-zinc-500 underline underline-offset-2"
-                  >
-                    Dismiss
-                  </button>
-                </form>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      <section className="flex flex-col gap-3">
+        <h2 className="font-medium">
+          Ready to review
+          {proposals.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-zinc-500">
+              {proposals.length}
+            </span>
+          )}
+        </h2>
+        {proposals.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            Nothing researched and waiting. Run one below.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {proposals.map((proposal) => (
+              <ResearchProposalCard
+                key={proposal.id}
+                bottle={proposal.bottle}
+                proposal={proposal}
+                regionOptions={regionOptions}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-medium">
+          To research
+          {toResearch.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-zinc-500">
+              {toResearch.length}
+            </span>
+          )}
+        </h2>
+        <ResearchQueue bottles={toResearch} />
+      </section>
     </div>
   );
 }

@@ -356,60 +356,54 @@ The picker stays visible and editable after arriving through a link. A
 link that silently locked the destination would undo the thing the picker
 was added to fix.
 
-## 14. Research: one click from the list, and a review queue
+## ~~14. Research: one click from the list, and a review queue~~ — done
 
-Today research is three clicks and a page change per bottle: open
-`/research`, click into the wine, click Research, wait, review the
-prefilled form, save. For a scan that flagged a dozen bottles that's a
-dozen round trips, and `/research` itself is a list of links that can't
-actually *do* anything.
+`/research` was a list of links that couldn't do anything: researching a
+bottle meant opening it, clicking through, and reviewing a prefilled form
+that never told you what it had changed. And a research result lived in
+React state, so navigating away threw it out - "researched, not yet
+approved" had nowhere to exist.
 
-Two changes, and the second is the one with teeth:
+It exists now. **`ResearchProposal`** holds one pending answer per bottle,
+so `/research` splits into **Ready to review** and **To research**. Each
+row in the second gets a **Research** button; above them, **Research all
+N** sits behind a confirmation that names how many live web searches it is
+about to run, then works through the queue in small batches so no single
+request carries the lot.
 
-**One-click from the list.** Each row gets a Research button that runs the
-call without leaving the page.
+Reviewing shows a **diff** - current beside proposed, field by field, with
+everything the model repeated back unchanged dropped - which the prefilled
+form never did. From there: **Accept** applies it in one click,
+**Edit first** opens the form prefilled for the case where research is
+right about four fields and wrong about one, and **Keep as is** settles it
+without changing anything. All three clear the proposal; the first two
+also clear `needsResearch`.
 
-**A review queue.** This is the part that needs new storage. A research
-result currently lives in React state on the bottle page and is gone if
-you navigate away - there is nowhere for "researched, not yet approved" to
-exist. A queue means persisting the proposal:
+The bottle page now runs through the same component rather than its own
+flow, so there is one review UI rather than two that could drift.
 
-- A **`ResearchProposal`** row per bottle (unique on `bottleId`), holding
-  the proposed values, the model's summary, and its source URLs.
-- `/research` splits into two sections: **To research** (`needsResearch`,
-  no proposal yet) and **Ready to review** (a proposal is waiting).
-- Reviewing shows a real **diff** - current value beside proposed value,
-  field by field. That is strictly better than today's prefilled form,
-  which shows you the answer but never tells you what it changed.
+As decided:
 
-Decided:
-
-- **Approval is whole-proposal, editable before saving.** The diff shows
-  what changed; the values stay editable, so a proposal that is right
-  about four fields and wrong about one gets fixed in place rather than
-  rejected. Per-field checkboxes were the alternative and are the better
-  UX, but not for the size of the build - revisit if editing round a bad
-  field turns out to be the common case rather than the rare one.
-- **Both buttons ship**: a per-row Research, and a "Research all N"
-  behind a count and a confirmation naming the number of web searches it
-  is about to run. Batched client-side with limited concurrency, the same
-  shape as `/estimate-windows`, so no single request can time out across
-  a large queue.
+- **Approval is whole-proposal and editable**, not per-field.
+- **Both buttons shipped.** The bulk one names the cost because research
+  is the app's only web-search call and by far the most expensive.
 - **Staleness is flagged, not prevented.** A proposal whose bottle has
-  been edited since it was made (`bottle.updatedAt > proposal.createdAt`)
-  is marked as such in the review UI rather than silently discarded.
-  Because approval is whole-proposal and editable, you can see the current
-  values beside it and decide - which is exactly the case the diff exists
-  for.
-- **Stored as one `Json` column**, with the shape documented beside
-  `RESEARCH_TOOL`, which is already its single source of truth. Mirrored
-  columns would be typed and queryable but would duplicate a dozen Bottle
-  fields and need a migration every time the research schema moves; the
-  proposal is only ever read back whole and rendered.
+  been edited since (`bottle.updatedAt > proposal.createdAt`) shows a
+  warning and stays acceptable - the diff's "now" column is current, so
+  you can see what moved underneath it.
+- **One `Json` column**, with its shape documented beside `RESEARCH_TOOL`,
+  which is the schema it mirrors. `lib/research-fields.js` is what reads
+  it, and applying a proposal copies only the fields on that list rather
+  than spreading the blob into the bottle row.
 
-**Size: large.** Schema plus migration, new actions, `/research` rebuilt
-into two sections, a diff review component, client-side batching if the
-bulk button ships, and staleness handling.
+One bug worth recording, because it was invisible until the database was
+checked: a nested `deleteMany` on a one-to-one relation is not valid
+Prisma, so the first version of "keep as is" threw and silently did
+nothing. The same defect was sitting unnoticed in the accept path, where
+it would have left a bottle updated with its proposal still pending; it
+surfaced only once the tests started reading rows back. All three settle
+paths - accept, edit-then-save, keep as is - now delete through the model
+inside a transaction with the bottle update.
 
 ## ~~15. Building a flight by hand~~ — done
 

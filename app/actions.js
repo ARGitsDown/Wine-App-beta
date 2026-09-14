@@ -11,6 +11,7 @@ import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { characterRule } from "@/lib/suggestion-character";
+import { RESEARCH_FIELDS, researchChanges } from "@/lib/research-fields";
 import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
@@ -965,6 +966,11 @@ const WEB_SEARCH_TOOL = {
   max_uses: 5,
 };
 
+// The shape below is also the shape of ResearchProposal.proposed, minus
+// `summary` and `sources`, which are stored as their own columns. That is
+// the contract lib/research-fields.js reads against: add a field here and
+// it must be added to RESEARCH_FIELDS too, or it will be saved into the
+// proposal and never shown to anyone.
 const RESEARCH_TOOL = {
   name: "record_research",
   description:
@@ -1068,14 +1074,10 @@ function describeBottleForResearch(bottle) {
 }
 
 // Researches one already-saved bottle with a real web search (not just the
-// model's training knowledge) and returns proposed field values plus an
-// explanation and sources - never saved automatically. The bottle page
-// shows this as an editable, prefilled form the user reviews before saving,
-// same trust model as the scan and suggest features.
-export async function researchBottle(id) {
-  const bottle = await prisma.bottle.findUnique({ where: { id } });
-  if (!bottle) return { error: "That bottle no longer exists." };
-
+// Runs the web-search research call for one bottle and returns the model's
+// answer. Separated from the action that stores it so a single bottle and a
+// bulk pass share exactly one implementation of the expensive part.
+async function runResearch(bottle) {
   const messages = [
     {
       role: "user",
@@ -1127,6 +1129,86 @@ export async function researchBottle(id) {
   }
 }
 
+// Researches one bottle and files the answer as a proposal waiting to be
+// reviewed. Nothing about the bottle changes here - this is the "Claude
+// proposes, you confirm" trust model the scan and suggest features follow,
+// except the proposal now survives navigating away.
+export async function researchBottle(id) {
+  const bottle = await prisma.bottle.findUnique({ where: { id } });
+  if (!bottle) return { error: "That bottle no longer exists." };
+
+  const result = await runResearch(bottle);
+  if (result.error) return result;
+
+  const { summary, sources, ...proposed } = result.data;
+
+  // Upsert, not create: researching a bottle twice should replace the
+  // pending answer rather than fail on the unique bottleId.
+  await prisma.researchProposal.upsert({
+    where: { bottleId: id },
+    create: { bottleId: id, proposed, summary, sources: sources ?? [] },
+    update: { proposed, summary, sources: sources ?? [], createdAt: new Date() },
+  });
+
+  revalidatePath("/research");
+  revalidatePath(`/bottles/${id}`);
+  return { data: { changed: researchChanges(bottle, proposed).length } };
+}
+
+// The bulk pass. Chunked by the caller so no single request has to carry
+// the whole queue; each bottle is still one web-search call, which is why
+// the button that reaches this is behind a count and a confirmation.
+export async function researchBottles(ids) {
+  let researched = 0;
+  let failed = 0;
+  for (const id of ids) {
+    const result = await researchBottle(id);
+    if (result.error) {
+      failed += 1;
+    } else {
+      researched += 1;
+    }
+  }
+  return { data: { researched, failed } };
+}
+
+// Accepts a stored proposal as-is. The common case is that research got it
+// right, and making that one click rather than a form submission is the
+// whole point of having reviewed the diff first.
+export async function applyResearchProposal(id) {
+  const [bottle, proposal] = await Promise.all([
+    prisma.bottle.findUnique({ where: { id }, select: { drinkFrom: true, drinkTo: true } }),
+    prisma.researchProposal.findUnique({ where: { bottleId: id } }),
+  ]);
+  if (!bottle) return { error: "That bottle no longer exists." };
+  if (!proposal) return { error: "That proposal is no longer waiting." };
+
+  // Only the fields research is allowed to touch, taken from the shared
+  // list rather than spreading the Json blob straight into an update -
+  // which would let an unexpected key through into the bottle row.
+  const data = {};
+  for (const { key } of RESEARCH_FIELDS) {
+    data[key] = proposal.proposed[key] ?? null;
+  }
+
+  // Both or neither: a bottle updated but with its proposal still pending
+  // would come straight back into the review queue claiming changes that
+  // have already been applied.
+  const [updated] = await prisma.$transaction([
+    prisma.bottle.update({
+      where: { id },
+      data: { ...clearEstimatedFlagIfWindowChanged(data, bottle), needsResearch: false },
+    }),
+    prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
+  ]);
+
+  invalidateRegionOptions();
+  revalidatePath(`/bottles/${id}`);
+  revalidatePath("/research");
+  revalidatePath(pathForStatus(updated.status));
+  return { success: true };
+}
+
 // Applies reviewed/edited research output to the bottle and clears the
 // research flag - a dedicated action (rather than routing through
 // updateBottle) so a plain details-page edit never clears the flag as a
@@ -1140,10 +1222,16 @@ export async function applyResearch(id, prevState, formData) {
       where: { id },
       select: { drinkFrom: true, drinkTo: true },
     });
-    const bottle = await prisma.bottle.update({
-      where: { id },
-      data: { ...clearEstimatedFlagIfWindowChanged(data, existing), needsResearch: false },
-    });
+    // Edited and saved settles the proposal just as much as accepting it
+    // does; leaving it would put the bottle straight back in the review
+    // queue with an answer that has already been dealt with.
+    const [bottle] = await prisma.$transaction([
+      prisma.bottle.update({
+        where: { id },
+        data: { ...clearEstimatedFlagIfWindowChanged(data, existing), needsResearch: false },
+      }),
+      prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
+    ]);
     invalidateRegionOptions();
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/research");
@@ -1156,9 +1244,14 @@ export async function applyResearch(id, prevState, formData) {
 }
 
 // Clears the research flag without changing any fields - for when the
-// existing details are judged fine as-is.
+// existing details are judged fine as-is. Also drops any pending proposal,
+// since "keep as is" is an answer to one: without this the bottle would
+// leave the to-research list and immediately reappear in the review one.
 export async function dismissResearch(id) {
-  await prisma.bottle.update({ where: { id }, data: { needsResearch: false } });
+  await prisma.$transaction([
+    prisma.bottle.update({ where: { id }, data: { needsResearch: false } }),
+    prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
+  ]);
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/research");
 }

@@ -1,44 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { researchBottle, applyResearch, dismissResearch } from "@/app/actions";
-import BottleForm from "@/app/components/BottleForm";
+import { useState, useTransition } from "react";
+import { researchBottle, dismissResearch } from "@/app/actions";
+import ResearchProposalCard from "@/app/components/ResearchProposalCard";
 import Spinner from "@/app/components/Spinner";
 
 const primaryButtonClass =
-  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
+  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
 const secondaryButtonClass =
-  "rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700";
+  "rounded border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700";
 
 // Runs a real web search (not just the model's training knowledge) against
-// this bottle's current fields and shows the result as an editable,
-// prefilled form - nothing is saved until the user reviews and submits it,
-// same trust model as the scan and suggest features.
-export default function ResearchPanel({ bottle, regionOptions }) {
-  const [loading, setLoading] = useState(false);
+// this bottle's current fields and files the answer as a proposal.
+//
+// The result is stored rather than held in React state, which is what lets
+// it survive navigating away - and means this page and /research show the
+// same thing through the same component, instead of two flows that could
+// drift apart.
+export default function ResearchPanel({ bottle, proposal, regionOptions }) {
   const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-  const [applied, setApplied] = useState(false);
+  const [pending, startTransition] = useTransition();
 
-  async function handleResearch() {
-    setLoading(true);
+  function research() {
     setError(null);
-    setResult(null);
-    const response = await researchBottle(bottle.id);
-    if (response.error) {
-      setError(response.error);
-    } else {
-      setResult(response.data);
-    }
-    setLoading(false);
-  }
-
-  if (applied) {
-    return (
-      <p className="text-sm font-medium text-green-700 dark:text-green-400">
-        ✓ Applied — details above are updated.
-      </p>
-    );
+    startTransition(async () => {
+      const result = await researchBottle(bottle.id);
+      if (result?.error) setError(result.error);
+    });
   }
 
   return (
@@ -47,13 +35,15 @@ export default function ResearchPanel({ bottle, regionOptions }) {
         <div>
           <h2 className="font-medium">Research</h2>
           <p className="text-sm text-zinc-500">
-            {bottle.needsResearch
-              ? "Flagged during scanning — some fields weren't confidently read."
-              : "Double-check or fill in details for this bottle with an actual web search."}
+            {proposal
+              ? "A web search has run — review what it proposes below."
+              : bottle.needsResearch
+                ? "Flagged during scanning — some fields weren't confidently read."
+                : "Double-check or fill in details for this bottle with an actual web search."}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
-          {bottle.needsResearch && !result && (
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {bottle.needsResearch && !proposal && (
             <form action={dismissResearch.bind(null, bottle.id)}>
               <button type="submit" className={secondaryButtonClass}>
                 Dismiss
@@ -62,61 +52,31 @@ export default function ResearchPanel({ bottle, regionOptions }) {
           )}
           <button
             type="button"
-            onClick={handleResearch}
-            disabled={loading}
+            onClick={research}
+            disabled={pending}
             className={primaryButtonClass}
           >
-            {loading ? <Spinner label="Researching…" /> : "Research further"}
+            {pending ? (
+              <Spinner label="Researching…" />
+            ) : proposal ? (
+              "Research again"
+            ) : (
+              "Research further"
+            )}
           </button>
         </div>
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      {result && (
-        <div className="flex flex-col gap-3 border-t border-amber-200 pt-3 dark:border-amber-900">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{result.summary}</p>
-          {result.sources.length > 0 && (
-            <ul className="flex flex-col gap-1 text-xs text-zinc-500">
-              {result.sources.map((url) => (
-                <li key={url}>
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline underline-offset-2"
-                  >
-                    {url}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-zinc-500">
-              Review and edit below — nothing changes until you save.
-            </p>
-            {/* Without this there was no way out of a result you didn't want
-                except reloading the page: the only button was "Apply". */}
-            <button
-              type="button"
-              onClick={() => setResult(null)}
-              className={secondaryButtonClass}
-            >
-              Close
-            </button>
-          </div>
-          <BottleForm
-            action={applyResearch.bind(null, bottle.id)}
-            defaultValues={{ ...bottle, ...result }}
-            submitLabel="Apply these changes"
+      {proposal && (
+        <ul className="border-t border-amber-200 pt-3 dark:border-amber-900">
+          <ResearchProposalCard
+            bottle={bottle}
+            proposal={proposal}
             regionOptions={regionOptions}
-            idPrefix="bottle-research"
-            onResult={(actionResult) => {
-              if (actionResult.success) setApplied(true);
-            }}
           />
-        </div>
+        </ul>
       )}
     </section>
   );

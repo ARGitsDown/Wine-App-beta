@@ -92,6 +92,10 @@ export default async function BottleDetailPage({ params, searchParams }) {
             tastingNotes: { orderBy: [{ tastedAt: "desc" }, { id: "desc" }] },
             favorites: { include: { guest: true } },
             photos: { orderBy: { createdAt: "asc" } },
+            // A research pass that has run but not been accepted yet. Read
+            // here rather than fetched by the panel so the review is part
+            // of the page's first render, not a second round trip.
+            researchProposal: true,
           },
         })
       : null,
@@ -260,7 +264,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
         <AddPhotoPanel bottle={bottle} regionOptions={regionOptions} />
       </section>
 
-      <ResearchPanel bottle={bottle} regionOptions={regionOptions} />
+      <ResearchPanel
+        bottle={bottle}
+        proposal={bottle.researchProposal}
+        regionOptions={regionOptions}
+      />
 
       <section className="flex flex-col gap-4">
         <h2 className="font-medium">Tasting notes</h2>

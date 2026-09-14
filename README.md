@@ -59,6 +59,14 @@ features like separate cellars per user.
   to ask the same question again.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
   "Bought it" button moves a bottle into inventory.
+- **Research** (`/research`) — bottles the scan feature wasn't confident
+  about, and what a web search turned up for them. Each can be researched
+  in one click from the list, or all at once behind a confirmation that
+  says how many live searches that will run. Results wait in a review
+  queue rather than being applied: each shows a field-by-field diff of
+  current against proposed, which you can accept in one click, edit first,
+  or dismiss. A proposal whose bottle changed after the research ran is
+  flagged rather than thrown away, since the diff shows you what moved.
 - **Tasting notes** (`/consumed`) — bottles you've finished, kept around
   (with their tasting notes). A row is a wine rather than an individual bottle,
   so owning several and drinking one just decrements the count ("Tasted

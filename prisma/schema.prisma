@@ -130,6 +130,7 @@ model Bottle {
   favorites    Favorite[]
   flightPicks  FlightPick[]
   photos       BottlePhoto[]
+  researchProposal ResearchProposal?
 
   // Every list page filters on `status`, and the nav badge counts
   // `needsResearch`, on every request. A few hundred rows sequential-scan
@@ -260,5 +261,36 @@ model DrinkWindowEstimate {
   key       String   @unique
   drinkFrom Int?
   drinkTo   Int?
+  createdAt DateTime @default(now())
+}
+
+// A research pass waiting to be reviewed.
+//
+// Research used to live in React state on the bottle page and die the
+// moment you navigated away, which left "researched but not yet approved"
+// with nowhere to exist - so the queue needed somewhere to put it.
+//
+// One row per bottle: researching a second time replaces the pending
+// answer rather than stacking up proposals nobody asked for.
+model ResearchProposal {
+  id       Int    @id @default(autoincrement())
+  bottleId Int    @unique
+  bottle   Bottle @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+
+  // The model's answer, shaped exactly like RESEARCH_TOOL's input schema -
+  // see the comment beside it in app/actions.js. Json rather than a dozen
+  // mirrored Bottle columns: the proposal is only ever read back whole and
+  // rendered, and this way the research schema can change without a
+  // migration. lib/research-fields.js is what reads it.
+  proposed Json
+
+  // What the model says it found, and where. Kept beside the proposal
+  // because both are part of judging it, not part of the bottle.
+  summary  String
+  sources  String[]
+
+  // Compared against the bottle's updatedAt to spot a proposal computed
+  // from values that have since changed. Flagged in the review rather than
+  // discarded - see isProposalStale().
   createdAt DateTime @default(now())
 }
