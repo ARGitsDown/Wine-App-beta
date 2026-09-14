@@ -87,7 +87,11 @@ features like separate cellars per user.
   source document already had. Each wine is saved as soon as it's read,
   rather than waiting on a manual confirm - so navigating away (or the tab
   closing) mid-batch never loses a wine that already came back; review and
-  correct each card afterward, or remove one you don't want. A wine it
+  correct each card afterward, or remove one you don't want. Before picking
+  photos you say what the batch is for — adding to the cellar, noting wines
+  for later, or tasting now — and every wine in it lands there, rather than
+  the app guessing from whether the source happened to carry tasting notes;
+  any single card can still be moved on its own afterward. A wine it
   wasn't fully confident about is flagged "Needs research" once saved.
   A progress bar above the batch tracks how many photos have been read and
   how many wines have turned up so far, so a ten-photo run reads as
