@@ -11,6 +11,11 @@ import {
 import BottleForm from "@/app/components/BottleForm";
 import Spinner from "@/app/components/Spinner";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
+import {
+  DEFAULT_SCAN_INTENT,
+  SCAN_INTENTS,
+  statusForScanIntent,
+} from "@/lib/scan-intent";
 
 // Runs `worker` over `items` with at most `concurrency` in flight at once,
 // so selecting a big batch of photos doesn't fire dozens of simultaneous AI
@@ -98,16 +103,15 @@ function BatchProgress({ photos }) {
 // An unsaved draft card - for when reading a photo fails outright, or (rarely)
 // a specific wine was read successfully but its save to the database failed.
 // Nothing exists yet; the existing manual "Save bottle" flow creates it.
-function draftEntriesFromWines(wines) {
+function draftEntriesFromWines(wines, intent) {
   return wines.map((extracted) => ({
     localId: nextEntryId++,
     kind: "draft",
     extracted,
-    // A wine pulled from a document with its own tasting-note text is
-    // treated as already-tasted by default; a plain label defaults to
-    // Inventory, as before. Either is just a starting point - change it
-    // per entry before saving.
-    saveStatus: extracted.note ? "consumed" : "inventory",
+    // Same default as a saved card: the batch's intent, not a guess from
+    // whether the source happened to carry tasting text. Still just a
+    // starting point - change it per entry before saving.
+    saveStatus: statusForScanIntent(intent),
     status: "ready",
   }));
 }
@@ -116,16 +120,17 @@ function draftEntriesFromWines(wines) {
 // see that action for why scan saves immediately instead of waiting on a
 // manual click. A save failure for one wine falls back to the same draft
 // card as a fully-failed photo, rather than losing that wine's read.
-function entriesFromScanResults(results) {
+function entriesFromScanResults(results, intent) {
   return results.map((result) =>
     result.bottle
       ? { localId: nextEntryId++, kind: "saved", bottle: result.bottle }
-      : draftEntriesFromWines([result.wine])[0]
+      : draftEntriesFromWines([result.wine], intent)[0]
   );
 }
 
 export default function ScanPage() {
   const fileInputRef = useRef(null);
+  const [intent, setIntent] = useState(DEFAULT_SCAN_INTENT);
   const [photos, setPhotos] = useState([]);
   const photosRef = useRef(photos);
   useEffect(() => {
@@ -189,11 +194,11 @@ export default function ScanPage() {
     removeEntry(photo.id, entry.localId);
   }
 
-  async function processPhoto(photo) {
+  async function processPhoto(photo, batchIntent) {
     try {
       const resized = await downscaleImage(photo.file);
       const base64 = await fileToBase64(resized);
-      const result = await extractWinesFromPhoto(base64, "image/jpeg");
+      const result = await extractWinesFromPhoto(base64, "image/jpeg", batchIntent);
       if (result.error) {
         // Still offer one blank manual-entry card, through the same
         // entry-card rendering as a successful extraction, rather than a
@@ -201,16 +206,19 @@ export default function ScanPage() {
         updatePhoto(photo.id, {
           status: "error",
           error: result.error,
-          entries: draftEntriesFromWines([{}]),
+          entries: draftEntriesFromWines([{}], batchIntent),
         });
       } else {
-        updatePhoto(photo.id, { status: "ready", entries: entriesFromScanResults(result.data) });
+        updatePhoto(photo.id, {
+          status: "ready",
+          entries: entriesFromScanResults(result.data, batchIntent),
+        });
       }
     } catch {
       updatePhoto(photo.id, {
         status: "error",
         error: "Something went wrong reading that photo. Please try again.",
-        entries: draftEntriesFromWines([{}]),
+        entries: draftEntriesFromWines([{}], batchIntent),
       });
     }
   }
@@ -231,7 +239,10 @@ export default function ScanPage() {
     setPhotos((prev) => [...prev, ...newPhotos]);
     event.target.value = "";
 
-    await runWithConcurrency(newPhotos, 3, processPhoto);
+    // Captured now rather than read inside the worker: changing the picker
+    // while a batch runs should steer the next batch, not this one.
+    const batchIntent = intent;
+    await runWithConcurrency(newPhotos, 3, (photo) => processPhoto(photo, batchIntent));
   }
 
   function removePhoto(id) {
@@ -259,9 +270,34 @@ export default function ScanPage() {
           like a shop&apos;s tasting sheet listing several wines. The AI reads
           each one, checks your own cellar for anything similar, and saves
           what it finds right away &mdash; review and correct anything below,
-          or remove a card you don&apos;t want.
+          or remove a card you don&apos;t want. Everything in a batch lands
+          wherever you pick below; any single wine can be moved afterward on
+          its own card.
         </p>
       </div>
+
+      {/* Chosen before the photos, because it's the one thing about a batch
+          that can't be read off a label. Each card can still be moved
+          individually afterward. */}
+      <fieldset className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <legend className="px-1 text-sm font-medium">What are you scanning?</legend>
+        {SCAN_INTENTS.map((option) => (
+          <label key={option.value} className="flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name="scan-intent"
+              value={option.value}
+              checked={intent === option.value}
+              onChange={() => setIntent(option.value)}
+              className="mt-1"
+            />
+            <span>
+              {option.label}
+              <span className="block text-xs text-zinc-500">{option.hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
 
       <input
         ref={fileInputRef}

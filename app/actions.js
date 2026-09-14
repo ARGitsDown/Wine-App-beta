@@ -11,6 +11,7 @@ import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
+import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
 import { uploadLabelPhoto } from "@/lib/blob";
 
@@ -520,7 +521,7 @@ const LABEL_SYSTEM_PROMPT =
 // records for the scan flow to show as editable review cards. Each
 // result is either { bottle } on success, or { wine, saveError: true } if
 // reading succeeded but that one wine's save didn't.
-export async function extractWinesFromPhoto(base64Image, mediaType) {
+export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEFAULT_SCAN_INTENT) {
   const messages = [
     {
       role: "user",
@@ -576,7 +577,12 @@ export async function extractWinesFromPhoto(base64Image, mediaType) {
         // used when reading a photo fails outright.
         const results = [];
         for (const wine of finalCall.input.wines) {
-          const status = wine.note ? "consumed" : "inventory";
+          // The batch's intent decides where a wine lands. This used to be
+          // inferred from whether the source document carried tasting text,
+          // which conflated two different things: a shop's tasting sheet
+          // describes the wine, it doesn't say you drank it. The note is
+          // still saved either way - it's content, not status.
+          const status = statusForScanIntent(intent);
           try {
             const bottle = await prisma.bottle.create({
               data: {

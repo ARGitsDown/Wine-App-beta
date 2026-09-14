@@ -84,30 +84,25 @@ implied ones, and can't distinguish them:
   bottle means when the row was typed in, which is close to meaningless
   there).
 
-Only the middle item is left, and it needs a decision first - the one
-scan raises: **what is the app recording when a wine is added?** Today
-scan infers status from
-whether the source document carried tasting-note text (a shop sheet's
-write-up ⇒ History; a plain label ⇒ Inventory), which is a reasonable
-guess but is never explained and can't be corrected as an intent - only
-as a status radio after the fact. Worth settling:
+Only the middle item is left. The question it waited on - **what is the
+app recording when a wine is added?** - is now answered: `/scan` asks
+outright (see `lib/scan-intent.js`), so every batch declares whether it's
+stocking the cellar, noting wines for later, or drinking them now. That
+was the missing signal; the guessing it replaced is described there.
 
-- Should scan ask outright ("adding to the cellar" vs "drinking this
-  now"), rather than inferring? That would make both dates meaningful:
-  added-to-cellar for the first, tasted for the second.
-- Does a bottle that goes straight to History need an acquired date at
-  all? It never sat in the cellar, so arguably not - but a tasting sheet
-  from a shop visit does have a real date worth keeping.
+Two smaller questions remain before an acquired date can land:
+
+- Does a bottle that goes straight to History need one at all? It never
+  sat in the cellar, so arguably not - but a tasting sheet from a shop
+  visit does have a real date worth keeping.
 - Is "acquired" a separate column from `createdAt`, or is `createdAt`
-  simply renamed in the UI and left alone? A separate nullable
-  `acquiredAt` avoids rewriting history for existing rows.
+  simply relabelled in the UI? A separate nullable `acquiredAt` avoids
+  rewriting history for existing rows, and leaves "when the row was
+  typed in" available as its own distinct fact.
 
-The tasting-note and emptied dates both shipped on their own, as
-recommended - each was useful immediately and committed to none of the
-above. What remains is only the acquired date, which still waits on the
-scan-intent question: until scan says whether you're stocking the cellar
-or drinking now, there's no reliable moment for an acquired date to
-attach to.
+With the intent picker in place, the shape is straightforward: a `cellar`
+scan means acquired today, a `tasting` scan means emptied today (already
+handled), and `wishlist` means neither.
 
 ## 5. Bottle size / format
 
