@@ -121,6 +121,13 @@ model Bottle {
   favorites    Favorite[]
   flightPicks  FlightPick[]
   photos       BottlePhoto[]
+
+  // Every list page filters on `status`, and the nav badge counts
+  // `needsResearch`, on every request. A few hundred rows sequential-scan
+  // fine, so this isn't fixing a problem you can feel today - it's just
+  // cheap to have in place before the cellar is big enough to notice.
+  @@index([status])
+  @@index([needsResearch])
 }
 
 // One additional photo attached to an already-saved bottle - `photoUrl`
@@ -135,6 +142,10 @@ model BottlePhoto {
   bottle    Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
   url       String
   createdAt DateTime @default(now())
+
+  // Postgres does not index a foreign key automatically, and this column is
+  // what every lookup and cascade delete goes through. Same below.
+  @@index([bottleId])
 }
 
 model TastingNote {
@@ -147,6 +158,8 @@ model TastingNote {
   // instead of) rating it yourself.
   rating   Int?
   tastedAt DateTime @default(now())
+
+  @@index([bottleId])
 }
 
 // A friend/family member browsing the cellar at /guest to shortlist bottles
@@ -175,7 +188,10 @@ model Favorite {
   bottle    Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
+  // The unique already indexes guestId as its leading column, so only the
+  // other direction (which guests favorited this bottle) needs one.
   @@unique([guestId, bottleId])
+  @@index([bottleId])
 }
 
 // A saved Suggest tasting-flight result (mode: "tasting") - unlike a
@@ -201,4 +217,7 @@ model FlightPick {
   order    Int
   reason   String
   consumed Boolean       @default(false)
+
+  @@index([flightId])
+  @@index([bottleId])
 }

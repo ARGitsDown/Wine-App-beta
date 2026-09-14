@@ -25,20 +25,23 @@ export default async function BottleDetailPage({ params, searchParams }) {
   const { pairedWith, tastingFlight } = await searchParams;
   const bottleId = Number(id);
 
-  const bottle = Number.isInteger(bottleId)
-    ? await prisma.bottle.findUnique({
-        where: { id: bottleId },
-        include: {
-          tastingNotes: { orderBy: { tastedAt: "desc" } },
-          favorites: { include: { guest: true } },
-          photos: { orderBy: { createdAt: "asc" } },
-        },
-      })
-    : null;
+  // Both together: the region list doesn't depend on the bottle, so
+  // awaiting it afterward just added a second round-trip to every view.
+  const [bottle, regionOptions] = await Promise.all([
+    Number.isInteger(bottleId)
+      ? prisma.bottle.findUnique({
+          where: { id: bottleId },
+          include: {
+            tastingNotes: { orderBy: { tastedAt: "desc" } },
+            favorites: { include: { guest: true } },
+            photos: { orderBy: { createdAt: "asc" } },
+          },
+        })
+      : null,
+    getRegionOptions(),
+  ]);
 
   if (!bottle) notFound();
-
-  const regionOptions = await getRegionOptions();
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">

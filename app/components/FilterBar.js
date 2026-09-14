@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { allVarietalNames } from "@/lib/varietal-match";
 import { KNOWN_REGIONS } from "@/lib/regions";
 import { WINE_COLORS } from "@/lib/wine-colors";
@@ -24,6 +25,12 @@ export default function FilterBar({
   resultCount,
   totalCount,
 }) {
+  // Seeded once from whether the page loaded with a filter already applied
+  // (a shared or bookmarked URL), then left to the user. Deriving it from
+  // the current filters instead would snap the panel shut the moment you
+  // cleared the last box - while you were still typing in it.
+  const [open, setOpen] = useState(() => hasAnyFilter(filters));
+
   function set(key, value) {
     onChange({ ...filters, [key]: value });
   }
@@ -32,7 +39,8 @@ export default function FilterBar({
 
   return (
     <details
-      open={hasAnyFilter(filters) || undefined}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
       className="rounded-lg border border-zinc-200 dark:border-zinc-800"
     >
       {/* Collapsed by default so the list itself is what's on screen first,
