@@ -25,6 +25,7 @@ export default function GuestBottleList({ bottles, regionOptions, initialFilters
         onClear={clear}
         regionOptions={regionOptions}
         showRating={false}
+        showDrinkSoon={false}
         resultCount={visible.length}
         totalCount={bottles.length}
       />

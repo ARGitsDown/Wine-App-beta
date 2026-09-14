@@ -16,7 +16,11 @@ features like separate cellars per user.
   the browser as you type: the whole list is already there, so narrowing
   it is instant rather than a round-trip per keystroke. The filter panel
   starts collapsed so the bottles themselves are what's on screen first,
-  and a narrowed list still has a shareable URL. Also tracks ABV and a drinking window (from/to year) - both
+  and a narrowed list still has a shareable URL. A Sort control sits
+  beside it — producer A–Z, **drink soon** (most urgent first: past peak,
+  then whichever window closes soonest, then not-ready-yet, then bottles
+  with no window on file), recently added, vintage either way, or highest
+  rated. Also tracks ABV and a drinking window (from/to year) - both
   filled in automatically when scanned, editable by hand otherwise. Lists
   show
   just each bottle's header line by default (producer, bottling, vintage,
@@ -119,12 +123,15 @@ features like separate cellars per user.
   which flight it was part of). Only real owned bottles are saved into a
   flight - a gap suggestion in the same result isn't something to "pull
   from the cellar," and can already be added to the wishlist independently.
-- **Guest favoriting** (`/guest`) — share this link with friends/family so
-  they can browse your current inventory (read-only) and favorite bottles
-  they'd like pulled for their next visit. Guests get the same instant
-  search and filtering as Inventory (minus the rating filter, since your
-  own scores aren't shown to them) — a cellar worth browsing is usually
-  one too big to scroll. No account or password — a
+- **Guest favoriting** (`/guest`) — a link you hand to friends and family
+  so they can browse your current inventory (read-only) and favorite
+  bottles they'd like pulled for their next visit. The `/guest` chip on
+  Inventory opens your phone's share sheet, or copies the link where
+  there isn't one, rather than making you retype it. Guests get the same
+  instant search and filtering as Inventory (minus the rating filter and
+  the drink-soon sort, since your own scores and drinking windows aren't
+  shown to them) — a cellar worth browsing is usually one too big to
+  scroll. No account or password — a
   guest just enters a name (reused if they type the same one again from a
   new device), remembered via a cookie so their favorites persist across
   visits. Favorites show up back on `/inventory` as a ❤️ with who picked

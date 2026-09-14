@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { EMPTY_FILTERS, filterBottles } from "@/lib/filter-bottles";
+import {
+  DEFAULT_SORT,
+  EMPTY_FILTERS,
+  filterBottles,
+  sortBottles,
+} from "@/lib/filter-bottles";
 
 function filtersFromSearchParams(initial) {
   return { ...EMPTY_FILTERS, ...initial };
@@ -16,7 +21,9 @@ function syncUrl(filters) {
   if (typeof window === "undefined") return;
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    if (value) params.set(key, value);
+    // The default order is what you get with no query at all, so spelling
+    // it out would put ?sort=producer on every URL for no reason.
+    if (value && !(key === "sort" && value === DEFAULT_SORT)) params.set(key, value);
   }
   const query = params.toString();
   window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
@@ -30,12 +37,21 @@ export default function useBottleFilters(bottles, initialFilters = {}) {
     syncUrl(next);
   }, []);
 
+  // Clearing empties the filters but keeps the chosen order: "show me
+  // everything again" isn't a request to go back to alphabetical.
+  //
+  // Built outside the state updater on purpose - syncUrl touches history,
+  // which the router reacts to, and React may run an updater during render.
   const clear = useCallback(() => {
-    setFilters(EMPTY_FILTERS);
-    syncUrl(EMPTY_FILTERS);
-  }, []);
+    const next = { ...EMPTY_FILTERS, sort: filters.sort };
+    setFilters(next);
+    syncUrl(next);
+  }, [filters.sort]);
 
-  const visible = useMemo(() => filterBottles(bottles, filters), [bottles, filters]);
+  const visible = useMemo(
+    () => sortBottles(filterBottles(bottles, filters), filters.sort),
+    [bottles, filters]
+  );
 
   return { filters, visible, update, clear };
 }

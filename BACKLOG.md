@@ -102,9 +102,10 @@ blank you have to remember to fill in yourself. Plan:
   would need the same domain judgment we're already asking the model
   for, just harder to keep current), just avoiding redundant calls for
   bottles you own multiples of.
-- **A "drink soon" sort/view** on Inventory, ordered by urgency (past
-  peak -> ending soon -> ready -> too young), since an estimate sitting
-  on a detail page nobody visits doesn't actually help prioritize pulls.
+- ~~**A "drink soon" sort/view**~~ — done as part of the sort control in
+  #9 below. Orders by urgency (past peak -> ready -> too young -> no
+  window on file), and within each group by whichever window closes
+  soonest, so "ending soon" falls out without needing its own bucket.
 
 This turns "estimate the backlog" from a one-time fix into how the field
 behaves going forward.
@@ -157,10 +158,15 @@ bite someone actually using the app.
   also got an inline +/- stepper (floored at 1 - dropping to zero is what
   finishing is for), so correcting a count no longer means opening the
   bottle's page and saving a form.
-- **No sort control.** Lists are always producer A-Z. Recently added,
-  vintage, and rating are all obvious wants; the drink-soon ordering in
-  #7 above is the one that actually helps prioritize pulls, and would
-  land in the same control.
+- ~~**No sort control**~~ — done. A Sort control sits next to the filter
+  panel (outside it, so reordering costs one click rather than two):
+  producer A-Z, drink soon, recently added, vintage either direction, and
+  highest rated. It sorts client-side alongside the filtering, syncs to
+  the URL, and survives a Clear. A missing value always sorts last - an
+  NV champagne belongs after every vintage, in both directions, not
+  clumped at whichever end is numerically extreme. Options are trimmed
+  where they don't apply: no drink-soon on History, and neither that nor
+  rating for a guest. This also covers #7's "drink soon" bullet below.
 - ~~**Deleting a bottle has no confirmation**~~ — done. Deleting a
   bottle, removing one of its photos, or deleting a saved flight now all
   take a second click, via a shared `ConfirmButton`. It's a two-step
@@ -170,9 +176,11 @@ bite someone actually using the app.
   you didn't already know. Scan's "Remove this one" is deliberately left
   alone: discarding cards you didn't want is the normal path through that
   review flow, not an accident worth interrupting.
-- **Sharing the guest link is manual.** `/inventory` describes the guest
-  URL in plain text rather than offering a tappable copy/share button,
-  so handing it to someone means retyping it.
+- ~~**Sharing the guest link is manual**~~ — done. The `/guest` mention
+  on Inventory is a button now: it opens the native share sheet where
+  one exists (which is how you'd actually send this to someone from a
+  phone) and otherwise copies the full URL, with a brief "Link copied"
+  confirmation.
 - ~~**Scanning a batch shows no overall progress**~~ — done. A bar above
   the photo list tracks the batch as a whole ("3 of 9 photos read…", with
   a running count of wines found), then settles into a summary once

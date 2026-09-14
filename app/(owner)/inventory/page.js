@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createBottle } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import FilterableBottleList from "@/app/components/FilterableBottleList";
+import GuestLinkButton from "@/app/components/GuestLinkButton";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,9 @@ export default async function InventoryPage({ searchParams }) {
       <div>
         <h1 className="text-2xl font-semibold">Inventory</h1>
         <p className="text-sm text-zinc-500">
-          Bottles currently in your cellar. Share{" "}
-          <span className="font-mono">/guest</span> with friends and family
-          so they can favorite what they&apos;d like pulled for their next
-          visit — favorites show up here as ❤️.
+          Bottles currently in your cellar. Share <GuestLinkButton /> with
+          friends and family so they can favorite what they&apos;d like
+          pulled for their next visit — favorites show up here as ❤️.
         </p>
       </div>
 

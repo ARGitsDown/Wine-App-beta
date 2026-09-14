@@ -4,7 +4,7 @@ import { useState } from "react";
 import { allVarietalNames } from "@/lib/varietal-match";
 import { KNOWN_REGIONS } from "@/lib/regions";
 import { WINE_COLORS } from "@/lib/wine-colors";
-import { hasAnyFilter } from "@/lib/filter-bottles";
+import { hasAnyFilter, sortOptionsFor } from "@/lib/filter-bottles";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -22,9 +22,11 @@ export default function FilterBar({
   onClear,
   regionOptions = KNOWN_REGIONS,
   showRating = true,
+  showDrinkSoon = true,
   resultCount,
   totalCount,
 }) {
+  const sortOptions = sortOptionsFor({ rating: showRating, drinkWindow: showDrinkSoon });
   // Seeded once from whether the page loaded with a filter already applied
   // (a shared or bookmarked URL), then left to the user. Deriving it from
   // the current filters instead would snap the panel shut the moment you
@@ -38,10 +40,14 @@ export default function FilterBar({
   const narrowed = resultCount !== totalCount;
 
   return (
+    <div className="flex flex-wrap items-start gap-2">
+      {/* Sort sits outside the collapsible panel, below: reordering a list
+          is a frequent, one-click thing, and burying it behind a disclosure
+          would make it cost two. */}
     <details
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
-      className="rounded-lg border border-zinc-200 dark:border-zinc-800"
+      className="min-w-64 flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800"
     >
       {/* Collapsed by default so the list itself is what's on screen first,
           which matters most on a phone - seven always-expanded controls
@@ -168,5 +174,21 @@ export default function FilterBar({
         </div>
       </div>
     </details>
+
+      <label className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800">
+        <span className="text-zinc-500">Sort</span>
+        <select
+          value={filters.sort}
+          onChange={(event) => set("sort", event.target.value)}
+          className="bg-transparent text-sm"
+        >
+          {sortOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
