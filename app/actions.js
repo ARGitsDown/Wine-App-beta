@@ -12,7 +12,8 @@ import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { characterRule } from "@/lib/suggestion-character";
 import { RESEARCH_FIELDS, researchChanges } from "@/lib/research-fields";
-import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
+import { parseTastedDate } from "@/lib/tasting-date";
+import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
 import { uploadLabelPhoto } from "@/lib/blob";
@@ -137,6 +138,7 @@ async function insertBottle(status, formData) {
         needsResearch,
         photoUrl,
         emptiedAt: emptiedAtForStatus(status, null),
+        acquiredAt: acquiredAtForStatus(status, null),
       },
     });
     invalidateRegionOptions();
@@ -213,30 +215,20 @@ export async function updateBottle(id, prevState, formData) {
   }
 }
 
-// emptiedAt only means something while a row is in History, so it's derived
-// from the status change rather than set independently: stamped on the way
-// in, cleared on the way out. Every path that moves a bottle between states
-// goes through here so none of them can forget.
-//
-// An existing date is never overwritten - re-selecting "Tasted" on a scan
-// card that's already there shouldn't silently reset when you drank it -
-// but leaving and returning does re-stamp, because by then the old date is
-// describing a different event.
-function emptiedAtForStatus(status, existingEmptiedAt) {
-  if (status !== "consumed") return null;
-  return existingEmptiedAt ?? todayAtNoonUtc();
-}
-
 export async function setBottleStatus(id, status) {
   const existing = await prisma.bottle.findUnique({
     where: { id },
-    select: { emptiedAt: true },
+    select: { emptiedAt: true, acquiredAt: true },
   });
   if (!existing) return;
 
   await prisma.bottle.update({
     where: { id },
-    data: { status, emptiedAt: emptiedAtForStatus(status, existing.emptiedAt) },
+    data: {
+      status,
+      emptiedAt: emptiedAtForStatus(status, existing.emptiedAt),
+      acquiredAt: acquiredAtForStatus(status, existing.acquiredAt),
+    },
   });
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/inventory");
@@ -258,6 +250,31 @@ export async function updateEmptiedDate(id, formData) {
     return { success: true };
   } catch (err) {
     console.error("Failed to update emptied date:", err);
+    return { error: "Couldn't save that date. Please try again." };
+  }
+}
+
+// Correcting when a bottle was actually acquired - the stamp is "today",
+// which is right when you log a bottle as you buy it and wrong whenever
+// you're entering a cellar you already owned.
+//
+// Unlike the emptied date this one clears on an empty submission. A wrong
+// acquisition date is worse than none, and there's a legitimate way to end
+// up with one: a wine mistakenly logged to the cellar and then corrected
+// really does have no date to show.
+export async function updateAcquiredDate(id, formData) {
+  const raw = String(formData.get("acquiredAt") ?? "").trim();
+  const acquiredAt = raw === "" ? null : parseTastedDate(raw);
+  if (raw !== "" && !acquiredAt) return { error: "That date doesn't look right." };
+
+  try {
+    await prisma.bottle.update({ where: { id }, data: { acquiredAt } });
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/inventory");
+    revalidatePath("/consumed");
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to update acquired date:", err);
     return { error: "Couldn't save that date. Please try again." };
   }
 }
@@ -591,6 +608,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
                 ...bottleDataFromWine(wine),
                 status,
                 emptiedAt: emptiedAtForStatus(status, null),
+                acquiredAt: acquiredAtForStatus(status, null),
                 needsResearch: wine.confident === false,
                 photoUrl,
               },

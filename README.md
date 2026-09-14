@@ -77,6 +77,15 @@ features like separate cellars per user.
   page sorts by "Recently emptied" — the date is stamped automatically and
   editable on the bottle's page, and bottles that got here before this
   existed read "Emptied date unknown" until you fill one in.
+- **When a bottle arrived** — separately from all of that, a bottle records
+  when it entered the cellar, which is not the same fact as when its row
+  was typed in. It's stamped when a wine is added to the cellar or bought
+  off the wishlist, kept when you eventually drink it (so a wine shows
+  "Acquired May 2, 2019 / Emptied Sep 14, 2026"), and never invented where
+  it wouldn't be true: a wishlist bottle isn't owned yet, and a wine logged
+  straight to tasting notes never sat in the cellar. Editable — and
+  clearable — on the bottle's page, and the Cellar and Tasting notes both
+  sort by "Recently acquired".
 - **Tasting notes** — a note, an optional 1–5 rating, and the date you
   tasted it, logged against any bottle regardless of its current status.
   The date defaults to today, so logging as you drink stays one tap, but a

@@ -61,6 +61,7 @@ export default async function CellarPage({ searchParams }) {
         initialFilters={filters}
         emptyMessage="No bottles match. Add one below, or clear your filters."
         flights={openFlights}
+        showAcquired
       />
 
       {/* The other way to add bottles, next to the by-hand form rather than

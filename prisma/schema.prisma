@@ -113,6 +113,20 @@ model Bottle {
   // #10. Stored like TastingNote.tastedAt, anchored at noon UTC: see
   // lib/tasting-date.js for why a date-only value needs that.
   emptiedAt DateTime?
+  // When this wine entered the cellar, as opposed to createdAt's "when the
+  // row was typed in" - the two are only the same for a bottle you log the
+  // day you buy it. Nullable, and deliberately left null rather than
+  // guessed: a wishlist bottle isn't owned yet, and a wine logged straight
+  // to tasting notes never sat in the cellar at all, so neither has an
+  // acquisition date to record. Derived from status changes the way
+  // emptiedAt is (see acquiredAtForStatus in app/actions.js) - stamped when
+  // a row arrives in the cellar, cleared if it goes back to the wishlist,
+  // and carried through to consumed, where "bought 2019, drunk 2026" is
+  // exactly the fact worth keeping. Rows that predate this column have
+  // null, which reads as "date unknown" rather than as a wrong date - see
+  // BACKLOG.md #10. Anchored at noon UTC like every other date-only value:
+  // see lib/tasting-date.js.
+  acquiredAt DateTime?
   // Existing winemaking/tasting notes found *about* this wine by the
   // Research feature - the winery's own description, critic write-ups
   // (Wine Advocate, Wine Spectator, Halliday, Jancis Robinson, etc.), or

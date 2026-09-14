@@ -25,6 +25,7 @@ export default async function ConsumedPage({ searchParams }) {
         initialFilters={filters}
         showDrinkSoon={false}
         showEmptied
+        showAcquired
         emptyMessage="Nothing here yet — bottles you mark as finished from your cellar will show up here."
       />
     </div>

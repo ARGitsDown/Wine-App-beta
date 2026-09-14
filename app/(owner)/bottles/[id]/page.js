@@ -9,6 +9,7 @@ import {
   addTastingNote,
   updateTastingNoteDate,
   updateEmptiedDate,
+  updateAcquiredDate,
   deleteBottlePhoto,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
@@ -149,6 +150,22 @@ export default async function BottleDetailPage({ params, searchParams }) {
                 </span>
               )}
             </div>
+            {/* A wishlist bottle isn't owned, so there's nothing to date.
+                Everywhere else it can be true - including History, where
+                "acquired 2019, emptied 2026" is the interesting pair. */}
+            {bottle.status !== "wishlist" && (
+              <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-zinc-500">
+                <span>Acquired</span>
+                <InlineDateEditor
+                  date={bottle.acquiredAt}
+                  action={updateAcquiredDate.bind(null, bottle.id)}
+                  name="acquiredAt"
+                  emptyLabel="date unknown"
+                  title="Set when this entered the cellar"
+                  clearable
+                />
+              </div>
+            )}
             {bottle.status === "consumed" && (
               // A div, not a p: the editor renders a <form> once open, and
               // a form can't legally nest inside a paragraph.

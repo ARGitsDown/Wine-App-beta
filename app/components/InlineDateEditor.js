@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { formatTastedDate, toDateInputValue, todayInputValue } from "@/lib/tasting-date";
 
 // A date shown as text until you click it, then an input with Save/Cancel.
@@ -11,15 +11,22 @@ import { formatTastedDate, toDateInputValue, todayInputValue } from "@/lib/tasti
 //
 // `action` is a bound Server Action taking a FormData with `name`; the
 // caller owns which field that is so one component serves both.
+//
+// `clearable` offers a Clear button and submits an empty value for it. Only
+// the acquired date wants this: an emptied date is implied by the row being
+// in History at all, but a bottle can legitimately have no acquisition date
+// (see acquiredAtForStatus), so removing a wrong one has to be possible.
 export default function InlineDateEditor({
   date,
   action,
   name,
   emptyLabel = "Set a date",
   title = "Change this date",
+  clearable = false,
 }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState(null);
+  const inputRef = useRef(null);
 
   if (!editing) {
     return (
@@ -48,9 +55,10 @@ export default function InlineDateEditor({
       className="flex flex-wrap items-center gap-2"
     >
       <input
+        ref={inputRef}
         type="date"
         name={name}
-        required
+        required={!clearable}
         // A row with no date yet opens on today rather than blank, since
         // that's the likeliest answer and saves a tap.
         defaultValue={date ? toDateInputValue(date) : todayInputValue()}
@@ -60,6 +68,20 @@ export default function InlineDateEditor({
       <button type="submit" className="text-xs underline underline-offset-2">
         Save
       </button>
+      {clearable && date && (
+        // Empties the field and lets the normal submit carry "" through, so
+        // clearing goes down the same path as saving rather than needing an
+        // action of its own.
+        <button
+          type="submit"
+          onClick={() => {
+            if (inputRef.current) inputRef.current.value = "";
+          }}
+          className="text-xs text-zinc-500 underline underline-offset-2"
+        >
+          Clear
+        </button>
+      )}
       <button
         type="button"
         onClick={() => {

@@ -53,59 +53,68 @@ or past peak (falling back honestly rather than silently ignoring the
 window when nothing ready fits). Shown on the bottle detail page as a
 "ready / too young / past peak" badge.
 
-## 10. Dates: when it was tasted, and when it arrived
+## ~~10. Dates: when it was tasted, and when it arrived~~ — done
 
 Out of numeric order on purpose: section numbers are referenced from
-README.md and from commit messages, so they stay put. This sits here
-because it outranks #5 below. The app has one real date and two
-implied ones, and can't distinguish them:
+README.md and from commit messages, so they stay put.
 
-- ~~`TastingNote.tastedAt` exists and defaults to `now()`, but nothing in
-  the UI ever sets it~~ — done. The add-note form has a "Tasted on" field
+The app had one real date and two implied ones. All three are now
+distinct:
+
+- **`TastingNote.tastedAt`** — the add-note form has a "Tasted on" field
   defaulting to today (and capped at today), and the date on an existing
   note is editable in place, since every note written before this was
-  stamped with whenever it got typed up. Dates are anchored at noon UTC
-  and always formatted in UTC - see `lib/tasting-date.js` for why a
-  date-only value in a DateTime column otherwise drifts a day each time
-  it round-trips.
-- `Bottle.createdAt` is "when this row was made", which the app quietly
-  treats as "when it entered the cellar". For a bottle scanned off a shop
-  shelf into the wishlist, or one scanned from a tasting sheet straight
-  into History, that reading is wrong.
-- ~~Nothing records **when a bottle was emptied**~~ — done. `emptiedAt`
-  is stamped by whichever action moves a row into History (the "Tasted"
-  buttons, a scan card set to History, a wine created straight into it)
-  and cleared if it ever moves back out, so a bottle returned to
-  the cellar can't keep claiming a date. Editable on the bottle's page,
-  which also lets rows that reached History before the column existed be
-  backfilled - they read "Emptied date unknown" rather than showing a
-  wrong date. History gains a "Recently emptied" sort, which is the
-  ordering that page actually wanted ("recently added" on a consumed
-  bottle means when the row was typed in, which is close to meaningless
-  there).
+  stamped with whenever it got typed up.
+- **`Bottle.emptiedAt`** — stamped by whichever action moves a row into
+  History, cleared if it ever moves back out. History gained a "Recently
+  emptied" sort.
+- **`Bottle.acquiredAt`** — when the wine entered the cellar, as opposed
+  to `createdAt`'s "when the row was typed in". The Cellar and Tasting
+  notes gained a "Recently acquired" sort.
 
-Only the middle item is left. The question it waited on - **what is the
-app recording when a wine is added?** - is now answered: `/scan` asks
-outright (see `lib/scan-intent.js`), so every batch declares whether it's
-stocking the cellar, noting wines for later, or drinking them now. That
-was the missing signal; the guessing it replaced is described there.
+Dates are anchored at noon UTC and always formatted in UTC — see
+`lib/tasting-date.js` for why a date-only value in a DateTime column
+otherwise drifts a day each time it round-trips.
 
-One smaller question remains before an acquired date can land:
+`acquiredAt` is a **new nullable column**, not a relabelled `createdAt`.
+Relabelling would have asserted that every row's creation timestamp is its
+acquisition date, which is wrong for anything scanned off a shop shelf or
+a tasting sheet; a separate column leaves existing rows honestly null and
+keeps "when the row was typed in" as its own distinct fact.
 
-- Does a bottle that goes straight to History need one at all? It never
-  sat in the cellar, so arguably not - but a tasting sheet from a shop
-  visit does have a real date worth keeping.
+It's derived from the status a row moves to, not set independently, so no
+caller can forget it — the same shape as `emptiedAt`, but deliberately not
+a mirror image of it, because owning a bottle and having drunk it aren't
+opposites:
 
-The other is settled: **acquired is a new nullable `acquiredAt` column**,
-not a relabelled `createdAt`. Relabelling would assert that every row's
-creation timestamp is its acquisition date, which is wrong for anything
-scanned off a shop shelf or a tasting sheet; a separate column leaves
-existing rows honestly null and keeps "when the row was typed in"
-available as its own distinct fact.
+| moving to | acquiredAt |
+| --- | --- |
+| wishlist | cleared — you don't own it, so any date it carried stopped being true |
+| cellar | stamped on arrival, never overwritten — "Bought it" is the real acquisition event, and a bottle back from History keeps its original |
+| History | left exactly as it was |
 
-With the intent picker in place, the shape is straightforward: a `cellar`
-scan means acquired today, a `tasting` scan means emptied today (already
-handled), and `wishlist` means neither.
+The open question — **does a bottle that goes straight to History need
+one?** — is answered no: it never sat in the cellar, so none is invented.
+That falls out of the table's last row rather than needing a rule of its
+own, and it's why the paths that only ever move a bottle into History
+(`markOneTasted`) don't consult the rule at all. The payoff is the other
+half of that row: a wine bought in 2019 and drunk in 2026 shows both
+dates, which is the fact the column exists for.
+
+Both rules live in `lib/bottle-dates.js` rather than `app/actions.js`,
+because that file is `"use server"` and every export there has to be an
+async Server Action — which would have left the most interesting logic in
+this change untestable.
+
+Two deliberate omissions. **No field on the add-bottle form**: the date is
+stamped and then correctable on the bottle's page, exactly how `emptiedAt`
+already worked, rather than adding a field to a form that was only just
+grouped (#13). And **one case guesses**: switching a just-scanned card
+from Cellar to Tasting notes leaves today's acquisition date on it, since
+status alone can't tell "I mis-scanned this" from "I bought it today and
+drank it tonight". It's visible on the bottle's page and clearable there —
+the acquired-date editor takes an empty submission, because a wrong date
+is worse than none.
 
 ## 5. Bottle size / format
 

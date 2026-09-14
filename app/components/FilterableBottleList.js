@@ -16,6 +16,7 @@ export default function FilterableBottleList({
   // something, which is moot once it's been drunk.
   showDrinkSoon = true,
   showEmptied = false,
+  showAcquired = false,
   // Only the cellar supplies this; see BottleList for why.
   flights = null,
 }) {
@@ -30,6 +31,7 @@ export default function FilterableBottleList({
         regionOptions={regionOptions}
         showDrinkSoon={showDrinkSoon}
         showEmptied={showEmptied}
+        showAcquired={showAcquired}
         resultCount={visible.length}
         totalCount={bottles.length}
       />

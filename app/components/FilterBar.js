@@ -24,6 +24,7 @@ export default function FilterBar({
   showRating = true,
   showDrinkSoon = true,
   showEmptied = false,
+  showAcquired = false,
   resultCount,
   totalCount,
 }) {
@@ -31,6 +32,7 @@ export default function FilterBar({
     rating: showRating,
     drinkWindow: showDrinkSoon,
     emptied: showEmptied,
+    acquired: showAcquired,
   });
   // Seeded once from whether the page loaded with a filter already applied
   // (a shared or bookmarked URL), then left to the user. Deriving it from
