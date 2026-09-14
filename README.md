@@ -192,7 +192,8 @@ features like separate cellars per user.
   title, no section labels, since six labelled cards say what the app holds
   better than a heading above them does. Each card carries its icon and
   name top-left, its count bottom-left (centered under the icon, so the
-  figure reads as belonging to it) and its description bottom-right. Only
+  figure reads as belonging to it) and its description bottom-right, each cut
+  short enough to sit on one line at phone width. Only
   Inventory, Wishlist, Tasting history and Flights carry a count — a number
   on "Scan" would be meaningless, so Scan and Suggest give their
   description the whole bottom row instead. The whole screen fits above the
