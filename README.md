@@ -128,16 +128,28 @@ features like separate cellars per user.
   then be recommended on its merits wherever it would genuinely pair
   better, not just as a fallback, still marked "Not in your cellar" and
   still addable to the wishlist. Off by default, since the usual question
-  is what to open tonight. It knows each
+  is what to open tonight. A **Character** control - Balanced / Classic /
+  Exploratory / Avant-garde - says how adventurous the pick should be,
+  which the request itself rarely settles: "something with roast chicken"
+  is answered equally well by a white Burgundy, a Jura Savagnin or a
+  chilled Trousseau. Balanced is the default and steers nothing.
+  "Avant-garde" is a claim about the boldness of the *choice*, not the
+  style of the wine. It knows each
   candidate's drinking window (if one is set) and steers toward a bottle
-  that's actually ready over one that's too young or past peak. A pairing
+  that's actually ready over one that's too young or past peak. Every
+  result leads with a short evocative title ("The Many Faces of Pinot")
+  and keeps the fuller explanation behind a "Why these" disclosure, so
+  you can see what was suggested before reading why. A pairing
   recommendation is ephemeral (not saved anywhere) but links each pick
   straight to "log this pairing," which prefills the dish into a new
   tasting note. A tasting-flight result can be saved via "Save this
   flight" - see **Tasting flights** below.
 - **Tasting flights** (`/flights`) — a themed flight saved from Suggest,
   kept as a queue to pull bottles from over time rather than disappearing
-  once you leave the page. Each pick can be marked "tasted" once you open
+  once you leave the page. A flight is listed and headed by its title,
+  with the theme spelled out on its own page; one saved before titles
+  existed keeps showing its summary as its name rather than getting a
+  backfilled guess. Each pick can be marked "tasted" once you open
   it, or linked straight to logging a tasting note for it (prefilled with
   which flight it was part of). Only real owned bottles are saved into a
   flight - a gap suggestion in the same result isn't something to "pull

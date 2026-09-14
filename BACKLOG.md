@@ -90,15 +90,18 @@ outright (see `lib/scan-intent.js`), so every batch declares whether it's
 stocking the cellar, noting wines for later, or drinking them now. That
 was the missing signal; the guessing it replaced is described there.
 
-Two smaller questions remain before an acquired date can land:
+One smaller question remains before an acquired date can land:
 
 - Does a bottle that goes straight to History need one at all? It never
   sat in the cellar, so arguably not - but a tasting sheet from a shop
   visit does have a real date worth keeping.
-- Is "acquired" a separate column from `createdAt`, or is `createdAt`
-  simply relabelled in the UI? A separate nullable `acquiredAt` avoids
-  rewriting history for existing rows, and leaves "when the row was
-  typed in" available as its own distinct fact.
+
+The other is settled: **acquired is a new nullable `acquiredAt` column**,
+not a relabelled `createdAt`. Relabelling would assert that every row's
+creation timestamp is its acquisition date, which is wrong for anything
+scanned off a shop shelf or a tasting sheet; a separate column leaves
+existing rows honestly null and keeps "when the row was typed in"
+available as its own distinct fact.
 
 With the intent picker in place, the shape is straightforward: a `cellar`
 scan means acquired today, a `tasting` scan means emptied today (already
@@ -265,84 +268,71 @@ bite someone actually using the app.
   inference and the `bottling` field are where a regression would show up
   first.
 
-## 11. Steering the character of a suggestion
+## ~~11. Steering the character of a suggestion~~ — done
 
-Suggest currently takes one freeform box and infers everything from it:
-pairing vs tasting flight, and what "good" means. The second inference is
-the shakier one. Asked for something with roast chicken, a sound answer
-could be a white Burgundy (classic), a Jura Savagnin (exploratory), or a
-chilled Trousseau (avant-garde) - all defensible, and which one you want
-depends on the evening, not on the dish.
+Suggest used to infer two things from one freeform box: pairing vs
+tasting flight, and what "good" means. The second inference was the
+shakier one - asked for something with roast chicken, a white Burgundy
+(classic), a Jura Savagnin (exploratory) and a chilled Trousseau
+(avant-garde) are all defensible, and which one you want depends on the
+evening rather than the dish.
 
-A small control alongside the request - **Classic / Exploratory /
-Avant-garde / Balanced** - would say which, the way the new
-"include wines not in my cellar" checkbox says where to look. Worth
-settling first:
+A **Character** control - Balanced / Classic / Exploratory / Avant-garde -
+now sits next to the request box, beside the cellar/outside checkbox, and
+shows only the selected option's hint so four explanations don't compete
+with the request itself. The four questions this waited on, as answered:
 
-- **Does it belong on pairings, flights, or both?** A flight already has
-  a theme in the text box, so the axis may be redundant there and most
-  useful on pairings.
-- **Is "balanced" a fourth option or the default?** Probably the default,
-  in which case the control has three explicit settings plus an
-  unset state - and an unset state that behaves like "balanced" is
-  simpler than four equal choices.
-- **Does it change the picks or only the ordering?** Steering toward
-  exploratory should surface a different bottle, not the same bottle with
-  a more adventurous write-up. That's a prompt question, and worth
-  checking against a real cellar before trusting it.
-- **How does it interact with the cellar/outside toggle?** "Avant-garde"
-  against a conservative cellar will mostly produce wines you don't own,
-  which is fine when outside wines are allowed and frustrating when they
-  aren't. The two controls may need to acknowledge each other.
+- **Pairings, flights, or both?** Both, one control. A flight's theme box
+  says what the theme is, not how far out on a limb to go for it.
+- **Is "balanced" a fourth option or the default?** The default, and it
+  contributes nothing to the prompt - it is the unset state with a
+  visible name. The template gained exactly one empty-when-balanced
+  splice point, so an unsteered request sends the same bytes it sent
+  before the control existed.
+- **Picks or only the ordering?** The picks. The steer says outright that
+  it must change which wines are chosen, since an exploratory write-up of
+  the obvious bottle isn't what was asked for.
+- **How does it interact with the cellar/outside toggle?** The steer sits
+  after that rule and refers back to it, so "avant-garde" against a
+  conservative cellar means finding the boldest thing actually in it
+  rather than quietly dropping the constraint.
 
-Cheap to build (it's a clause in the system prompt, like the outside-wines
-rule) and easy to get subtly wrong, so it's worth trying against a real
-cellar and real menus before deciding the vocabulary is right. The four
-words above are a starting point, not settled - "classic" and
-"exploratory" are clear, "avant-garde" may read as a style claim about
-the wine (natural, orange, low-intervention) rather than a claim about
-how adventurous the *choice* is.
+The wording worry was real and is handled in the prompt rather than the
+label: "avant-garde" is defined as a claim about the *choice*, not the
+wine - a traditional bottle in an unexpected role counts, an orange wine
+picked because it's the obvious match doesn't. Whether the four words
+earn their keep against real menus is still worth watching; the rules
+live in `lib/suggestion-character.js`, one string each.
 
-## 12. Summarize a tasting: a title, not a paragraph
+## ~~12. Summarize a tasting: a title, not a paragraph~~ — done
 
-A Suggest result leads with `summary`, which the tool schema asks for as
-"a short (1-3 sentence) overall explanation of your recommendation or
-theme." One field is doing two jobs, and the headline job is the one it
-does badly: what you want at the top is a short evocative name for the
-idea - "The Many Faces of Pinot" - with the fuller explanation of the
-theme and why each wine is in it available on a click, not read as a
-paragraph before you can tell what the flight even is.
+`record_suggestions` now returns a short evocative `title` ("The Many
+Faces of Pinot") alongside the `summary`, and the two are described to the
+model as separate jobs so neither collapses into the other. The Suggest
+result leads with the title under a small mode label and keeps the
+summary behind a "Why these" disclosure - on a phone that lifts the first
+wine 144px up the page, and further as the summary grows. A saved flight
+shows its title as the heading in the list and on its own page, with the
+summary spelled out beneath it there (you clicked through to that page, so
+it isn't hidden behind a second disclosure).
 
-That split matters most where the summary is persisted and reused as a
-name. `TastingFlight.summary` is the only text a saved flight has, so it
-is the `<h1>` on `/flights/[id]`, the link text in the flights list, and
-- worst - is URL-encoded into `?tastingFlight=` and prefilled into a
-tasting note as "Tasted as part of: ...". Three sentences make a poor
-link, a long URL, and an odd opening line in a note.
+The three open questions, as settled:
 
-The likely shape: add a `title` alongside `summary` in
-`SUGGESTIONS_TOOL`, and a nullable `title` on `TastingFlight`; render the
-title as the heading with `summary` behind a disclosure. Worth settling
-first:
+- **Disclosure, not a separate view** - there was no second thing to put
+  on such a view, and the disclosure matches how the per-pick reasons
+  already expand.
+- **Flights saved earlier keep showing their summary** as the heading,
+  because that is genuinely all they have. `title` is nullable and the
+  fallback is one `||` in three render paths - no backfill, so no AI call
+  per old flight and nothing in #8's cost-bearing bucket.
+- **Pairings get a title too.** It replaces the static "Pairing
+  suggestions" label, which said nothing about the actual answer. Only
+  flights persist one.
 
-- **Disclosure or separate view?** A `<details>` next to the heading keeps
-  everything on one page and matches how the per-pick reasons already
-  expand. A separate view would have room for more than the theme text -
-  but there isn't more yet, so the disclosure is probably enough.
-- **What happens to flights already saved?** They have no title. Either
-  backfill one (an AI call per flight, which puts this in #8's
-  cost-bearing bucket) or fall back to showing `summary` as the heading
-  for older rows - which keeps the field nullable and costs nothing, at
-  the price of two kinds of flight in the list.
-- **Do pairings need a title at all?** A pairing result is ephemeral - it
-  is never saved, and "goes with the lamb" is already about as short as
-  the summary gets. The title may be worth asking for only in `tasting`
-  mode, which also avoids paying for a field that is thrown away.
-- **Where does the note prefill get its text?** If a flight has a title,
-  "Tasted as part of: The Many Faces of Pinot" is the line that belongs
-  in a tasting note. That argues for passing the flight id rather than
-  the text through the query string, so the note can render whichever
-  field exists.
+The "log a tasting note" link now carries the flight id rather than its
+text, so the prefill renders whichever of title/summary the flight
+actually has instead of a copy frozen into the URL. Non-numeric values
+still pass through, so older links and bookmarks keep working.
 
 ## Lower priority / optional
 
