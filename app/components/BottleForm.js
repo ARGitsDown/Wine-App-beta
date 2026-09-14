@@ -8,6 +8,13 @@ import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 const labelClass = "flex flex-col gap-1 text-sm";
+// A small uppercase heading above each field cluster below - purely visual
+// grouping (Identity / Classification / Details) so the form reads as
+// sections to scan rather than one flat wall of 14 equally-weighted
+// inputs. Nothing moves or hides based on this; every field is still
+// always present and always visible.
+const sectionLabelClass =
+  "text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500";
 
 // Static, so computed once at module load rather than per render.
 const VARIETY_NAMES = allVarietalNames();
@@ -62,139 +69,156 @@ export default function BottleForm({
           <option key={name} value={name} />
         ))}
       </datalist>
-      <div className="grid grid-cols-2 gap-3">
-        <label className={labelClass}>
-          Producer
-          <input
-            name="producer"
-            required
-            defaultValue={defaultValues.producer || ""}
-            className={inputClass}
-          />
-        </label>
-        <label className={labelClass}>
-          Bottling / vineyard
-          <input
-            name="bottling"
-            defaultValue={defaultValues.bottling || ""}
-            className={inputClass}
-            placeholder="e.g. Rochioli Vineyard, or a proprietary name"
-          />
-        </label>
-        <label className={labelClass}>
-          Vintage
-          <input
-            name="vintage"
-            type="number"
-            inputMode="numeric"
-            defaultValue={defaultValues.vintage ?? ""}
-            className={inputClass}
-          />
-        </label>
-        <label className={labelClass}>
-          Type (short, shown in lists)
-          <input
-            name="type"
-            defaultValue={defaultValues.type || ""}
-            className={inputClass}
-            placeholder="e.g. Red Bordeaux Blend"
-          />
-        </label>
-        <label className={labelClass}>
-          Variety (fuller detail)
-          <input
-            name="variety"
-            list={varietyListId}
-            defaultValue={defaultValues.variety || ""}
-            className={inputClass}
-            placeholder="e.g. Cabernet Sauvignon"
-          />
-        </label>
-        <label className={labelClass}>
-          Region
-          <input
-            name="region"
-            list={regionListId}
-            defaultValue={defaultValues.region || ""}
-            className={inputClass}
-            placeholder="e.g. Bordeaux, or a US state"
-          />
-        </label>
-        <label className={labelClass}>
-          Sub-region
-          <input
-            name="subRegion"
-            defaultValue={defaultValues.subRegion || ""}
-            className={inputClass}
-            placeholder="e.g. Margaux, or an AVA"
-          />
-        </label>
-        <label className={labelClass}>
-          Country
-          <input
-            name="country"
-            defaultValue={defaultValues.country || ""}
-            className={inputClass}
-          />
-        </label>
-        <label className={labelClass}>
-          Color
-          <select
-            name="wineColor"
-            defaultValue={normalizeWineColor(defaultValues.wineColor) || ""}
-            className={inputClass}
-          >
-            <option value="">Not set</option>
-            {WINE_COLORS.map((color) => (
-              <option key={color} value={color}>
-                {color}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          ABV %
-          <input
-            name="abv"
-            type="number"
-            step="0.1"
-            min="0"
-            max="100"
-            defaultValue={defaultValues.abv ?? ""}
-            className={inputClass}
-            placeholder="e.g. 14.5"
-          />
-        </label>
-        <label className={labelClass}>
-          Quantity
-          <input
-            name="quantity"
-            type="number"
-            min="1"
-            defaultValue={defaultValues.quantity ?? 1}
-            className={inputClass}
-          />
-        </label>
-        <div className={`${labelClass} col-span-2`}>
-          Drinking window (years, optional)
-          <div className="flex items-center gap-2">
-            <input
-              name="drinkFrom"
-              type="number"
-              inputMode="numeric"
-              defaultValue={defaultValues.drinkFrom ?? ""}
-              className={`${inputClass} w-24`}
-              placeholder="From"
-            />
-            <span className="text-zinc-400">–</span>
-            <input
-              name="drinkTo"
-              type="number"
-              inputMode="numeric"
-              defaultValue={defaultValues.drinkTo ?? ""}
-              className={`${inputClass} w-24`}
-              placeholder="To"
-            />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <p className={sectionLabelClass}>Identity</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className={labelClass}>
+              Producer
+              <input
+                name="producer"
+                required
+                defaultValue={defaultValues.producer || ""}
+                className={inputClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Bottling / vineyard
+              <input
+                name="bottling"
+                defaultValue={defaultValues.bottling || ""}
+                className={inputClass}
+                placeholder="e.g. Rochioli Vineyard, or a proprietary name"
+              />
+            </label>
+            <label className={labelClass}>
+              Vintage
+              <input
+                name="vintage"
+                type="number"
+                inputMode="numeric"
+                defaultValue={defaultValues.vintage ?? ""}
+                className={inputClass}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <p className={sectionLabelClass}>Classification</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className={labelClass}>
+              Type (short, shown in lists)
+              <input
+                name="type"
+                defaultValue={defaultValues.type || ""}
+                className={inputClass}
+                placeholder="e.g. Red Bordeaux Blend"
+              />
+            </label>
+            <label className={labelClass}>
+              Variety (fuller detail)
+              <input
+                name="variety"
+                list={varietyListId}
+                defaultValue={defaultValues.variety || ""}
+                className={inputClass}
+                placeholder="e.g. Cabernet Sauvignon"
+              />
+            </label>
+            <label className={labelClass}>
+              Region
+              <input
+                name="region"
+                list={regionListId}
+                defaultValue={defaultValues.region || ""}
+                className={inputClass}
+                placeholder="e.g. Bordeaux, or a US state"
+              />
+            </label>
+            <label className={labelClass}>
+              Sub-region
+              <input
+                name="subRegion"
+                defaultValue={defaultValues.subRegion || ""}
+                className={inputClass}
+                placeholder="e.g. Margaux, or an AVA"
+              />
+            </label>
+            <label className={labelClass}>
+              Country
+              <input
+                name="country"
+                defaultValue={defaultValues.country || ""}
+                className={inputClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Color
+              <select
+                name="wineColor"
+                defaultValue={normalizeWineColor(defaultValues.wineColor) || ""}
+                className={inputClass}
+              >
+                <option value="">Not set</option>
+                {WINE_COLORS.map((color) => (
+                  <option key={color} value={color}>
+                    {color}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <p className={sectionLabelClass}>Details</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className={labelClass}>
+              ABV %
+              <input
+                name="abv"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                defaultValue={defaultValues.abv ?? ""}
+                className={inputClass}
+                placeholder="e.g. 14.5"
+              />
+            </label>
+            <label className={labelClass}>
+              Quantity
+              <input
+                name="quantity"
+                type="number"
+                min="1"
+                defaultValue={defaultValues.quantity ?? 1}
+                className={inputClass}
+              />
+            </label>
+            <div className={`${labelClass} col-span-2`}>
+              Drinking window (years, optional)
+              <div className="flex items-center gap-2">
+                <input
+                  name="drinkFrom"
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue={defaultValues.drinkFrom ?? ""}
+                  className={`${inputClass} w-24`}
+                  placeholder="From"
+                />
+                <span className="text-zinc-400">–</span>
+                <input
+                  name="drinkTo"
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue={defaultValues.drinkTo ?? ""}
+                  className={`${inputClass} w-24`}
+                  placeholder="To"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
