@@ -489,6 +489,66 @@ constraint on (flightId, bottleId). Flights saved from Suggest before this
 existed could already contain a repeat, and a migration that fails on live
 data is a worse trade than a guard in the one function that adds picks.
 
+## 16. The scan flow, reviewed end to end
+
+A UX pass over the whole scan flow - picking a destination, reading a
+batch, and reviewing what came back. Two of its findings were real bugs
+and are fixed; one was declined on the owner's read of how the app is
+actually used. The rest are listed here rather than in a chat log.
+
+- ~~**Removing a photo left its bottles in the cellar.**~~ — fixed. The
+  control says it removes "all its wines from the batch" and only dropped
+  the cards; anything already saved stayed, with nothing on screen still
+  pointing at it. It deletes them now, which makes a previously harmless
+  control destructive, so it asks first and names the count. A photo that
+  only left drafts behind has nothing to lose and stays a plain link.
+
+  The delete is one action over the whole set rather than a loop of
+  `removeScannedBottle`. Each of those revalidates, and the router refresh
+  that follows cancels the calls still in flight - a five-bottle removal
+  reliably left the last one behind. Worth remembering anywhere else a
+  client awaits several Server Actions in a row.
+- ~~**The batch summary counted cards, not saves.**~~ — fixed. A wine
+  whose save fails falls back to an unsaved draft card, which the count
+  still reported as saved. It counts saves now, says how many are still to
+  save, and the card itself says its save failed rather than looking like
+  any other draft.
+- ~~**Every card was a full 14-field form.**~~ — fixed. Six wines off one
+  shelf photo made a 7,000px page, so the one thing you came to do - check
+  what was found - was the one thing you could not do. A saved card now
+  leads with the wine in a line ("Ridge "Lytton Springs" 2021", then
+  variety and region, the same shape the cellar list uses), keeps its
+  destination radios and any tasting note read from the photo, and folds
+  the form behind "Edit details". The form is still in the DOM, so nothing
+  about saving or updating changes. Drafts stay open: they have not been
+  saved, so their Save button has to be in reach. Same batch, 3,200px, and
+  most of what is left is the one failed card.
+- **Duplicate detection on scan** — declined, not deferred. The reasoning:
+  two entries for the same wine are nearly always a real variant, most
+  often a different vintage even when the scan misses it, and they will
+  have different acquisition dates regardless. The one true duplicate is a
+  case, and that is already one bottle scan plus a quantity adjustment at
+  entry. Worth revisiting only if repeats show up in practice that are
+  neither of those.
+- **Editing a saved card gives no confirmation, and unsaved edits are
+  lost.** Pressing Update saves, but the card looks identical afterwards,
+  and typing into a field then removing the photo (or leaving the page)
+  discards it silently.
+- **A failed photo cannot be retried.** The fallback is a blank manual
+  card. Re-reading the same photo is one action away and isn't offered, so
+  a transient failure means finding the file again.
+- **Accessibility.** The destination cards have no visible focus ring, the
+  batch progress has no live region so a screen reader is never told the
+  batch finished, and `text-zinc-400` on white is about 2.5:1 - below the
+  4.5:1 minimum - in several places on this page.
+- **"Delete this wine" is a plain text link with a small tap target and no
+  confirmation**, unlike every other delete in the app. The whole-photo
+  remove above it now confirms, which makes the inconsistency sharper.
+- **A shop's blurb can become your tasting note.** Scanning a shelf talker
+  puts its copy in `note`, which is the personal-tasting-note field, so it
+  counts toward "Wines tasted". `criticNotes` is the field for someone
+  else's words, and the scan tool does not offer it.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for

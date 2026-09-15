@@ -19,6 +19,7 @@ import {
   TastingHistoryIcon,
 } from "@/app/components/icons";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
+import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 import {
   DEFAULT_SCAN_INTENT,
   SCAN_INTENTS,
@@ -151,6 +152,38 @@ function entriesFromScanResults(results, intent) {
         // and the only hint that this one needs a click is the word "Save"
         // instead of "Saved" in its legend.
         { ...draftEntriesFromWines([result.wine], intent)[0], saveFailed: true }
+  );
+}
+
+// What the wine actually is, in one line - deliberately the same shape the
+// cellar list uses, so a wine read from a photo is described the way you
+// already read wines everywhere else in the app. Until this existed the only
+// way to see what had been found was to read it off the form fields.
+function EntryHeading({ wine }) {
+  const title = [
+    wine.producer,
+    wine.bottling ? `\u201c${wine.bottling}\u201d` : null,
+    wine.vintage || null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const detail = [wine.variety || wine.type, wine.region, wine.subRegion, wine.country]
+    .filter(Boolean)
+    .join(" \u00b7 ");
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <p className="font-medium">
+        {WINE_COLOR_SWATCH[wine.wineColor] && (
+          <span
+            className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle ${WINE_COLOR_SWATCH[wine.wineColor]}`}
+            title={wine.wineColor}
+          />
+        )}
+        {title}
+      </p>
+      {detail && <p className="text-sm text-zinc-500">{detail}</p>}
+    </div>
   );
 }
 
@@ -533,6 +566,8 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                 >
                   {entry.kind === "saved" ? (
                     <>
+                      <EntryHeading wine={entry.bottle} />
+
                       {entry.bottle.needsResearch && (
                         <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
                           Not fully confident about this one &mdash; it&apos;s
@@ -572,12 +607,32 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                         </p>
                       )}
 
-                      <BottleForm
-                        action={updateBottle.bind(null, entry.bottle.id)}
-                        defaultValues={entry.bottle}
-                        submitLabel="Update"
-                        idPrefix={`scan-entry-${entry.localId}`}
-                      />
+                      {/* Closed by default. A scan of a shelf produces six
+                          of these, and six open forms is several thousand
+                          pixels of fields you almost never touch - the wine
+                          is already saved and the fields it fills are the
+                          ones the photo just read. The form is still in the
+                          DOM, so nothing about saving changes; it is the
+                          reading of the batch that gets its page back. */}
+                      <details className="group">
+                        <summary className="cursor-pointer list-none text-sm text-zinc-500 underline underline-offset-2">
+                          <span className="mr-1 inline-block no-underline group-open:hidden">
+                            &#9656;
+                          </span>
+                          <span className="mr-1 hidden no-underline group-open:inline-block">
+                            &#9662;
+                          </span>
+                          Edit details
+                        </summary>
+                        <div className="mt-3">
+                          <BottleForm
+                            action={updateBottle.bind(null, entry.bottle.id)}
+                            defaultValues={entry.bottle}
+                            submitLabel="Update"
+                            idPrefix={`scan-entry-${entry.localId}`}
+                          />
+                        </div>
+                      </details>
 
                       <button
                         type="button"
@@ -593,6 +648,10 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                     </p>
                   ) : (
                     <>
+                      {(entry.extracted.producer || entry.extracted.bottling) && (
+                        <EntryHeading wine={entry.extracted} />
+                      )}
+
                       {entry.saveFailed && (
                         <p className="rounded-lg border border-red-300 p-2 text-xs text-red-700 dark:border-red-900 dark:text-red-400">
                           This wine was read from the photo, but saving it
