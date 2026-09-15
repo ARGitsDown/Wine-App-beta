@@ -65,10 +65,11 @@ features like separate cellars per user.
   re-adding it months later, reuses the earlier estimate instead of paying
   to ask the same question again.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
-  "Bought it" button moves a bottle into the cellar. The two ways in sit at
-  the top of the page, before the controls for narrowing what is already
-  there: a **Scan a label or shelf** button that opens the scanner already
-  pointed at the wishlist, then the by-hand form.
+  "Bought it" button moves a bottle into the cellar. As on the Cellar, the
+  two ways in sit at the top of the page, before the controls for
+  narrowing what is already there: a **Scan a label or shelf** button that
+  opens the scanner already pointed at the right place, then the by-hand
+  form.
 - **Research** (`/research`) — bottles the scan feature wasn't confident
   about, and what a web search turned up for them. Each can be researched
   in one click from the list, or all at once behind a confirmation that

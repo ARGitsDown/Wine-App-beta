@@ -275,9 +275,14 @@ bite someone actually using the app.
   photo, since three are processed at once, and it derives from the photo
   list itself - so picking more photos mid-run raises the total instead
   of starting a second, competing count.
-- **`/estimate-windows` progress jumps around.** Batches run concurrently
-  now, so the counter advances 20 at a time and out of order. Cosmetic,
-  but it looks like a glitch.
+- ~~**`/estimate-windows` progress jumps around**~~ — done. The count was
+  never wrong: twenty bottles land at once and three batches are in
+  flight, so it sits still and then leaps. Beside a bare spinner that read
+  as a stall. It now has the same progress bar a batch of scanned photos
+  gets - the jumps read as progress against a filling bar - plus a line
+  saying it advances in steps, shown only when there is more than one
+  batch, since a cellar smaller than twenty goes 0 to done in one move and
+  the explanation would be noise.
 - ~~**`getRegionOptions()` is uncached**~~ — done. Wrapped in
   `unstable_cache` behind a `region-options` tag, invalidated wherever a
   bottle is created or edited (the only way a new region name can
@@ -289,6 +294,16 @@ bite someone actually using the app.
   lighter model are structured extraction ("read this back label, invent
   nothing"), where deliberation buys little. Worth measuring with it off
   for the added-photo read and the drinking-window estimates.
+
+  Still open, and deliberately: this needs a measurement, and no live API
+  key has been available in the dev sandbox. Turning it off unmeasured
+  would be the same move as the untested model switch above, which is
+  exactly the kind of change that is invisible until it is expensive. Two
+  ways to close it - a key in the sandbox for a side-by-side, or timing
+  logged around the calls so ordinary use answers it. One caveat on the
+  framing above: the drinking-window estimate is not extraction. Judging
+  when a wine will peak is the one call here that genuinely reasons, so
+  it is the least likely of the four to be paying for nothing.
 - **The lighter-model switch has not been rigorously compared.** Scan,
   Research, window estimates and photo reads moved to a mid-tier model
   without a live API key available to test. The owner's read after real

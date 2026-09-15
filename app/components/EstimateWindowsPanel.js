@@ -122,8 +122,38 @@ export default function EstimateWindowsPanel({ bottles }) {
         missing a drinking window.
       </p>
       {status === "running" ? (
-        <div className="text-sm text-zinc-500">
-          <Spinner label={`Estimating… ${done} of ${total}`} />
+        /* Progress arrives a whole batch at a time - twenty bottles land
+           at once, and three batches are in flight, so the number sits
+           still and then leaps. The count was always accurate; with only
+           a spinner beside it, the leap read as a glitch. A bar makes the
+           same jumps read as progress, and the line underneath says why
+           it moves in steps rather than leaving it to be inferred. Same
+           treatment scanning a batch of photos already gets. */
+        <div className="flex flex-col gap-2">
+          <div className="text-sm text-zinc-500">
+            <Spinner label={`Estimating… ${done} of ${total} bottles`} />
+          </div>
+          <div
+            className="h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+            role="progressbar"
+            aria-valuenow={done}
+            aria-valuemin={0}
+            aria-valuemax={total}
+            aria-label="Bottles estimated"
+          >
+            <div
+              className="h-full rounded-full bg-zinc-900 transition-[width] duration-300 dark:bg-zinc-100"
+              style={{ width: `${total ? (done / total) * 100 : 0}%` }}
+            />
+          </div>
+          {/* Only worth saying when there is more than one batch: a
+              cellar smaller than a batch goes from 0 to done in a single
+              step, where "counted in batches of 20" is just confusing. */}
+          {total > BATCH_SIZE && (
+            <p className="text-xs text-zinc-500">
+              Counted in batches of {BATCH_SIZE}, so this advances in steps.
+            </p>
+          )}
         </div>
       ) : (
         <button
