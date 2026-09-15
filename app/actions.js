@@ -237,25 +237,38 @@ export async function updateBottle(id, prevState, formData) {
   }
 }
 
+// Says whether it worked, because the scan card moves its radio before
+// waiting for the answer. Returning nothing meant a failed move - or a row
+// already deleted, which used to return silently right here - left the card
+// reading Wishlist while the database still said Cellar, with nothing on
+// screen disagreeing. The caller puts the radio back on { error }.
 export async function setBottleStatus(id, status) {
-  const existing = await prisma.bottle.findUnique({
-    where: { id },
-    select: { emptiedAt: true, acquiredAt: true },
-  });
-  if (!existing) return;
+  try {
+    const existing = await prisma.bottle.findUnique({
+      where: { id },
+      select: { emptiedAt: true, acquiredAt: true },
+    });
+    if (!existing) {
+      return { error: "That wine is no longer in your cellar." };
+    }
 
-  await prisma.bottle.update({
-    where: { id },
-    data: {
-      status,
-      emptiedAt: emptiedAtForStatus(status, existing.emptiedAt),
-      acquiredAt: acquiredAtForStatus(status, existing.acquiredAt),
-    },
-  });
-  revalidatePath(`/bottles/${id}`);
-  revalidatePath("/inventory");
-  revalidatePath("/wishlist");
-  revalidatePath("/consumed");
+    await prisma.bottle.update({
+      where: { id },
+      data: {
+        status,
+        emptiedAt: emptiedAtForStatus(status, existing.emptiedAt),
+        acquiredAt: acquiredAtForStatus(status, existing.acquiredAt),
+      },
+    });
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/inventory");
+    revalidatePath("/wishlist");
+    revalidatePath("/consumed");
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to change a bottle's status:", err);
+    return { error: "Couldn't move that wine. Please try again." };
+  }
 }
 
 // Correcting when a bottle was actually emptied, the same way a tasting
@@ -1371,12 +1384,18 @@ export async function applyResearch(id, prevState, formData) {
 // since "keep as is" is an answer to one: without this the bottle would
 // leave the to-research list and immediately reappear in the review one.
 export async function dismissResearch(id) {
-  await prisma.$transaction([
-    prisma.bottle.update({ where: { id }, data: { needsResearch: false } }),
-    prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
-  ]);
-  revalidatePath(`/bottles/${id}`);
-  revalidatePath("/research");
+  try {
+    await prisma.$transaction([
+      prisma.bottle.update({ where: { id }, data: { needsResearch: false } }),
+      prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
+    ]);
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/research");
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to dismiss research for a bottle:", err);
+    return { error: "Couldn't clear that flag. Please try again." };
+  }
 }
 
 const DRINK_WINDOW_ESTIMATE_TOOL = {

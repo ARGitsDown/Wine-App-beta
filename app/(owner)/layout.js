@@ -12,7 +12,18 @@ import NavLinks from "@/app/components/NavLinks";
 // prerendering rather than having it resolve at build time.
 async function ResearchNavLink() {
   await connection();
-  const count = await prisma.bottle.count({ where: { needsResearch: true } });
+  // Flagged OR carrying a proposal, because those are two different sets and
+  // this badge is the only route to /research - it isn't in NAV_LINKS, and
+  // it only renders above zero. Counting flags alone meant researching a
+  // bottle from its own page left a proposal waiting for review with the
+  // badge still at zero and no way to reach it. The Research page's "Ready
+  // to review" list is driven by the proposal table, so this now counts the
+  // same work that page will show.
+  const count = await prisma.bottle.count({
+    where: {
+      OR: [{ needsResearch: true }, { researchProposal: { isNot: null } }],
+    },
+  });
   if (count === 0) return null;
 
   return (

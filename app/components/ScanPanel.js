@@ -8,6 +8,7 @@ import {
   setBottleStatus,
   removeScannedBottle,
   removeScannedBottles,
+  dismissResearch,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
@@ -274,6 +275,53 @@ const INTENT_LOOK = {
   },
 };
 
+// The same three destinations as the picker at the top of the page, keyed by
+// the status each one writes rather than by scan intent, and sharing that
+// picker's icons and accents.
+const DESTINATIONS = [
+  { value: "inventory", label: "Cellar", Icon: CellarIcon, accent: INTENT_LOOK.cellar.accent },
+  { value: "wishlist", label: "Wishlist", Icon: WishlistIcon, accent: INTENT_LOOK.wishlist.accent },
+  { value: "consumed", label: "Tasted", Icon: TastingHistoryIcon, accent: INTENT_LOOK.tasting.accent },
+];
+
+// One decision should look like one decision wherever it is made. This
+// control picks the same destination as the 44px picker above it, and was
+// three browser-default radios about 20px tall - the smallest targets on a
+// screen meant to be thumbed one-handed while the other hand holds a bottle.
+function DestinationPicker({ name, legend, value, onChange }) {
+  return (
+    <fieldset>
+      <legend className="mb-1.5 text-sm text-zinc-500">{legend}</legend>
+      <div className="grid grid-cols-3 gap-1.5">
+        {DESTINATIONS.map((option) => {
+          const selected = value === option.value;
+          return (
+            <label
+              key={option.value}
+              className={`flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-1.5 text-sm transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-zinc-900 dark:has-[:focus-visible]:outline-zinc-100 ${
+                selected
+                  ? `border-transparent font-medium ${option.accent}`
+                  : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600"
+              }`}
+            >
+              <input
+                type="radio"
+                name={name}
+                value={option.value}
+                checked={selected}
+                onChange={() => onChange(option.value)}
+                className="sr-only"
+              />
+              <option.Icon className="h-4 w-4 shrink-0" />
+              {option.label}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
 export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
   const fileInputRef = useRef(null);
   const [intent, setIntent] = useState(initialIntent);
@@ -358,6 +406,42 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
   // A "saved" entry's bottle already exists in the database, so removing
   // its card has to actually delete that row - a "draft" entry is still
   // just unsaved local state, same as before.
+  // The radio moves first so the tap feels immediate, then goes back if the
+  // write didn't land. Before this, setBottleStatus returned nothing whether
+  // it worked or not, so a failed move left the card saying Wishlist while
+  // the database still said Cellar - and nothing on screen disagreed.
+  async function changeDestination(photo, entry, value) {
+    const previous = entry.bottle.status;
+    if (previous === value) return;
+
+    updateEntryBottle(photo.id, entry.localId, { status: value });
+    updateEntry(photo.id, entry.localId, { statusError: null });
+
+    const result = await setBottleStatus(entry.bottle.id, value);
+    if (result?.error) {
+      updateEntryBottle(photo.id, entry.localId, { status: previous });
+      updateEntry(photo.id, entry.localId, { statusError: result.error });
+    }
+  }
+
+  // A scan card is a full editor now, so a wine Claude wasn't sure about can
+  // be corrected right here - but updateBottle deliberately leaves
+  // needsResearch alone (a plain edit shouldn't silently answer a research
+  // question), and nothing on this card could say "I checked, it's fine". So
+  // a corrected wine sat in /research forever waiting on a web lookup that
+  // didn't know a human had already fixed it. Deliberately a button rather
+  // than a side effect of saving: one field corrected without reading the
+  // rest shouldn't resolve the whole question by accident.
+  async function clearResearchFlag(photo, entry) {
+    updateEntry(photo.id, entry.localId, { flagError: null });
+    const result = await dismissResearch(entry.bottle.id);
+    if (result?.error) {
+      updateEntry(photo.id, entry.localId, { flagError: result.error });
+      return;
+    }
+    updateEntryBottle(photo.id, entry.localId, { needsResearch: false });
+  }
+
   async function handleRemove(photo, entry) {
     if (entry.kind === "saved") {
       updateEntry(photo.id, entry.localId, { actionError: null });
@@ -689,35 +773,45 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                       )}
 
                       {entry.bottle.needsResearch && (
-                        <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
-                          Not fully confident about this one &mdash; it&apos;s
-                          already saved, but please double-check the fields
-                          below.
-                        </p>
+                        <div className="flex flex-col items-start gap-2 rounded-lg border border-amber-300 p-2 dark:border-amber-900">
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            Not fully confident about this one &mdash; it&apos;s
+                            already saved, but please double-check the fields
+                            below.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => clearResearchFlag(photo, entry)}
+                            className="min-h-11 rounded-lg border border-amber-300 px-3 text-xs font-medium text-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-amber-900 dark:text-amber-300"
+                          >
+                            Looks right &mdash; clear the flag
+                          </button>
+                          {entry.flagError && (
+                            <p
+                              role="alert"
+                              className="text-xs text-red-600 dark:text-red-400"
+                            >
+                              {entry.flagError}
+                            </p>
+                          )}
+                        </div>
                       )}
 
-                      <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <legend className="mb-1 text-zinc-500">Saved to</legend>
-                        {[
-                          ["inventory", "Cellar"],
-                          ["wishlist", "Wishlist"],
-                          ["consumed", "Tasted"],
-                        ].map(([value, label]) => (
-                          <label key={value} className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`scan-status-${entry.localId}`}
-                              value={value}
-                              checked={entry.bottle.status === value}
-                              onChange={async () => {
-                                updateEntryBottle(photo.id, entry.localId, { status: value });
-                                await setBottleStatus(entry.bottle.id, value);
-                              }}
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </fieldset>
+                      <DestinationPicker
+                        name={`scan-status-${entry.localId}`}
+                        legend="Saved to"
+                        value={entry.bottle.status}
+                        onChange={(value) => changeDestination(photo, entry, value)}
+                      />
+
+                      {entry.statusError && (
+                        <p
+                          role="alert"
+                          className="text-xs text-red-600 dark:text-red-400"
+                        >
+                          {entry.statusError}
+                        </p>
+                      )}
 
                       {entry.bottle.scannedNote && (
                         <p className="text-xs text-zinc-500">
@@ -836,27 +930,14 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                         </p>
                       )}
 
-                      <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <legend className="mb-1 text-zinc-500">Save to</legend>
-                        {[
-                          ["inventory", "Cellar"],
-                          ["wishlist", "Wishlist"],
-                          ["consumed", "Tasted"],
-                        ].map(([value, label]) => (
-                          <label key={value} className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`scan-status-${entry.localId}`}
-                              value={value}
-                              checked={entry.saveStatus === value}
-                              onChange={() =>
-                                updateEntry(photo.id, entry.localId, { saveStatus: value })
-                              }
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </fieldset>
+                      <DestinationPicker
+                        name={`scan-status-${entry.localId}`}
+                        legend="Save to"
+                        value={entry.saveStatus}
+                        onChange={(value) =>
+                          updateEntry(photo.id, entry.localId, { saveStatus: value })
+                        }
+                      />
 
                       {/* Same dirty tracking as a saved card. A draft has
                           more to lose, not less: nothing here exists
