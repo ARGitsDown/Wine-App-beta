@@ -204,7 +204,10 @@ export async function createBottleWithNote(status, prevState, formData) {
 
   revalidatePath(pathForStatus(status));
   revalidatePath(`/bottles/${bottle.id}`);
-  return { success: true };
+  // The saved row goes back to the caller, not just a success flag: the scan
+  // flow turns the card it was typed into over to the same "already saved"
+  // rendering the auto-saved cards use, which needs the bottle itself.
+  return { success: true, bottle };
 }
 
 export async function updateBottle(id, prevState, formData) {

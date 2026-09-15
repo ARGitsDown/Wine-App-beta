@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   createBottleWithNote,
@@ -9,6 +10,7 @@ import {
   removeScannedBottle,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import ConfirmButton from "@/app/components/ConfirmButton";
 import Spinner from "@/app/components/Spinner";
 import {
   ScanIcon,
@@ -18,8 +20,10 @@ import {
 } from "@/app/components/icons";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
 import {
+  BOTTLE_DESTINATIONS,
   DEFAULT_SCAN_INTENT,
   SCAN_INTENTS,
+  destinationForStatus,
   statusForScanIntent,
 } from "@/lib/scan-intent";
 
@@ -52,21 +56,33 @@ function batchProgress(photos) {
   const total = photos.length;
   const done = photos.filter((p) => p.status !== "loading").length;
   const failed = photos.filter((p) => p.status === "error").length;
-  // Only wines from photos that actually read - an errored photo still gets
-  // one blank card to type into, which isn't a wine anyone found.
-  const wines = photos
-    .filter((p) => p.status === "ready")
-    .reduce((n, p) => n + p.entries.length, 0);
-  return { total, done, failed, wines, running: done < total };
+  // Only entries that are actually a row in the database. Counting every
+  // entry on a photo that read successfully overstated it: one wine's save
+  // can fail on an otherwise-fine photo (entriesFromScanResults falls back
+  // to an unsaved draft card for it), and an errored photo's blank
+  // type-it-in card isn't a wine anyone found either.
+  const saved = photos.flatMap((p) => p.entries).filter((e) => e.kind === "saved");
+  const wines = saved.length;
+  const flagged = saved.filter((e) => e.bottle.needsResearch).length;
+  return { total, done, failed, wines, flagged, running: done < total };
 }
 
-function BatchProgress({ photos }) {
-  const { total, done, failed, wines, running } = batchProgress(photos);
+function BatchProgress({ photos, intent }) {
+  const { total, done, failed, wines, flagged, running } = batchProgress(photos);
   if (total === 0) return null;
+
+  // Where this batch was pointed. Individual cards can be re-homed
+  // afterward, so this is "where the batch went", not a promise about
+  // every wine in it - which is why the link is a plain destination
+  // rather than a count of what's waiting there.
+  const destination = destinationForStatus(statusForScanIntent(intent));
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+      <div
+        className="flex flex-wrap items-center justify-between gap-2 text-sm"
+        aria-live="polite"
+      >
         <span className={running ? "text-zinc-500" : "font-medium"}>
           {running ? (
             // Counting completions rather than "photo N of M": several are
@@ -102,6 +118,26 @@ function BatchProgress({ photos }) {
           style={{ width: `${(done / total) * 100}%` }}
         />
       </div>
+
+      {/* A finished batch used to say what it had done and then stop, leaving
+          the user on a page of cards with no way onward except the nav - so
+          the last step of "photograph a shelf" was always hunting for proof
+          it worked. These are that proof. */}
+      {!running && wines > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <Link href={destination.path} className="font-medium underline underline-offset-2">
+            View {destination.label}
+          </Link>
+          {flagged > 0 && (
+            <Link
+              href="/research"
+              className="text-amber-700 underline underline-offset-2 dark:text-amber-400"
+            >
+              {flagged} need{flagged === 1 ? "s" : ""} research
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -339,8 +375,15 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                       onChange={() => setIntent(option.value)}
                       className="sr-only"
                     />
+                    {/* Tinted only when chosen - the strip below encodes
+                        selection the same way. Tinting all three and marking
+                        the choice with a 2px border alone made the two states
+                        of the same control read oppositely, and left the
+                        chosen one signalled by the thinner of the two cues. */}
                     <span
-                      className={`inline-flex h-11 w-11 items-center justify-center rounded-full ${look.accent}`}
+                      className={`inline-flex h-11 w-11 items-center justify-center rounded-full ${
+                        selected ? look.accent : "text-zinc-400 dark:text-zinc-600"
+                      }`}
                     >
                       <look.Icon className="h-7 w-7" />
                     </span>
@@ -424,176 +467,212 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
         </div>
       )}
 
-      <BatchProgress photos={photos} />
+      <BatchProgress photos={photos} intent={intent} />
 
       <div className="flex flex-col gap-6">
-        {photos.map((photo) => (
-          <div key={photo.id} className="flex flex-col gap-4">
-            <div className="flex gap-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photo.previewUrl}
-                alt="Scanned photo preview"
-                className="h-32 w-24 shrink-0 rounded border border-zinc-200 object-cover dark:border-zinc-800"
-              />
+        {photos.map((photo) => {
+          const savedCount = photo.entries.filter((e) => e.kind === "saved").length;
+          return (
+            <div key={photo.id} className="flex flex-col gap-4">
+              <div className="flex gap-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo.previewUrl}
+                  alt="Scanned photo preview"
+                  className="h-32 w-24 shrink-0 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+                />
 
-              <div className="flex flex-1 flex-col gap-2">
-                {photo.status === "loading" && (
-                  <p className="text-sm text-zinc-500">
-                    <Spinner label="Reading the photo and checking your cellar…" />
-                  </p>
-                )}
-
-                {photo.status === "ready" && photo.entries.length > 1 && (
-                  <p className="text-sm text-zinc-500">
-                    Found {photo.entries.length} wines in this photo.
-                  </p>
-                )}
-
-                {photo.status === "error" && (
-                  <div className="flex flex-col gap-1 text-sm text-red-600 dark:text-red-400">
-                    <p>{photo.error}</p>
-                    <p className="text-zinc-500 dark:text-zinc-400">
-                      You can still add a bottle by hand below.
+                <div className="flex flex-1 flex-col gap-2">
+                  {photo.status === "loading" && (
+                    <p className="text-sm text-zinc-500">
+                      <Spinner label="Reading the photo and checking your cellar…" />
                     </p>
-                  </div>
-                )}
-              </div>
-            </div>
+                  )}
 
-            <div className="flex flex-col gap-4 pl-0 sm:pl-[6.5rem]">
-              {photo.entries.map((entry) => (
-                <div
-                  key={entry.localId}
-                  className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
-                >
-                  {entry.kind === "saved" ? (
-                    <>
-                      {entry.bottle.needsResearch && (
-                        <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
-                          Not fully confident about this one &mdash; it&apos;s
-                          already saved, but please double-check the fields
-                          below.
-                        </p>
-                      )}
-
-                      <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <legend className="mb-1 text-zinc-500">Saved to</legend>
-                        {[
-                          ["inventory", "Cellar"],
-                          ["wishlist", "Wishlist"],
-                          ["consumed", "Tasted"],
-                        ].map(([value, label]) => (
-                          <label key={value} className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`scan-status-${entry.localId}`}
-                              checked={entry.bottle.status === value}
-                              onChange={async () => {
-                                updateEntryBottle(photo.id, entry.localId, { status: value });
-                                await setBottleStatus(entry.bottle.id, value);
-                              }}
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </fieldset>
-
-                      {entry.bottle.scannedNote && (
-                        <p className="text-xs text-zinc-500">
-                          Tasting note logged from the photo:{" "}
-                          <span className="italic">
-                            &ldquo;{entry.bottle.scannedNote}&rdquo;
-                          </span>
-                        </p>
-                      )}
-
-                      <BottleForm
-                        action={updateBottle.bind(null, entry.bottle.id)}
-                        defaultValues={entry.bottle}
-                        submitLabel="Update"
-                        idPrefix={`scan-entry-${entry.localId}`}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(photo, entry)}
-                        className="self-start text-xs text-zinc-500 underline underline-offset-2"
-                      >
-                        Delete this wine
-                      </button>
-                    </>
-                  ) : entry.status === "saved" ? (
-                    <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                      ✓ Saved
+                  {/* Also for one wine, which is the common case: the card
+                      appearing was otherwise the only word that the read had
+                      worked. */}
+                  {photo.status === "ready" && photo.entries.length > 0 && (
+                    <p className="text-sm text-zinc-500">
+                      Found {photo.entries.length} wine
+                      {photo.entries.length === 1 ? "" : "s"} in this photo.
                     </p>
-                  ) : (
-                    <>
-                      {entry.extracted.confident === false && (
-                        <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
-                          Not fully confident about this one &mdash; please
-                          double-check the fields below.
-                        </p>
-                      )}
+                  )}
 
-                      <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <legend className="mb-1 text-zinc-500">Save to</legend>
-                        {[
-                          ["inventory", "Cellar"],
-                          ["wishlist", "Wishlist"],
-                          ["consumed", "Tasted"],
-                        ].map(([value, label]) => (
-                          <label key={value} className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name={`scan-status-${entry.localId}`}
-                              checked={entry.saveStatus === value}
-                              onChange={() =>
-                                updateEntry(photo.id, entry.localId, { saveStatus: value })
-                              }
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </fieldset>
-
-                      <BottleForm
-                        action={createBottleWithNote.bind(null, entry.saveStatus)}
-                        defaultValues={entry.extracted}
-                        submitLabel="Save bottle"
-                        includeTastingNote
-                        idPrefix={`scan-entry-${entry.localId}`}
-                        onResult={(result) => {
-                          if (result.success) {
-                            updateEntry(photo.id, entry.localId, { status: "saved" });
-                          }
-                        }}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(photo, entry)}
-                        className="self-start text-xs text-zinc-500 underline underline-offset-2"
-                      >
-                        Discard this card
-                      </button>
-                    </>
+                  {photo.status === "error" && (
+                    <div className="flex flex-col gap-1 text-sm text-red-600 dark:text-red-400">
+                      <p>{photo.error}</p>
+                      <p className="text-zinc-500 dark:text-zinc-400">
+                        You can still add a bottle by hand below.
+                      </p>
+                    </div>
                   )}
                 </div>
-              ))}
-            </div>
+              </div>
 
-            {photo.status !== "loading" && (
-              <button
-                type="button"
-                onClick={() => removePhoto(photo.id)}
-                className="self-start pl-0 text-xs text-zinc-500 underline underline-offset-2 sm:pl-[6.5rem]"
-              >
-                Remove this photo and all its wines from the batch
-              </button>
-            )}
-          </div>
-        ))}
+              <div className="flex flex-col gap-4 pl-0 sm:pl-[6.5rem]">
+                {photo.entries.map((entry) => (
+                  <div
+                    key={entry.localId}
+                    className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+                  >
+                    {entry.kind === "saved" ? (
+                      <>
+                        {entry.bottle.needsResearch && (
+                          <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
+                            Not fully confident about this one &mdash; it&apos;s
+                            already saved, and waiting in{" "}
+                            <Link href="/research" className="underline underline-offset-2">
+                              Needs research
+                            </Link>
+                            . Correct it below, or leave it for the app to look
+                            up properly later.
+                          </p>
+                        )}
+
+                        <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                          <legend className="mb-1 text-zinc-500">Saved to</legend>
+                          {BOTTLE_DESTINATIONS.map(({ status, label }) => (
+                            <label key={status} className="flex items-center gap-1.5">
+                              <input
+                                type="radio"
+                                name={`scan-status-${entry.localId}`}
+                                checked={entry.bottle.status === status}
+                                onChange={async () => {
+                                  updateEntryBottle(photo.id, entry.localId, { status });
+                                  await setBottleStatus(entry.bottle.id, status);
+                                }}
+                              />
+                              {label}
+                            </label>
+                          ))}
+                        </fieldset>
+
+                        {entry.bottle.scannedNote && (
+                          <p className="text-xs text-zinc-500">
+                            Tasting note logged from the photo:{" "}
+                            <span className="italic">
+                              &ldquo;{entry.bottle.scannedNote}&rdquo;
+                            </span>
+                          </p>
+                        )}
+
+                        <BottleForm
+                          action={updateBottle.bind(null, entry.bottle.id)}
+                          defaultValues={entry.bottle}
+                          submitLabel="Update"
+                          idPrefix={`scan-entry-${entry.localId}`}
+                        />
+
+                        {/* This card's bottle is already a row in the
+                            database, so this is a real delete - and every other
+                            one in the app asks first and says what goes with it.
+                            A scan batch is the worst place to be the exception:
+                            it's a stack of near-identical cards being thumbed
+                            through on a phone. */}
+                        <div className="self-start">
+                          <ConfirmButton
+                            action={() => handleRemove(photo, entry)}
+                            label="Delete this wine"
+                            confirmLabel="Yes, delete"
+                            warning={
+                              entry.bottle.scannedNote
+                                ? "Also deletes the tasting note read from the photo."
+                                : "Removes it from your cellar for good."
+                            }
+                            className="text-xs text-zinc-500 underline underline-offset-2"
+                            confirmClassName="text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-400"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {entry.extracted.confident === false && (
+                          <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
+                            Not fully confident about this one &mdash; please
+                            double-check the fields below.
+                          </p>
+                        )}
+
+                        <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                          <legend className="mb-1 text-zinc-500">Save to</legend>
+                          {BOTTLE_DESTINATIONS.map(({ status, label }) => (
+                            <label key={status} className="flex items-center gap-1.5">
+                              <input
+                                type="radio"
+                                name={`scan-status-${entry.localId}`}
+                                checked={entry.saveStatus === status}
+                                onChange={() =>
+                                  updateEntry(photo.id, entry.localId, { saveStatus: status })
+                                }
+                              />
+                              {label}
+                            </label>
+                          ))}
+                        </fieldset>
+
+                        <BottleForm
+                          action={createBottleWithNote.bind(null, entry.saveStatus)}
+                          defaultValues={entry.extracted}
+                          submitLabel="Save bottle"
+                          includeTastingNote
+                          idPrefix={`scan-entry-${entry.localId}`}
+                          // Saving used to replace the whole card with a
+                          // "✓ Saved" line, which threw away the form, the
+                          // values and any route back to what had just been
+                          // created - on the one path where every field was
+                          // typed by hand and a typo is likeliest. Handing the
+                          // card over to the saved rendering above keeps all
+                          // three, and makes the two ways a wine gets saved
+                          // behave the same afterward.
+                          onResult={(result) => {
+                            if (result.success && result.bottle) {
+                              updateEntry(photo.id, entry.localId, {
+                                kind: "saved",
+                                bottle: result.bottle,
+                              });
+                            }
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(photo, entry)}
+                          className="self-start text-xs text-zinc-500 underline underline-offset-2"
+                        >
+                          Discard this card
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* This only drops the photo from the page - the wines it read
+                  are already saved and stay saved. The old label ("...and all
+                  its wines from the batch") read as an undo, so photographing
+                  the wrong shelf and tapping this looked like it had been put
+                  right when in fact those bottles were still in the cellar,
+                  now with nothing on screen saying so. Deleting them outright
+                  would be a worse answer: that is several bottles gone on one
+                  tap, which is exactly what the per-card confirm above exists
+                  to prevent. */}
+              {photo.status !== "loading" && (
+                <button
+                  type="button"
+                  onClick={() => removePhoto(photo.id)}
+                  className="self-start pl-0 text-xs text-zinc-500 underline underline-offset-2 sm:pl-[6.5rem]"
+                >
+                  {savedCount > 0
+                    ? `Hide this photo — its ${savedCount} saved wine${
+                        savedCount === 1 ? "" : "s"
+                      } stay${savedCount === 1 ? "s" : ""} in your collection`
+                    : "Remove this photo"}
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
