@@ -237,25 +237,38 @@ export async function updateBottle(id, prevState, formData) {
   }
 }
 
+// Says whether it worked, because the scan card moves its radio before
+// waiting for the answer. Returning nothing meant a failed move - or a row
+// already deleted, which used to return silently right here - left the card
+// reading Wishlist while the database still said Cellar, with nothing on
+// screen disagreeing. The caller puts the radio back on { error }.
 export async function setBottleStatus(id, status) {
-  const existing = await prisma.bottle.findUnique({
-    where: { id },
-    select: { emptiedAt: true, acquiredAt: true },
-  });
-  if (!existing) return;
+  try {
+    const existing = await prisma.bottle.findUnique({
+      where: { id },
+      select: { emptiedAt: true, acquiredAt: true },
+    });
+    if (!existing) {
+      return { error: "That wine is no longer in your cellar." };
+    }
 
-  await prisma.bottle.update({
-    where: { id },
-    data: {
-      status,
-      emptiedAt: emptiedAtForStatus(status, existing.emptiedAt),
-      acquiredAt: acquiredAtForStatus(status, existing.acquiredAt),
-    },
-  });
-  revalidatePath(`/bottles/${id}`);
-  revalidatePath("/inventory");
-  revalidatePath("/wishlist");
-  revalidatePath("/consumed");
+    await prisma.bottle.update({
+      where: { id },
+      data: {
+        status,
+        emptiedAt: emptiedAtForStatus(status, existing.emptiedAt),
+        acquiredAt: acquiredAtForStatus(status, existing.acquiredAt),
+      },
+    });
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/inventory");
+    revalidatePath("/wishlist");
+    revalidatePath("/consumed");
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to change a bottle's status:", err);
+    return { error: "Couldn't move that wine. Please try again." };
+  }
 }
 
 // Correcting when a bottle was actually emptied, the same way a tasting
@@ -362,9 +375,22 @@ export async function deleteBottle(id) {
 // scan batch (where the user should stay on /scan reviewing whatever's
 // left), not the bottle's own detail page (where navigating back to its
 // list afterward makes sense).
+//
+// It reports rather than throws, as does removeScannedBottles below.
+// Everything else on the scan path already caught; these two were the
+// exceptions, so a transient database failure here threw out of the server
+// action and took every unreviewed card on the page with it. The caller
+// drops a card only once the row is actually gone, so the screen and the
+// database cannot end up disagreeing.
 export async function removeScannedBottle(id) {
-  const bottle = await prisma.bottle.delete({ where: { id } });
-  revalidatePath(pathForStatus(bottle.status));
+  try {
+    const bottle = await prisma.bottle.delete({ where: { id } });
+    revalidatePath(pathForStatus(bottle.status));
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to remove a scanned bottle:", err);
+    return { error: "Couldn't delete that wine. Please try again." };
+  }
 }
 
 // Dropping a whole photo from the scan batch deletes every bottle that photo
@@ -376,17 +402,23 @@ export async function removeScannedBottles(ids) {
   const wanted = (Array.isArray(ids) ? ids : [])
     .map(Number)
     .filter(Number.isInteger);
-  if (wanted.length === 0) return;
+  if (wanted.length === 0) return { ok: true };
 
-  // Read the statuses before deleting - afterwards there is nothing left to
-  // say which lists need refreshing.
-  const bottles = await prisma.bottle.findMany({
-    where: { id: { in: wanted } },
-    select: { status: true },
-  });
-  await prisma.bottle.deleteMany({ where: { id: { in: wanted } } });
-  for (const path of new Set(bottles.map((b) => pathForStatus(b.status)))) {
-    revalidatePath(path);
+  try {
+    // Read the statuses before deleting - afterwards there is nothing left to
+    // say which lists need refreshing.
+    const bottles = await prisma.bottle.findMany({
+      where: { id: { in: wanted } },
+      select: { status: true },
+    });
+    await prisma.bottle.deleteMany({ where: { id: { in: wanted } } });
+    for (const path of new Set(bottles.map((b) => pathForStatus(b.status)))) {
+      revalidatePath(path);
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to remove scanned bottles:", err);
+    return { error: "Couldn't delete those wines. Please try again." };
   }
 }
 
@@ -1406,12 +1438,18 @@ export async function applyResearch(id, prevState, formData) {
 // since "keep as is" is an answer to one: without this the bottle would
 // leave the to-research list and immediately reappear in the review one.
 export async function dismissResearch(id) {
-  await prisma.$transaction([
-    prisma.bottle.update({ where: { id }, data: { needsResearch: false } }),
-    prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
-  ]);
-  revalidatePath(`/bottles/${id}`);
-  revalidatePath("/research");
+  try {
+    await prisma.$transaction([
+      prisma.bottle.update({ where: { id }, data: { needsResearch: false } }),
+      prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
+    ]);
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/research");
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to dismiss research for a bottle:", err);
+    return { error: "Couldn't clear that flag. Please try again." };
+  }
 }
 
 const DRINK_WINDOW_ESTIMATE_TOOL = {
