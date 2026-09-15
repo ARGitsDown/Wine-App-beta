@@ -586,6 +586,36 @@ async function searchCellar(query) {
   });
 }
 
+// A Claude call can come back 200-OK with no usable answer, and neither
+// case throws, so neither is caught by the typed error handling below:
+//
+// - "refusal" - the safety classifiers declined the request. stop_details
+//   says which category, and is null for every other stop reason, so it is
+//   only ever read here.
+// - "max_tokens" - the answer ran out of room part-way through. Adaptive
+//   thinking spends the same budget, so a crowded photo costs far more of
+//   it than a single label does.
+//
+// Both matter most *before* the tool-call lookup. strict:true guarantees a
+// completed tool call validates, but says nothing about one cut off
+// mid-array: a nine-wine tasting sheet truncated at six looks exactly like
+// a six-wine sheet, and the app has no expected count to notice otherwise.
+// Checking here means a truncated answer is never read as a whole one.
+//
+// Returns null when the response is usable, so callers read:
+//   const unusable = unusableResponseError(response, {...});
+//   if (unusable) return unusable;
+function unusableResponseError(response, messages) {
+  if (response.stop_reason === "refusal") {
+    console.error("Claude declined the request:", response.stop_details);
+    return { error: messages.refused };
+  }
+  if (response.stop_reason === "max_tokens") {
+    return { error: messages.truncated };
+  }
+  return null;
+}
+
 const LABEL_SYSTEM_PROMPT =
   "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). Many producers make several distinct wines from the same grape and vintage - a regional/estate bottling plus one or more vineyard-designated or proprietary-named bottlings (e.g. a producer's basic Pinot Noir alongside a 'Rochioli Vineyard' or a 'Madeleine' bottling). Think about whether this producer is one of those before settling on the `bottling` field - a label that only shows a small or partial vineyard/cuvée name (easy to crop out of a photo, or in small print) is exactly the kind of detail worth getting right, since it's what tells two of a producer's own bottlings apart - but only when you can actually see some of it. If the lineup makes you suspect a bottling name that is nowhere in the photo, leave `bottling` null and set `confident` to false rather than picking the producer's best-known one. If the photo includes descriptive or tasting-note-style text for a wine, mind whose words they are: anything printed by a shop, a winery or a critic (a shelf talker, a tasting-sheet write-up, a back label) goes in `criticNotes`, while `note` is only for something the owner wrote themselves, since that becomes their personal tasting note and marks the wine as one they have tasted. Never invent either for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
 
@@ -626,6 +656,14 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         tools: [SEARCH_CELLAR_TOOL, WINES_TOOL],
         messages,
       });
+
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined to read that photo. Nothing was saved — if it's a wine label, try another shot; otherwise add the details by hand.",
+        truncated:
+          "That photo had more on it than one read could finish, so some wines would have been missed. Nothing was saved — try photographing fewer wines at a time, or one label per shot.",
+      });
+      if (unusable) return unusable;
 
       const toolUses = response.content.filter((block) => block.type === "tool_use");
       const finalCall = toolUses.find((t) => t.name === "record_wines");
@@ -957,6 +995,14 @@ export async function getSuggestions(request, includeOutside = false, character 
         messages,
       });
 
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined that request. Try describing the meal or the theme a different way.",
+        truncated:
+          "That suggestion ran out of room before it finished. Try a shorter description, or ask for fewer wines.",
+      });
+      if (unusable) return unusable;
+
       const toolUses = response.content.filter((block) => block.type === "tool_use");
       const finalCall = toolUses.find((t) => t.name === "record_suggestions");
       if (finalCall) {
@@ -1183,6 +1229,14 @@ async function runResearch(bottle) {
         tools: [WEB_SEARCH_TOOL, RESEARCH_TOOL],
         messages,
       });
+
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined to research that bottle. Its current details are unchanged.",
+        truncated:
+          "That research ran out of room before it finished. Nothing was changed — please try again.",
+      });
+      if (unusable) return unusable;
 
       const finalCall = response.content.find(
         (block) => block.type === "tool_use" && block.name === "record_research"
@@ -1535,6 +1589,14 @@ export async function estimateDrinkWindows(bottleIds) {
       ],
     });
 
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to estimate that batch. Nothing was changed.",
+      truncated:
+        "That batch was too large to finish in one go. Any wines it did estimate are saved, and running it again will skip those and pick up the rest.",
+    });
+    if (unusable) return unusable;
+
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_drink_window_estimates"
     );
@@ -1612,6 +1674,14 @@ export async function estimateWindowForBottle(id) {
         },
       ],
     });
+
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to estimate a window for this bottle.",
+      truncated:
+        "That estimate ran out of room before it finished. Please try again.",
+    });
+    if (unusable) return unusable;
 
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_drink_window_estimates"
@@ -1759,6 +1829,14 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
       tools: [PHOTO_DETAILS_TOOL],
       messages,
     });
+
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to read that photo. The photo itself was still saved to this bottle.",
+      truncated:
+        "Reading that photo ran out of room before it finished. The photo itself was still saved — try again, or edit the bottle by hand.",
+    });
+    if (unusable) return unusable;
 
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_photo_details"

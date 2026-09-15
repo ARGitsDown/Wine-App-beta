@@ -778,6 +778,62 @@ they're hand-curated and exist nowhere else. Either include them or say in
 the README what the file actually holds, because a backup you trust wrongly
 is worse than one you know the limits of.
 
+## 19. What the AI review turned up, beyond the two fixed
+
+From the first run of the `ai-reviewer` agent. The two findings that could
+write a wrong answer into the cellar - scanning inventing a `bottling` it
+couldn't see, and the add-photo path stripping the "estimated" marker off a
+model-guessed drinking window - are fixed, as is the unchecked `stop_reason`
+that reported a refusal or a truncated answer as a bad photo. These four are
+real but none of them corrupts data, so they wait.
+
+- **Research can overwrite a window you typed yourself.** `RESEARCH_TOOL`'s
+  own `drinkFrom` description says to "still give your best estimate ...
+  rather than leaving it blank", while the system prompt above it says to
+  "keep a field as its current value rather than guess at a replacement".
+  The field description is the one the model reads while filling the field,
+  so it wins. For an obscure wine with no window published anywhere, research
+  comes back proposing its own guess over years you entered by hand, shown in
+  the diff as something research "found". It is recoverable - the diff shows
+  it and the proposal is correctly marked estimated - but Apply is one click
+  and the diff gives no sign the current value was yours. The fix is to make
+  the field description name the two cases: estimate freely when there is no
+  window on file, repeat the existing years back unchanged when there is.
+  `describeBottleForResearch` already sends the current window, so the model
+  has what it needs to tell them apart.
+
+- **`browse_cellar` hands Suggest a slice of the cellar without saying so.**
+  `browseCellar` returns `matches.slice(0, 40)` ordered by producer name, and
+  the result gives the model no way to know a cap was hit. On a 300-bottle
+  cellar an unfiltered browse returns producers A through roughly C; the
+  model then recommends the best of those forty and writes a confident
+  summary about why they suit the meal. Nothing about the answer looks wrong.
+  The fix is small - return `totalMatching` and `truncated` alongside the
+  bottles, and say in both the tool description and the system prompt that a
+  truncated browse means narrow and look again, never decide from what came
+  back.
+
+- **The scan and Suggest prompts aren't cached.** Both resend a large static
+  prefix on every call and again on every turn of their tool loop: roughly
+  2,300 tokens of tools plus system for scan (plus the photo, ~1,500 image
+  tokens, re-sent each turn), about 1,550 for Suggest, which is told to browse
+  repeatedly so three or four turns is normal. One `cache_control` breakpoint
+  each would cover it - on the last block of scan's first user message, on
+  Suggest's system block. Worth checking the other three stay uncached: the
+  drink-window and photo-details prefixes are under the model's minimum
+  cacheable size, where marking a prefix is silently ignored, and research
+  sits barely over it.
+
+- **Research asks the web the same question twice for two rows of the same
+  wine.** `researchBottles` maps ids to `researchBottle` one at a time, and
+  web search is comfortably the most expensive call in the app. A case split
+  across two rows, or a wine re-added after being drunk, pays for two
+  identical passes. The drink-window path already solved this - it groups by
+  `drinkWindowCacheKey` so one question serves every row sharing a wine. Same
+  trick here, with one wrinkle: a proposal is a diff against a specific row's
+  current values, so the search is shared but `researchChanges` still has to
+  be computed per bottle.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
