@@ -546,6 +546,165 @@ constraint on (flightId, bottleId). Flights saved from Suggest before this
 existed could already contain a repeat, and a migration that fails on live
 data is a worse trade than a guard in the one function that adds picks.
 
+## 16. Design review: whole-app pass
+
+A second review, this time across every screen rather than one flow.
+Six items from the same pass sit in #9 above, because they are the same
+kind of thing as what is already there: the Research nav badge
+undercounting, "Research all" stopping when you navigate away, Research
+having no progress bar or destination icons, the empty critic-notes box
+on scan cards, and the Tasting notes page showing no tasting notes.
+What follows is the rest, grouped by what it would cost to do.
+
+One recommendation from that review was withdrawn rather than logged: a
+"needs attention" strip on the home screen. Its two ingredients were
+bottles missing a drinking window and bottles needing research. The
+first is self-liquidating - every add path now fills a window in and
+`/estimate-windows` clears the historical backlog, so the count is being
+engineered to zero - and the second already has the nav badge, where a
+second copy of the same number would only drift from it. The residue is
+the badge bug in #9, which is a fix rather than a feature.
+
+### Cheap, and independent of any redesign
+
+- **The whole app renders in Arial.** `app/layout.js:1-12` loads Geist and
+  Geist Mono and puts their variables on `<html>`; `app/globals.css:8-14`
+  maps `--font-sans` to Geist. Then `app/globals.css:28-32` sets
+  `body { font-family: Arial, Helvetica, sans-serif; }`, and `<body>`
+  carries no `font-sans` class, so the Arial rule wins everywhere. Two
+  Google fonts are downloaded on every visit and neither is used. This is
+  `create-next-app` boilerplate that outlived everything built on top of
+  it. Deleting the `font-family` line is the whole fix, and it is worth
+  doing before any other visual work, since it changes how every
+  subsequent judgment about spacing and weight reads.
+- **There is no error boundary anywhere in `app/`.** No `error.js`, no
+  `global-error.js`. Most server actions catch deliberately - the comment
+  at `app/actions.js:161` explains that one scan card's database error
+  must not take down the batch - but any action that does not catch
+  throws to Next's root boundary and blanks the page. A dozen-line
+  `app/error.js` is the difference between "that didn't work, try again"
+  and losing a screen of unreviewed scan cards.
+- **Region could imply country, using data already in the file.**
+  `lib/regions.js` is a flat array of names, grouped by country *in
+  comments* (`// France`, `// Italy`). Promoting those comments to data -
+  `{ name: "Bordeaux", country: "France" }` - would let the country
+  auto-fill when a known region is picked, and a mismatch warn softly.
+  One file plus the two autocomplete call sites, no schema change, no
+  migration. A related option, narrowing the Region suggestions once a
+  country is chosen, is better done as a soft ranking than a hard filter:
+  `getRegionOptions()` blends the curated list with whatever is already
+  in the cellar, so a hard filter would hide an unusual region exactly
+  when it was being re-entered. The full hierarchy (Bordeaux → Médoc →
+  Margaux as related records rather than three strings) is #2 above and
+  stays deferred.
+
+### Scan review: three integrity gaps still open
+
+Found in the flow review, fixed around but not fixed. All three predate
+the eight changes made there.
+
+- **Deleting a scanned wine can wipe the batch page.**
+  `removeScannedBottle` (`app/actions.js:361-364`) is the only action on
+  the scan path with no try/catch, so a transient database or network
+  failure throws out of the server action and - with no error boundary,
+  above - takes every unreviewed card with it. It also has no busy state:
+  `ConfirmButton` submits and nothing on screen changes until the server
+  answers, so on shop wifi a second tap is the natural response, and the
+  second delete hits a row that is already gone. Wants a try/catch
+  returning `{ error }`, `removeEntry` only on success, and a pending
+  state on the confirm.
+- **Correcting a flagged wine does not clear its flag, and the card now
+  says it will.** `updateBottle` deliberately never touches
+  `needsResearch` (`app/actions.js:138-141`, `213-234`) - right when the
+  bottle page was the only place to edit. The scan card's banner now
+  reads "Correct it below, or leave it for the app to look up", which
+  invites a resolution that does not happen: the amber banner stays, the
+  batch's "N need research" link still counts it, and the bottle waits in
+  `/research` for a web lookup that does not know a human already fixed
+  it. The fix belongs on the card, not in the sentence - a "Looks right,
+  clear the flag" control calling the existing `dismissResearch`
+  (`app/actions.js:1319`), rather than clearing silently on Update, since
+  someone may have corrected one field without checking the rest.
+- **Changing a card's destination can silently lie.** Tapping Cellar /
+  Wishlist / Tasted updates the radio immediately and fires
+  `setBottleStatus` with no error path and no acknowledgement
+  (`app/components/ScanPanel.js:541-544`). If it fails, the radio stays
+  where it was put and the bottle stays where it was - the card says
+  Wishlist, the database says Cellar, and nothing says otherwise.
+  `setBottleStatus` (`app/actions.js:236-255`) also returns silently when
+  the row is gone. Wants an `{ ok }` / `{ error }` return, and a revert
+  of the optimistic update on failure.
+- **The per-card destination control is a 20px target beside a 44px
+  one.** The scan destination picker is now thumb-sized and tints only
+  the selected card. The control making the same decision per wine
+  ("Saved to: Cellar / Wishlist / Tasted",
+  `app/components/ScanPanel.js:533-549` and `597-612`) is three
+  browser-default radios with `text-sm` labels, roughly 20px tall, in a
+  form thumbed through one-handed. Rendering them as the same segmented
+  control would make one decision look like one decision wherever it is
+  made.
+
+### Cellar: order and proportion
+
+The list page is the app's most-used screen and the one that scales
+worst. The modules on it are distinct enough; what is off is which comes
+first and how much room each gets.
+
+- **Adding outranks browsing on a page that exists for browsing.** Before
+  a single bottle there is a title, a two-line paragraph about the guest
+  link, a "Scan a label or shelf" button, an "Add a bottle" disclosure,
+  a conditional drinking-window banner, and the filter panel
+  (`app/(owner)/inventory/page.js:38-95`). Three of those are ways to put
+  wine *in*. The comment at line 49 says adding comes before browsing,
+  which is right for the Wishlist and inverted for the Cellar: a wishlist
+  is added to constantly and browsed rarely, a cellar of hundreds is the
+  reverse. Collapsing the two add controls into one and letting the list
+  start near the top is the change.
+- **Collapsed filters become invisible.** The panel summary shows "12 of
+  247 shown" but not *which* filters are on
+  (`app/components/FilterBar.js:62-69`), so a collapsed panel leaves a
+  narrowed list with no visible reason. Filter chips in the summary row
+  would say what is active without reopening it.
+- **The guest-link paragraph sits above the bottles.** Two lines of prose
+  explaining a feature used a few times a year, above the most-used list
+  in the app (`app/(owner)/inventory/page.js:42-46`). It belongs behind
+  the `/guest` chip.
+
+Any list work here should happen in `FilterBar` / `BottleList` rather
+than in the pages: the Cellar, Wishlist and Tasting notes all render the
+same `FilterableBottleList`, so the shared components carry the change to
+all three at once.
+
+### Bigger questions, worth a branch
+
+- **The nav spends vertical space on every screen.**
+  `app/(owner)/layout.js:35` is a `flex-wrap` row of seven text links
+  plus a conditional Research badge; at 375px that wraps to two or three
+  lines above every page, permanently, on the device the app was built
+  for. It is a desktop nav on a phone-first app. Given the manifest and
+  icons already support standalone mode, a bottom tab bar is the natural
+  form - four or five destinations under the thumb, the rest behind the
+  home cards - and it would give back most of that space while putting
+  Scan within reach of a hand already holding a bottle. It would also
+  give the Research count a real badge rather than a text link in a
+  wrapping row. Hold this until the Cellar reordering above is settled,
+  since both want the same space.
+- **A Suggest result is lost on navigation, with no warning.** The result
+  lives in `useState` (`app/(owner)/suggest/page.js:32`). Pairings being
+  ephemeral is a deliberate call and a defensible one, but ephemeral and
+  unannounced are different things. There is also no way to re-run with
+  one thing changed - the request has to be retyped - which is probably
+  why the Character control goes unused: trying a second character means
+  typing the whole request again. A "refine this" that keeps the text and
+  lets Character change would make the control earn its place.
+- **Tasting notes: what the page is for.** Logged in #9 as the narrow
+  version (no note text on any row). The wider question, if that fix does
+  not settle it, is whether `/consumed` should be a list of wines with
+  notes attached or a list of notes with wines attached. The name says
+  the second; the implementation is the first, reusing the Cellar's list
+  wholesale. Both are defensible, which is what makes it a branch
+  question rather than a fix.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
