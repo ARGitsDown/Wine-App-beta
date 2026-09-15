@@ -37,7 +37,10 @@ export default function RootLayout({ children }) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
+      {/* `font-sans` is what actually applies Geist: the variables are set
+          on <html> above, but nothing consumed them, so every screen in
+          this app has been rendering in Arial since create-next-app. */}
+      <body className="flex min-h-full flex-col bg-zinc-50 font-sans text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
         {children}
       </body>
     </html>

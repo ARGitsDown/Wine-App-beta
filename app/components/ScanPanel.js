@@ -360,7 +360,15 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
   // just unsaved local state, same as before.
   async function handleRemove(photo, entry) {
     if (entry.kind === "saved") {
-      await removeScannedBottle(entry.bottle.id);
+      updateEntry(photo.id, entry.localId, { actionError: null });
+      const result = await removeScannedBottle(entry.bottle.id);
+      // The card goes only once the row has: dropping it on a failed delete
+      // would leave a bottle in the cellar that nothing on screen mentions,
+      // which is the same bug the whole-photo remove had.
+      if (result?.error) {
+        updateEntry(photo.id, entry.localId, { actionError: result.error });
+        return;
+      }
     }
     removeEntry(photo.id, entry.localId);
   }
@@ -443,7 +451,12 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
     if (!photo) return;
     const saved = photo.entries.filter((e) => e.kind === "saved");
     if (saved.length > 0) {
-      await removeScannedBottles(saved.map((e) => e.bottle.id));
+      updatePhoto(id, { removeError: null });
+      const result = await removeScannedBottles(saved.map((e) => e.bottle.id));
+      if (result?.error) {
+        updatePhoto(id, { removeError: result.error });
+        return;
+      }
     }
     setPhotos((prev) => prev.filter((p) => p.id !== id));
     URL.revokeObjectURL(photo.previewUrl);
@@ -778,6 +791,15 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                       {/* The only delete in the app that didn't ask, and
                           the hardest to hit - a 16px-tall text link. Both
                           now match the whole-photo remove below it. */}
+                      {entry.actionError && (
+                        <p
+                          role="alert"
+                          className="text-xs text-red-600 dark:text-red-400"
+                        >
+                          {entry.actionError}
+                        </p>
+                      )}
+
                       <div className="self-start">
                         <ConfirmButton
                           action={() => handleRemove(photo, entry)}
@@ -874,7 +896,17 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
             </div>
 
             {photo.status !== "loading" && (
-              <RemovePhotoButton photo={photo} onRemove={() => removePhoto(photo.id)} />
+              <>
+                {photo.removeError && (
+                  <p
+                    role="alert"
+                    className="pl-0 text-xs text-red-600 sm:pl-[6.5rem] dark:text-red-400"
+                  >
+                    {photo.removeError}
+                  </p>
+                )}
+                <RemovePhotoButton photo={photo} onRemove={() => removePhoto(photo.id)} />
+              </>
             )}
           </div>
         ))}
