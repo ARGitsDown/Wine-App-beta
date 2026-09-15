@@ -105,10 +105,14 @@ features like separate cellars per user.
   rather than waiting on a manual confirm - so navigating away (or the tab
   closing) mid-batch never loses a wine that already came back; review and
   correct each card afterward, or remove one you don't want. Before picking
-  photos you say what the batch is for — adding to the cellar, noting wines
-  for later, or tasting now — and every wine in it lands there, rather than
-  the app guessing from whether the source happened to carry tasting notes;
-  any single card can still be moved on its own afterward. A wine it
+  photos you tap where the batch lands — Cellar, Wishlist or Tasted, as
+  three cards carrying the same icons and colors those places have on the
+  home screen — and every wine in it goes there, rather than the app
+  guessing from whether the source happened to carry tasting notes; any
+  single card can still be moved on its own afterward. Once results are
+  stacking up the three cards shrink to a row of icons captioned "Next
+  photos go to …", so the destination stays changeable for the next batch
+  without pushing the results down the page. A wine it
   wasn't fully confident about is flagged "Needs research" once saved.
   A progress bar above the batch tracks how many photos have been read and
   how many wines have turned up so far, so a ten-photo run reads as

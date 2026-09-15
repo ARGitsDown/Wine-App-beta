@@ -10,6 +10,12 @@ import {
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import Spinner from "@/app/components/Spinner";
+import {
+  ScanIcon,
+  CellarIcon,
+  WishlistIcon,
+  TastingHistoryIcon,
+} from "@/app/components/icons";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
 import {
   DEFAULT_SCAN_INTENT,
@@ -133,6 +139,24 @@ function entriesFromScanResults(results, intent) {
 // It only seeds the control - the picker below stays visible and editable,
 // because a link that silently locked the destination would undo the one
 // thing the picker was added to fix.
+// How each destination looks on the picker. Same icons and the same accent
+// pairs the home screen uses for these places, so the card you tapped to get
+// here and the card you tap once you arrive are recognisably the same thing.
+const INTENT_LOOK = {
+  cellar: {
+    Icon: CellarIcon,
+    accent: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
+  },
+  wishlist: {
+    Icon: WishlistIcon,
+    accent: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
+  },
+  tasting: {
+    Icon: TastingHistoryIcon,
+    accent: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
+  },
+};
+
 export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
   const fileInputRef = useRef(null);
   const [intent, setIntent] = useState(initialIntent);
@@ -268,50 +292,137 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Scan a label</h1>
-        <p className="text-sm text-zinc-500">
-          Take or choose one or more photos - a bottle label, or a document
-          like a shop&apos;s tasting sheet listing several wines. The AI reads
-          each one, checks your own cellar for anything similar, and saves
-          what it finds right away &mdash; review and correct anything below,
-          or remove a card you don&apos;t want. Everything in a batch lands
-          wherever you pick below; any single wine can be moved afterward on
-          its own card.
-        </p>
-      </div>
+      <h1 className="text-2xl font-semibold">Scan</h1>
 
-      {/* Chosen before the photos, because it's the one thing about a batch
-          that can't be read off a label. Each card can still be moved
-          individually afterward. */}
-      <fieldset className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <legend className="px-1 text-sm font-medium">What are you scanning?</legend>
-        {SCAN_INTENTS.map((option) => (
-          <label key={option.value} className="flex items-start gap-2 text-sm">
-            <input
-              type="radio"
-              name="scan-intent"
-              value={option.value}
-              checked={intent === option.value}
-              onChange={() => setIntent(option.value)}
-              className="mt-1"
-            />
-            <span>
-              {option.label}
-              <span className="block text-xs text-zinc-500">{option.hint}</span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
-
+      {/* The file input is the point of this page, so it is a real button
+          rather than the browser's 20px default - and the destination cards
+          above it are what that button means. Hidden rather than sr-only:
+          a visually-hidden input is still focusable, which would put a
+          second, invisible way to open the picker in the tab order. */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         multiple
         onChange={handleFilesChange}
-        className="text-sm"
+        className="hidden"
       />
+
+      {photos.length === 0 ? (
+        <>
+          <p className="-mt-3 text-sm text-zinc-500">
+            A bottle label, a shelf, or a whole tasting sheet. Tap where the
+            wines should land.
+          </p>
+
+          <fieldset>
+            <legend className="sr-only">Where should these wines go?</legend>
+            <div className="grid grid-cols-3 gap-2.5">
+              {SCAN_INTENTS.map((option) => {
+                const look = INTENT_LOOK[option.value];
+                const selected = intent === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    title={option.hint}
+                    className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border p-3 text-center transition ${
+                      selected
+                        ? "border-2 border-zinc-900 p-[11px] dark:border-zinc-100"
+                        : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="scan-intent"
+                      value={option.value}
+                      checked={selected}
+                      onChange={() => setIntent(option.value)}
+                      className="sr-only"
+                    />
+                    <span
+                      className={`inline-flex h-11 w-11 items-center justify-center rounded-full ${look.accent}`}
+                    >
+                      <look.Icon className="h-7 w-7" />
+                    </span>
+                    <span className="text-sm font-medium leading-tight">
+                      {option.short}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center justify-center gap-2.5 rounded-xl bg-zinc-900 px-4 py-4 text-base font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            <ScanIcon className="h-5 w-5" />
+            Take or choose photos
+          </button>
+
+          <p className="-mt-2 text-sm text-zinc-500">
+            Everything in a batch lands there; any single wine can be moved
+            afterward on its own card.
+          </p>
+        </>
+      ) : (
+        /* Once cards are stacking up, the picker shrinks to a strip rather
+           than disappearing: the destination stays changeable for the next
+           batch, which is the whole reason it was a visible control and not
+           a locked URL parameter. */
+        <div className="flex flex-col gap-1.5">
+          {/* The icons alone were cryptic once the cards were gone: a tinted
+              circle among two grey ones doesn't say which place it is, or
+              that it governs the *next* photos rather than the ones already
+              read. The caption does both, and doubles as the group's label. */}
+          <span id="scan-intent-strip-label" className="text-xs text-zinc-500">
+            Next photos go to{" "}
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">
+              {SCAN_INTENTS.find((i) => i.value === intent)?.short}
+            </span>
+          </span>
+          <div className="flex items-center gap-2">
+            <div
+              role="radiogroup"
+              aria-labelledby="scan-intent-strip-label"
+              className="flex gap-2"
+            >
+              {SCAN_INTENTS.map((option) => {
+                const look = INTENT_LOOK[option.value];
+                const selected = intent === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setIntent(option.value)}
+                    title={`Next photos go to ${option.short}`}
+                    className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
+                      selected
+                        ? look.accent
+                        : "text-zinc-400 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-400"
+                    }`}
+                  >
+                    <look.Icon className="h-6 w-6" />
+                    <span className="sr-only">{option.short}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="ml-auto flex items-center gap-2 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+            >
+              <ScanIcon className="h-4 w-4" />
+              Add photos
+            </button>
+          </div>
+        </div>
+      )}
 
       <BatchProgress photos={photos} />
 
