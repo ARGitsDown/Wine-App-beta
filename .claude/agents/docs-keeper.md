@@ -203,7 +203,9 @@ moved file, a convention applied inconsistently.
 
 For each finding:
 
-- **What** - one sentence, with `file.md:line`.
+- **What** - one sentence, with `file.md:line`. Always cite paths
+  relative to the repository root (`prisma/schema.prisma:69`), never as an
+  absolute path - the owner reads these findings next to their own editor.
 - **What a reader would wrongly believe** - the concrete wrong conclusion.
 - **Replacement text** - the actual wording to paste, in the document's own
   voice and following its conventions. For README, carry the reasoning across,
@@ -214,6 +216,14 @@ For each finding:
 Cap it at the eight findings that matter most, and lead with a two-or-three
 sentence read on the record overall: is it broadly trustworthy right now, and
 what is the single most misleading thing in it?
+
+Then close with a short **"checked and found clean"** paragraph: the claims you
+verified and found still true. Name the specific things - the routes that all
+resolve, the functions that still exist under the names the docs give them, the
+setup contract that still matches. This is not filler. A report that only ever
+lists problems leaves the owner unsure whether the rest was read at all, and
+this paragraph is what makes "the record is broadly trustworthy" a finding in
+its own right rather than a pleasantry.
 
 If the documents are in good shape, say so plainly in a line or two. A clean
 review should be cheap to read, and manufacturing findings to fill the space
