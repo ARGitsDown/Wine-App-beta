@@ -571,6 +571,202 @@ actually used. The rest are listed here rather than in a chat log.
   being made, no extra round trip - and the alternative was a field that
   silently mis-files what it reads.
 
+## 17. Design review: the rest of the app
+
+A companion to #16. That one reviewed the scan flow end to end; this is a
+pass over every other screen, plus the parts of scan that its rework left
+untouched. Grouped by what each would cost rather than by screen, since
+that is the order they are worth doing in.
+
+Everything listed here was checked against the current code, not against
+the review that produced it - three items provisionally on this list were
+dropped because #16 had already closed them: the empty critic-notes box
+on a scan card (the card now folds its form behind "Edit details", so the
+box is no longer on screen), the batch summary counting cards rather than
+saves, and the photo-removal control leaving its bottles behind. That
+last one was resolved the opposite way from the first proposal - it
+deletes now rather than being relabelled as a hide - and #16's reasoning
+supersedes it.
+
+One recommendation was withdrawn rather than logged: a "needs attention"
+strip on the home screen, collecting bottles missing a drinking window
+and bottles needing research. The first count is self-liquidating, since
+every add path now fills a window in and `/estimate-windows` clears the
+backlog; the second already has the nav badge, and a second copy of a
+number only drifts from the first. What remains of it is the badge bug
+below, which is a fix rather than a feature. Recorded so it is not
+reintroduced later as a fresh idea.
+
+### Cheap, and independent of any redesign
+
+- **The whole app renders in Arial.** `app/layout.js:1-12` loads Geist and
+  Geist Mono and puts their variables on `<html>`; `app/globals.css:8-14`
+  maps `--font-sans` to Geist. Then `app/globals.css:25` sets
+  `body { font-family: Arial, Helvetica, sans-serif; }` and `<body>`
+  carries no `font-sans` class, so Arial wins everywhere. Two Google fonts
+  are downloaded on every visit and neither is used. This is
+  `create-next-app` boilerplate that outlived everything built on top of
+  it. Deleting that one line is the whole fix, and it is worth doing
+  before any other visual work, because it changes how every later
+  judgment about spacing and weight reads.
+- **There is no error boundary anywhere in `app/`.** No `error.js`, no
+  `global-error.js`. Most server actions catch deliberately - the comment
+  at `insertBottle` explains that one scan card's database error must not
+  take down the batch - but any action that does not catch throws to
+  Next's root boundary and blanks the page. A dozen-line `app/error.js` is
+  the difference between "that didn't work, try again" and losing a screen
+  of unreviewed scan cards.
+- **Region could imply country, from data already in the file.**
+  `lib/regions.js` is a flat array of names grouped by country *in
+  comments* (`// France`, `// Italy`). Promoting those comments to data -
+  `{ name: "Bordeaux", country: "France" }` - would let country auto-fill
+  when a known region is picked, and a mismatch warn softly: Bordeaux
+  could not be entered against Spain without the app saying so. One file
+  plus the two autocomplete call sites, no schema change, no migration.
+  Narrowing the Region suggestions once a country is chosen is a related
+  option better done as a soft ranking than a hard filter, since
+  `getRegionOptions()` blends the curated list with names already in the
+  cellar and a hard filter would hide an unusual region exactly when it
+  was being re-entered. The full hierarchy (Bordeaux → Médoc → Margaux as
+  related records rather than three strings) remains #2, still deferred.
+
+### Scan: what #16's rework did not reach
+
+All three verified still open against the current scan code.
+
+- **Deleting one scanned wine is still unguarded.** #16 replaced the
+  whole-photo path with `removeScannedBottles`, for good reasons about
+  revalidation cancelling in-flight calls - but the single-card delete
+  still goes through `removeScannedBottle` (`app/actions.js:365-368`),
+  which has no try/catch. It is the only action on the scan path without
+  one, so a transient database or network failure throws out of the server
+  action and - with no error boundary, above - takes every unreviewed card
+  with it. Wants a try/catch returning `{ error }`, and the card's removal
+  only on success.
+- **Correcting a flagged wine never clears its flag.** `updateBottle`
+  deliberately does not touch `needsResearch` - right when the bottle page
+  was the only place to edit, since a plain edit should not silently
+  resolve a research question. But a scan card is now a full editor too,
+  and there is no control anywhere on it to say "this looks right". So a
+  wine can be corrected by hand and still sit in `/research` waiting for a
+  web lookup that does not know a human already fixed it, while the amber
+  banner and the batch's flagged count both keep reporting it. The fix is
+  a control, not a silent clear: a "Looks right, clear the flag" button
+  calling the existing `dismissResearch`, so one field corrected without
+  checking the rest does not resolve the whole question by accident.
+- **Changing a card's destination can silently lie.** Tapping Cellar /
+  Wishlist / Tasted updates the radio immediately and fires
+  `setBottleStatus`, which returns nothing on success and returns silently
+  when the row is gone (`app/actions.js:240-245`). If it fails, the radio
+  stays where it was put and the bottle stays where it was - the card says
+  Wishlist, the database says Cellar, and nothing on screen disagrees.
+  Wants an `{ ok }` / `{ error }` return and a revert of the optimistic
+  update on failure.
+- **The per-card destination control is a 20px target beside a 44px one.**
+  The destination picker is `h-11` and tints only its selection. The
+  control making the same decision per wine - the "Saved to" / "Save to"
+  fieldsets - is three browser-default radios with `text-sm` labels,
+  roughly 20px tall, in a form thumbed through one-handed while holding a
+  bottle. Rendering them as the same segmented control would make one
+  decision look like one decision wherever it is made.
+
+### Research
+
+- **The nav badge undercounts, so work can wait with nothing saying so.**
+  The badge counts bottles with `needsResearch: true`
+  (`app/(owner)/layout.js`), but the Research page's "Ready to review"
+  list is driven by the `ResearchProposal` table
+  (`app/(owner)/research/page.js`). Those are not the same set. Research a
+  bottle from its own page that scanning never flagged, and a proposal
+  waits for review while the badge stays at zero - and since `/research`
+  is not in `NAV_LINKS` and the badge only renders above zero, there is no
+  route to it and no hint it exists. Counting bottles flagged *or*
+  carrying a proposal fixes the number; whether `/research` deserves a
+  permanent nav entry is the wider question underneath.
+- **"Research all" stops if you navigate away.** One at a time is safe:
+  `researchBottle` upserts its proposal as the last thing it does, so once
+  the server finishes the answer is durable whether or not the browser is
+  listening. The bulk path is not - `ResearchQueue.researchAll` chunks the
+  ids and awaits each batch *in the browser*, so leaving the page stops it
+  after the batch in flight. Thirty flagged bottles gets you three. The
+  chunking is right, and is what keeps one request from hitting a
+  serverless execution limit, so the fix is a resumable server-side job
+  that outlives the client rather than simply moving the loop.
+- **Research has no progress bar, though scanning does.** The text count
+  is there ("Researching… 2 of 7") but not the filling bar a photo batch
+  gets, which is the part that reads as progress rather than as a stall.
+  Scanning and `/estimate-windows` have each grown their own; lifting one
+  into a shared component would settle all three.
+- **Research names destinations in text where the rest of the app uses an
+  icon and a colour.** Cellar, Wishlist and Tasted each have an icon and
+  an accent pair that the home cards and the scan picker already share.
+  Holding the icon alongside the label and path in one list would let
+  Research, the scan cards and the bottle page speak the same visual
+  language from one source rather than three.
+
+### Cellar: order and proportion
+
+The most-used screen, and the one that scales worst. The modules on it are
+distinct enough; what is off is which comes first and how much room each
+gets.
+
+- **Adding outranks browsing on a page that exists for browsing.** Before
+  a single bottle there is a title, a two-line paragraph about the guest
+  link, a "Scan a label or shelf" button, an "Add a bottle" disclosure, a
+  conditional drinking-window banner, and the filter panel. Three of those
+  are ways to put wine *in*. The page comment says adding comes before
+  browsing, which is right for the Wishlist and inverted here: a wishlist
+  is added to constantly and browsed rarely, a cellar of hundreds is the
+  reverse. Collapsing the two add controls into one and letting the list
+  start near the top is the change.
+- **Collapsed filters become invisible.** The panel summary shows "12 of
+  247 shown" but not *which* filters are on, so a collapsed panel leaves a
+  narrowed list with no visible reason. Filter chips in the summary row
+  would say what is active without reopening it.
+- **The guest-link paragraph sits above the bottles.** Two lines of prose
+  about a feature used a few times a year, above the most-used list in the
+  app. It belongs behind the `/guest` chip.
+
+Any list work here belongs in `FilterBar` / `BottleList` rather than in
+the pages: Cellar, Wishlist and Tasting notes all render the same
+`FilterableBottleList`, so the shared components carry one change to all
+three.
+
+### Bigger questions, worth a branch
+
+- **The nav spends vertical space on every screen.** The owner layout is a
+  `flex-wrap` row of seven text links plus a conditional Research badge;
+  at 375px that wraps to two or three lines above every page,
+  permanently, on the device the app was built for. It is a desktop nav on
+  a phone-first app. Given the manifest and icons already support
+  standalone mode, a bottom tab bar is the natural form - four or five
+  destinations under the thumb, the rest behind the home cards - giving
+  back most of that space while putting Scan within reach of a hand
+  already holding a bottle. It would also give the Research count a real
+  badge rather than a text link in a wrapping row. Worth holding until the
+  Cellar reordering above is settled, since both want the same space.
+- **A Suggest result is lost on navigation, with no warning.** The result
+  lives in component state. Pairings being ephemeral is a deliberate call
+  and a defensible one, but ephemeral and unannounced are different
+  things. There is also no way to re-run with one thing changed - the
+  request must be retyped - which is probably why the Character control
+  goes unused: trying a second character means typing the whole request
+  again. A "refine this" keeping the text and letting Character change
+  would make that control earn its place.
+- **The Tasting notes page shows no tasting notes.** `/consumed` renders
+  the same `FilterableBottleList` as the Cellar with two flags flipped,
+  and `BottleList` has no note rendering at all - an expanded row shows
+  the photo, variety/region/country, favourites, quantity and a link. So
+  on the one page named after them, a note cannot be read without opening
+  the bottle's own page, while the page's own subtitle promises "bottles
+  you've finished, with their tasting notes". The narrow fix is to put the
+  most recent note, or a count and an excerpt, into the expanded row on
+  this page. The wider question, if that does not settle it, is whether
+  `/consumed` should be a list of wines with notes attached or a list of
+  notes with wines attached: the name says the second, the implementation
+  is the first. Both are defensible, which is what makes it a branch
+  question rather than a fix.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
