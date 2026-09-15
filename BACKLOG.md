@@ -677,6 +677,27 @@ exactly that argument for them. It's noted only because it's the same "cheap
 to have in place before it hurts" reasoning applied to the one query shape
 that runs on literally every page load.
 
+## 23. The research review doesn't say whether a window was found or guessed
+
+`drinkWindowEstimated` exists so it's clear which drinking windows are worth
+double-checking, and the schema comment says it's shown as a distinct badge
+for exactly that reason. The research review is the one place that
+distinction matters most and the one place it isn't shown.
+
+`RESEARCH_TOOL` asks the model for the flag and the proposal stores it, but
+it isn't a `RESEARCH_FIELDS` entry, so it never becomes a diff row —
+`windowEstimatedFromProposal` applies it silently on accept. A reviewer
+approving "Drink from 2026 / Drink to 2034" is told those years and not
+whether they came from a citation or from the model's judgment, and the
+one-click Accept is the path most of these take.
+
+Not a diff row of its own — "drinkWindowEstimated: false → true" is a worse
+way to say it than marking the rows it qualifies. An "(estimated)" marker
+beside the drink-window rows, reading from the proposal the way
+`windowEstimatedFromProposal` already does, is the shape to aim for. The
+carve-out comment in `lib/research-fields.js` notes why the field is absent
+from that list in the meantime.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
