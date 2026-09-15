@@ -128,7 +128,11 @@ function bottleDataFromWine(wine) {
       (wine.drinkFrom ?? null) !== null || (wine.drinkTo ?? null) !== null
         ? wine.drinkWindowEstimated !== false
         : false,
-    criticNotes: null,
+    // Filled in at scan time only when the photo itself showed somebody
+    // else's words about the wine; Research fills the same field later from
+    // the web. The owner's own words go to a TastingNote instead - see the
+    // save loop in extractWinesFromPhoto.
+    criticNotes: wine.criticNotes || null,
   };
 }
 
@@ -223,7 +227,10 @@ export async function updateBottle(id, prevState, formData) {
     invalidateRegionOptions();
     revalidatePath(`/bottles/${id}`);
     revalidatePath(pathForStatus(bottle.status));
-    return { success: true };
+    // The row comes back so a caller holding its own copy can refresh it.
+    // The scan cards do: each leads with the wine's name and region, which
+    // otherwise kept showing the pre-edit values after a successful save.
+    return { success: true, bottle };
   } catch (err) {
     console.error("Failed to update bottle:", err);
     return { error: "Couldn't save those changes. Please try again." };
@@ -502,7 +509,12 @@ const WINE_ENTRY_SCHEMA = {
     note: {
       type: ["string", "null"],
       description:
-        "Only when the source document itself includes descriptive/tasting-note-style text for this wine (e.g. a shop's tasting sheet or menu write-up) - that text, lightly cleaned up but not rewritten or embellished. Null for a plain bottle label with no such text - never invent tasting notes that aren't in the photo.",
+        "The OWNER'S OWN impression of this wine, and only that - handwriting on a tasting sheet, a scribbled card, a note they wrote themselves. This becomes their personal tasting note and counts as a wine they have tasted, so printed text from a shop, a winery or a critic never belongs here; that goes in `criticNotes` instead. Null unless the photo genuinely shows something the owner wrote - never invent one.",
+    },
+    criticNotes: {
+      type: ["string", "null"],
+      description:
+        "Descriptive or tasting-note text printed by somebody else and visible in the photo - a shop's shelf talker or tasting sheet, a menu write-up, a back label, a critic's blurb quoted on the bottle. That text, lightly cleaned up but not rewritten or embellished, attributed where the source is clear (e.g. 'Shelf talker: ...'). Null for a plain label with no such text - never invent one.",
     },
     confident: {
       type: "boolean",
@@ -524,6 +536,7 @@ const WINE_ENTRY_SCHEMA = {
     "drinkFrom",
     "drinkTo",
     "note",
+    "criticNotes",
     "confident",
   ],
   additionalProperties: false,
@@ -574,7 +587,7 @@ async function searchCellar(query) {
 }
 
 const LABEL_SYSTEM_PROMPT =
-  "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). Many producers make several distinct wines from the same grape and vintage - a regional/estate bottling plus one or more vineyard-designated or proprietary-named bottlings (e.g. a producer's basic Pinot Noir alongside a 'Rochioli Vineyard' or a 'Madeleine' bottling). Think about whether this producer is one of those before settling on the `bottling` field - a label that only shows a small or partial vineyard/cuvée name (easy to crop out of a photo, or in small print) is exactly the kind of detail worth getting right, since it's what tells two of a producer's own bottlings apart. If the source document includes its own descriptive/tasting-note-style text for a wine, carry that into the entry's `note` field - never invent one for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
+  "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). Many producers make several distinct wines from the same grape and vintage - a regional/estate bottling plus one or more vineyard-designated or proprietary-named bottlings (e.g. a producer's basic Pinot Noir alongside a 'Rochioli Vineyard' or a 'Madeleine' bottling). Think about whether this producer is one of those before settling on the `bottling` field - a label that only shows a small or partial vineyard/cuvée name (easy to crop out of a photo, or in small print) is exactly the kind of detail worth getting right, since it's what tells two of a producer's own bottlings apart. If the photo includes descriptive or tasting-note-style text for a wine, mind whose words they are: anything printed by a shop, a winery or a critic (a shelf talker, a tasting-sheet write-up, a back label) goes in `criticNotes`, while `note` is only for something the owner wrote themselves, since that becomes their personal tasting note and marks the wine as one they have tasted. Never invent either for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
 
 // Reads a photo - one bottle label, or a document listing several wines -
 // optionally researching the user's own saved bottles and the model's wine
@@ -642,8 +655,12 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
           // The batch's intent decides where a wine lands. This used to be
           // inferred from whether the source document carried tasting text,
           // which conflated two different things: a shop's tasting sheet
-          // describes the wine, it doesn't say you drank it. The note is
-          // still saved either way - it's content, not status.
+          // describes the wine, it doesn't say you drank it. The text is
+          // still saved either way - it's content, not status - but which
+          // field it lands in now follows whose words they are. Only the
+          // owner's own become a TastingNote below, because that is what
+          // "wines tasted" counts; a shelf talker's copy is criticNotes,
+          // carried in by bottleDataFromWine.
           const status = statusForScanIntent(intent);
           try {
             const bottle = await prisma.bottle.create({

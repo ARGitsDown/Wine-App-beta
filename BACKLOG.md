@@ -530,24 +530,46 @@ actually used. The rest are listed here rather than in a chat log.
   case, and that is already one bottle scan plus a quantity adjustment at
   entry. Worth revisiting only if repeats show up in practice that are
   neither of those.
-- **Editing a saved card gives no confirmation, and unsaved edits are
-  lost.** Pressing Update saves, but the card looks identical afterwards,
-  and typing into a field then removing the photo (or leaving the page)
-  discards it silently.
-- **A failed photo cannot be retried.** The fallback is a blank manual
-  card. Re-reading the same photo is one action away and isn't offered, so
-  a transient failure means finding the file again.
-- **Accessibility.** The destination cards have no visible focus ring, the
-  batch progress has no live region so a screen reader is never told the
-  batch finished, and `text-zinc-400` on white is about 2.5:1 - below the
-  4.5:1 minimum - in several places on this page.
-- **"Delete this wine" is a plain text link with a small tap target and no
-  confirmation**, unlike every other delete in the app. The whole-photo
-  remove above it now confirms, which makes the inconsistency sharper.
-- **A shop's blurb can become your tasting note.** Scanning a shelf talker
-  puts its copy in `note`, which is the personal-tasting-note field, so it
-  counts toward "Wines tasted". `criticNotes` is the field for someone
-  else's words, and the scan tool does not offer it.
+- ~~**Editing a saved card gave no confirmation, and unsaved edits were
+  lost.**~~ — fixed. Update now says "Changes saved" and refreshes the
+  card's heading from the row the action returns, so an edited producer or
+  region shows what was actually saved rather than what the photo first
+  read. Typing marks the card "unsaved": that badge sits on the Edit
+  details summary, the whole-photo remove names it before discarding it,
+  and the browser's own leave prompt is armed while it stands. The marker
+  clears on a successful save.
+- ~~**A failed photo could not be retried.**~~ — fixed. A failed read now
+  offers "Read this photo again" beside the manual fallback; the file is
+  already in hand, so a rate limit or a timeout costs a click instead of a
+  hunt through the camera roll. Each photo remembers the destination it was
+  chosen for, so a retry lands where it was always going to, even if the
+  picker has moved on since.
+- ~~**Accessibility.**~~ — fixed. The destination cards draw a focus
+  outline (their radio is `sr-only`, so there was nothing for the ring to
+  land on), the batch has an `sr-only` status region that announces the
+  finished summary - deliberately its own region with two states rather
+  than `role="status"` on the running text, which would interrupt once per
+  completed photo to say the same thing - and body text at `text-zinc-400`
+  (about 2.5:1 on white) moved to `text-zinc-500`/`600`. The idle
+  destination icons moved too: they were at 2.5:1 against a 3:1 minimum for
+  non-text.
+- ~~**"Delete this wine" was a plain text link with a small tap target and
+  no confirmation.**~~ — fixed. It asks first, naming the wine, and the
+  small underlined controls on this page (delete, discard, Edit details,
+  remove photo) now carry real padding instead of being 16px-tall text.
+- ~~**A shop's blurb could become your tasting note.**~~ — fixed. The scan
+  tool now has a `criticNotes` field for words printed by somebody else - a
+  shelf talker, a back label, a menu write-up - and `note` is reserved for
+  something the owner wrote themselves. Only `note` becomes a `TastingNote`,
+  so a shelf talker no longer counts toward "Wines tasted". The saved card
+  shows both, labelled by whose words they are and clamped to three lines,
+  since the full text is one click away in the form.
+
+  This adds a field to the extraction, against the owner's steer that
+  identification is what the scan's time should go to. It is the cheap kind
+  of addition - one more optional property on a tool call that was already
+  being made, no extra round trip - and the alternative was a field that
+  silently mis-files what it reads.
 
 ## Lower priority / optional
 

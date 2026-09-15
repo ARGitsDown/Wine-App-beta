@@ -119,6 +119,25 @@ function BatchProgress({ photos }) {
           style={{ width: `${(done / total) * 100}%` }}
         />
       </div>
+
+      {/* Nothing told a screen reader the batch had finished: the bar's
+          aria-valuenow isn't announced, and the visible summary is only
+          read if you happen to navigate back to it. Deliberately its own
+          region with only two states rather than role="status" on the
+          running text above, which would announce on every completed
+          photo - nine interruptions to say the same thing nine times. */}
+      <p className="sr-only" role="status">
+        {running
+          ? `Reading ${total} photo${total === 1 ? "" : "s"}.`
+          : [
+              `Finished reading ${total} photo${total === 1 ? "" : "s"}.`,
+              `${wines} wine${wines === 1 ? "" : "s"} saved.`,
+              unsaved > 0 ? `${unsaved} still to save.` : null,
+              failed > 0 ? `${failed} couldn't be read.` : null,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+      </p>
     </div>
   );
 }
@@ -194,30 +213,39 @@ function EntryHeading({ wine }) {
 // say how many that is once the card has scrolled.
 function RemovePhotoButton({ photo, onRemove }) {
   const saved = photo.entries.filter((e) => e.kind === "saved").length;
+  const dirty = photo.entries.filter((e) => e.dirty).length;
   const label = "Remove this photo and all its wines from the batch";
-  const linkClass = "text-xs text-zinc-500 underline underline-offset-2";
+  const linkClass =
+    "-mx-2 rounded px-2 py-2 text-xs text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100";
 
-  if (saved === 0) {
+  if (saved === 0 && dirty === 0) {
     return (
       <button
         type="button"
         onClick={onRemove}
-        className={`self-start pl-0 ${linkClass} sm:pl-[6.5rem]`}
+        className={`self-start sm:ml-[6.5rem] ${linkClass}`}
       >
         {label}
       </button>
     );
   }
 
+  // Two different losses, and either one alone is worth a pause: bottles
+  // that would be deleted, and edits typed but not yet saved.
+  const parts = [];
+  if (saved > 0) parts.push(`deletes ${saved} saved wine${saved === 1 ? "" : "s"}`);
+  if (dirty > 0) parts.push(`discards unsaved edits to ${dirty}`);
+  const warning = `${parts.join(" and ")}.`;
+
   return (
     <div className="self-start pl-0 sm:pl-[6.5rem]">
       <ConfirmButton
         action={onRemove}
         label={label}
-        confirmLabel={`Yes, delete ${saved} wine${saved === 1 ? "" : "s"}`}
-        warning={`Deletes ${saved} saved wine${saved === 1 ? "" : "s"}.`}
+        confirmLabel={saved > 0 ? `Yes, delete ${saved} wine${saved === 1 ? "" : "s"}` : "Yes, remove it"}
+        warning={warning.charAt(0).toUpperCase() + warning.slice(1)}
         className={linkClass}
-        confirmClassName="text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-400"
+        confirmClassName="-mx-2 rounded px-2 py-2 text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-400"
       />
     </div>
   );
@@ -292,6 +320,31 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
     );
   }
 
+  function markDirty(photoId, localId) {
+    setPhotos((prev) =>
+      prev.map((p) =>
+        p.id !== photoId
+          ? p
+          : {
+              ...p,
+              entries: p.entries.map((e) =>
+                e.localId === localId && !e.dirty ? { ...e, dirty: true } : e
+              ),
+            }
+      )
+    );
+  }
+
+  // Clears the unsaved marker and shows a confirmation that fades, rather
+  // than one that sits there forever and stops meaning anything. Takes the
+  // saved row back from the action so the card's heading shows what was
+  // just saved rather than what the photo originally read.
+  function confirmSaved(photoId, localId, bottle) {
+    if (bottle) updateEntryBottle(photoId, localId, bottle);
+    updateEntry(photoId, localId, { dirty: false, justSaved: true });
+    setTimeout(() => updateEntry(photoId, localId, { justSaved: false }), 4000);
+  }
+
   function removeEntry(photoId, localId) {
     setPhotos((prev) =>
       prev.map((p) =>
@@ -349,6 +402,11 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
       id: nextPhotoId++,
       previewUrl: URL.createObjectURL(file),
       file,
+      // Kept per photo, not read from state at retry time: changing the
+      // picker steers the next batch, so a re-read of this photo has to
+      // use the destination it was chosen for, not whatever is selected
+      // by the time you notice it failed.
+      intent: intent,
       status: "loading",
       error: null,
       entries: [],
@@ -358,9 +416,21 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
     event.target.value = "";
 
     // Captured now rather than read inside the worker: changing the picker
-    // while a batch runs should steer the next batch, not this one.
+    // while a batch runs should steer the next batch, not this one. Same
+    // value each photo carries, for the same reason.
     const batchIntent = intent;
     await runWithConcurrency(newPhotos, 3, (photo) => processPhoto(photo, batchIntent));
+  }
+
+  // A photo that fails to read falls back to a blank manual card, which
+  // treats every failure as permanent - but the common one is transient (a
+  // rate limit, a timeout), and the file is still right here. Re-reading it
+  // is a click rather than a hunt through the camera roll for the same shot.
+  async function retryPhoto(id) {
+    const photo = photos.find((p) => p.id === id);
+    if (!photo) return;
+    updatePhoto(id, { status: "loading", error: null, entries: [] });
+    await processPhoto(photo, photo.intent ?? intent);
   }
 
   // Same rule as the per-wine Delete, applied to everything one photo
@@ -378,6 +448,21 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
     setPhotos((prev) => prev.filter((p) => p.id !== id));
     URL.revokeObjectURL(photo.previewUrl);
   }
+
+  // Typing into a card and then closing the tab used to lose the edit with
+  // no sign it had happened. The browser's own prompt is the only thing that
+  // can interrupt a tab close, and it only appears while there is genuinely
+  // something to lose - `dirty` clears on a successful save.
+  const hasUnsavedEdits = photos.some((p) => p.entries.some((e) => e.dirty));
+  useEffect(() => {
+    if (!hasUnsavedEdits) return;
+    function warn(event) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedEdits]);
 
   // Each preview URL otherwise stays alive (and the image data with it) for
   // as long as the tab does. Release whatever's left when leaving the page.
@@ -422,7 +507,10 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                   <label
                     key={option.value}
                     title={option.hint}
-                    className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border p-3 text-center transition ${
+                    // The radio itself is sr-only, so without has-[] the
+                    // keyboard focus ring had nothing to draw on and moving
+                    // through the three destinations was invisible.
+                    className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border p-3 text-center transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-zinc-900 dark:has-[:focus-visible]:outline-zinc-100 ${
                       selected
                         ? "border-2 border-zinc-900 p-[11px] dark:border-zinc-100"
                         : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600"
@@ -497,10 +585,10 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                     aria-checked={selected}
                     onClick={() => setIntent(option.value)}
                     title={`Next photos go to ${option.short}`}
-                    className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition ${
+                    className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100 ${
                       selected
                         ? look.accent
-                        : "text-zinc-400 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-400"
+                        : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
                     }`}
                   >
                     <look.Icon className="h-6 w-6" />
@@ -512,7 +600,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="ml-auto flex items-center gap-2 rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700"
+              className="ml-auto flex items-center gap-2 rounded-lg border border-zinc-300 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:focus-visible:outline-zinc-100"
             >
               <ScanIcon className="h-4 w-4" />
               Add photos
@@ -548,10 +636,17 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                 )}
 
                 {photo.status === "error" && (
-                  <div className="flex flex-col gap-1 text-sm text-red-600 dark:text-red-400">
+                  <div className="flex flex-col items-start gap-1.5 text-sm text-red-600 dark:text-red-400">
                     <p>{photo.error}</p>
-                    <p className="text-zinc-500 dark:text-zinc-400">
-                      You can still add a bottle by hand below.
+                    <button
+                      type="button"
+                      onClick={() => retryPhoto(photo.id)}
+                      className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:text-zinc-100 dark:focus-visible:outline-zinc-100"
+                    >
+                      Read this photo again
+                    </button>
+                    <p className="text-zinc-600 dark:text-zinc-400">
+                      Or add the bottle by hand below.
                     </p>
                   </div>
                 )}
@@ -567,6 +662,18 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                   {entry.kind === "saved" ? (
                     <>
                       <EntryHeading wine={entry.bottle} />
+
+                      {/* Pressing Update used to leave the card looking
+                          exactly as it did before, so the only way to know
+                          it had worked was to reload the page. */}
+                      {entry.justSaved && (
+                        <p
+                          role="status"
+                          className="text-sm font-medium text-green-700 dark:text-green-400"
+                        >
+                          &#10003; Changes saved
+                        </p>
+                      )}
 
                       {entry.bottle.needsResearch && (
                         <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
@@ -587,6 +694,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                             <input
                               type="radio"
                               name={`scan-status-${entry.localId}`}
+                              value={value}
                               checked={entry.bottle.status === value}
                               onChange={async () => {
                                 updateEntryBottle(photo.id, entry.localId, { status: value });
@@ -600,9 +708,23 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
 
                       {entry.bottle.scannedNote && (
                         <p className="text-xs text-zinc-500">
-                          Tasting note logged from the photo:{" "}
+                          Your tasting note, read from the photo:{" "}
                           <span className="italic">
                             &ldquo;{entry.bottle.scannedNote}&rdquo;
+                          </span>
+                        </p>
+                      )}
+
+                      {/* Someone else's words about the wine - a shelf
+                          talker, a back label. Worth showing, since the
+                          scan can now fill this, but clamped: it is the
+                          one field that routinely runs to paragraphs, and
+                          the full text is a click away in the form. */}
+                      {entry.bottle.criticNotes && (
+                        <p className="line-clamp-3 text-xs text-zinc-500">
+                          From the label or sheet:{" "}
+                          <span className="italic">
+                            &ldquo;{entry.bottle.criticNotes}&rdquo;
                           </span>
                         </p>
                       )}
@@ -615,7 +737,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                           DOM, so nothing about saving changes; it is the
                           reading of the batch that gets its page back. */}
                       <details className="group">
-                        <summary className="cursor-pointer list-none text-sm text-zinc-500 underline underline-offset-2">
+                        <summary className="-mx-2 cursor-pointer list-none rounded px-2 py-2 text-sm text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100">
                           <span className="mr-1 inline-block no-underline group-open:hidden">
                             &#9656;
                           </span>
@@ -623,24 +745,49 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                             &#9662;
                           </span>
                           Edit details
+                          {entry.dirty && (
+                            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 no-underline dark:bg-amber-950 dark:text-amber-300">
+                              unsaved
+                            </span>
+                          )}
                         </summary>
-                        <div className="mt-3">
+                        {/* Dirty tracking sits on the wrapper rather than
+                            inside BottleForm: input and change both bubble,
+                            so one pair of handlers covers every field
+                            without the form itself having to know that this
+                            page can throw its cards away. */}
+                        <div
+                          className="mt-3"
+                          onInput={() => markDirty(photo.id, entry.localId)}
+                          onChange={() => markDirty(photo.id, entry.localId)}
+                        >
                           <BottleForm
                             action={updateBottle.bind(null, entry.bottle.id)}
                             defaultValues={entry.bottle}
                             submitLabel="Update"
                             idPrefix={`scan-entry-${entry.localId}`}
+                            onResult={(result) => {
+                              if (result?.success) {
+                                confirmSaved(photo.id, entry.localId, result.bottle);
+                              }
+                            }}
                           />
                         </div>
                       </details>
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(photo, entry)}
-                        className="self-start text-xs text-zinc-500 underline underline-offset-2"
-                      >
-                        Delete this wine
-                      </button>
+                      {/* The only delete in the app that didn't ask, and
+                          the hardest to hit - a 16px-tall text link. Both
+                          now match the whole-photo remove below it. */}
+                      <div className="self-start">
+                        <ConfirmButton
+                          action={() => handleRemove(photo, entry)}
+                          label="Delete this wine"
+                          confirmLabel="Yes, delete it"
+                          warning={`Deletes ${entry.bottle.producer || "this wine"} from your cellar.`}
+                          className="-mx-2 rounded px-2 py-2 text-xs text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100"
+                          confirmClassName="-mx-2 rounded px-2 py-2 text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-400"
+                        />
+                      </div>
                     </>
                   ) : entry.status === "saved" ? (
                     <p className="text-sm font-medium text-green-700 dark:text-green-400">
@@ -678,6 +825,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                             <input
                               type="radio"
                               name={`scan-status-${entry.localId}`}
+                              value={value}
                               checked={entry.saveStatus === value}
                               onChange={() =>
                                 updateEntry(photo.id, entry.localId, { saveStatus: value })
@@ -688,23 +836,34 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                         ))}
                       </fieldset>
 
-                      <BottleForm
-                        action={createBottleWithNote.bind(null, entry.saveStatus)}
-                        defaultValues={entry.extracted}
-                        submitLabel="Save bottle"
-                        includeTastingNote
-                        idPrefix={`scan-entry-${entry.localId}`}
-                        onResult={(result) => {
-                          if (result.success) {
-                            updateEntry(photo.id, entry.localId, { status: "saved" });
-                          }
-                        }}
-                      />
+                      {/* Same dirty tracking as a saved card. A draft has
+                          more to lose, not less: nothing here exists
+                          anywhere yet. */}
+                      <div
+                        onInput={() => markDirty(photo.id, entry.localId)}
+                        onChange={() => markDirty(photo.id, entry.localId)}
+                      >
+                        <BottleForm
+                          action={createBottleWithNote.bind(null, entry.saveStatus)}
+                          defaultValues={entry.extracted}
+                          submitLabel="Save bottle"
+                          includeTastingNote
+                          idPrefix={`scan-entry-${entry.localId}`}
+                          onResult={(result) => {
+                            if (result.success) {
+                              updateEntry(photo.id, entry.localId, {
+                                status: "saved",
+                                dirty: false,
+                              });
+                            }
+                          }}
+                        />
+                      </div>
 
                       <button
                         type="button"
                         onClick={() => handleRemove(photo, entry)}
-                        className="self-start text-xs text-zinc-500 underline underline-offset-2"
+                        className="-mx-2 self-start rounded px-2 py-2 text-xs text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100"
                       >
                         Discard this card
                       </button>
