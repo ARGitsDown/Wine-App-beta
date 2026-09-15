@@ -58,7 +58,10 @@ features like separate cellars per user.
   re-adding it months later, reuses the earlier estimate instead of paying
   to ask the same question again.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
-  "Bought it" button moves a bottle into the cellar.
+  "Bought it" button moves a bottle into the cellar. The two ways in sit at
+  the top of the page, before the controls for narrowing what is already
+  there: a **Scan a label or shelf** button that opens the scanner already
+  pointed at the wishlist, then the by-hand form.
 - **Research** (`/research`) — bottles the scan feature wasn't confident
   about, and what a web search turned up for them. Each can be researched
   in one click from the list, or all at once behind a confirmation that
@@ -105,7 +108,7 @@ features like separate cellars per user.
   rather than waiting on a manual confirm - so navigating away (or the tab
   closing) mid-batch never loses a wine that already came back; review and
   correct each card afterward, or remove one you don't want. Before picking
-  photos you tap where the batch lands — Cellar, Wishlist or Tasted, as
+  photos you tap where the batch lands — Cellar, Wishlist or Tasting, as
   three cards carrying the same icons and colors those places have on the
   home screen — and every wine in it goes there, rather than the app
   guessing from whether the source happened to carry tasting notes; any
