@@ -57,8 +57,30 @@ model Bottle {
   // later without this being in the way.
   subRegion String?
   country  String?
+  // How many bottles of this wine are on hand. Never zero and never null:
+  // no longer owning any is `status: consumed`, which is what markOneTasted
+  // does when the last one goes, and adjustBottleQuantity floors at 1 for
+  // the same reason rather than stranding a row in the cellar at zero. The
+  // flip side is that 1 conflates "exactly one" with "never counted". For a
+  // wishlist row this is what you intend to buy, not what you have. Counts
+  // bottles without regard to size - two half-bottles and two magnums both
+  // read 2 - see BACKLOG.md #5.
   quantity Int     @default(1)
+  // One of `wishlist`, `inventory`, `consumed` - the three states described
+  // above this model. A plain String rather than a Prisma enum, same
+  // reasoning as `wineColor` below: the vocabulary can grow without a
+  // migration. The invariant worth knowing before touching this: a write
+  // that changes status must go through acquiredAtForStatus and
+  // emptiedAtForStatus in lib/bottle-dates.js, which is what keeps those
+  // two dates honest - setting status directly is how a real bottle ends up
+  // with a wrong date on it.
   status   String  @default("wishlist")
+  // This cellar owner's own free-form notes about the wine itself - where
+  // it came from, what it's being saved for, anything not tied to a
+  // specific tasting. Distinct from `criticNotes` below (somebody else's
+  // published words about this wine, only ever written by Research) and
+  // from `TastingNote.note` (the owner's dated impression of drinking it).
+  // Null means nothing written; never filled in by scan or by research.
   notes    String?
   // Alcohol by volume, as printed on the label (e.g. 14.5 for "14.5%").
   // Legally required on nearly every label, so easy to capture during
@@ -66,7 +88,7 @@ model Bottle {
   // behaves very differently at the table than a 12.5% Riesling).
   abv      Float?
   // A small fixed vocabulary (Red/White/Rosé/Orange/Sparkling/Dessert/
-  // Fortified - see WINE_COLORS in app/actions.js), distinct from `type`
+  // Fortified - see WINE_COLORS in lib/wine-colors.js), distinct from `type`
   // (which names the grape/style, not the color) so "show me all my
   // whites" works regardless of how `type` happens to be worded. A plain
   // String rather than a Prisma enum, same reasoning as `status` below -
@@ -119,7 +141,8 @@ model Bottle {
   // guessed: a wishlist bottle isn't owned yet, and a wine logged straight
   // to tasting notes never sat in the cellar at all, so neither has an
   // acquisition date to record. Derived from status changes the way
-  // emptiedAt is (see acquiredAtForStatus in app/actions.js) - stamped when
+  // emptiedAt is (see acquiredAtForStatus in lib/bottle-dates.js) - stamped
+  // when
   // a row arrives in the cellar, cleared if it goes back to the wishlist,
   // and carried through to consumed, where "bought 2019, drunk 2026" is
   // exactly the fact worth keeping. Rows that predate this column have
@@ -176,11 +199,26 @@ model TastingNote {
   id       Int      @id @default(autoincrement())
   bottleId Int
   bottle   Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  // The owner's own impression of drinking this wine on `tastedAt`, as
+  // opposed to Bottle.notes (standing notes about the wine) or
+  // Bottle.criticNotes (somebody else's published words). Required: a note
+  // with nothing in it isn't worth a row. A shop's write-up read off a
+  // shelf talker goes to criticNotes, not here - see BACKLOG.md #16.
   note     String
   // Nullable: a note can be logged without a personal score - e.g. a shop's
   // own tasting-sheet write-up brought in via the scan feature, before (or
   // instead of) rating it yourself.
   rating   Int?
+  // The calendar date this was tasted, anchored at noon UTC like every
+  // other date-only value here - see lib/tasting-date.js for why a raw
+  // instant renders a day off and sorts inconsistently against picked
+  // dates. Every write path passes an anchored value explicitly (picked via
+  // parseTastedDate, or todayAtNoonUtc when the app stamps it for you); the
+  // default below is only a backstop for a call site that forgets, and a
+  // value it produces is the wrong shape. Rows written before that was true
+  // hold raw instants and can read a day early near midnight - not
+  // backfillable, since the intended date can't be recovered from an
+  // instant without knowing the writer's timezone.
   tastedAt DateTime @default(now())
 
   @@index([bottleId])
@@ -249,11 +287,20 @@ model FlightPick {
   flight   TastingFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
   bottleId Int
   bottle   Bottle        @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  // Position in the tasting order, ascending. Only the relative order
+  // matters: removing a pick leaves a gap, and reordering swaps two rows'
+  // values rather than renumbering the flight, so these are not guaranteed
+  // to be contiguous or to start at zero. A new pick lands at last + 1.
   order    Int
   // Why this bottle is in this flight, in the model's words. Null for a
   // pick added by hand, which has a position in the running order but no
   // argument attached to it.
   reason   String?
+  // Whether this pick has been drunk as part of working through the
+  // flight. Set true by markFlightPickConsumed and never cleared - the
+  // flight is a record of what you poured, not a checklist to reset.
+  // Independent of the bottle's own `status`: you can finish a flight pick
+  // while other bottles of the same wine remain in the cellar.
   consumed Boolean       @default(false)
 
   @@index([flightId])
@@ -273,8 +320,16 @@ model FlightPick {
 model DrinkWindowEstimate {
   id        Int      @id @default(autoincrement())
   key       String   @unique
+  // Both nullable and independent, mirroring Bottle.drinkFrom/drinkTo: a
+  // cached answer can name a start with no end. A row with both null is a
+  // cached "no window could be determined", which is still worth not
+  // asking twice about.
   drinkFrom Int?
   drinkTo   Int?
+  // Never read - there is deliberately no TTL and no invalidation. What
+  // determines the answer is already in `key`, so an entry can only go
+  // stale if the model's judgment about a wine changes, which isn't
+  // something a timestamp here would detect. Kept for the record.
   createdAt DateTime @default(now())
 }
 

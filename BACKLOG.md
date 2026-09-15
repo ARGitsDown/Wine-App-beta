@@ -571,6 +571,112 @@ actually used. The rest are listed here rather than in a chat log.
   being made, no extra round trip - and the alternative was a field that
   silently mis-files what it reads.
 
+## 17. The guest page ships the owner's private notes
+
+`app/(guest)/guest/page.js` loads whole `Bottle` rows and spreads them into
+props for a client component. `GuestBottleList` renders producer, bottling,
+vintage, type, variety, region, country and the color swatch — but `notes`,
+`criticNotes`, `needsResearch`, `photoUrl`, `acquiredAt` and `emptiedAt` all
+ride along in the RSC payload and are readable in the browser's network tab.
+
+`notes` is explicitly the owner's own free-form notes, and the route groups
+were split precisely so a guest sees only their page. Sending the owner's
+private notes to that page undercuts the split. It gets heavier as Research
+fills `criticNotes` in, too: that field routinely holds several paragraphs,
+so every guest page load carries all of it.
+
+The fix is small and mechanical — replace the `include` with an explicit
+`select` naming only what `GuestBottleList` and `filterBottles` read (`id`,
+`producer`, `bottling`, `vintage`, `type`, `variety`, `canonicalVariety`,
+`region`, `subRegion`, `country`, `wineColor`, `quantity`, plus the scoped
+`favorites`). `getBottles` in `lib/bottles.js` already strips its joined
+rows for exactly this reason; the guest path was written separately and
+never got the same treatment. Worth doing on its own rather than folded
+into unrelated work, so the diff is purely "what does this page actually
+need".
+
+## 18. Restore from a backup file
+
+`/export` produces a JSON file that nothing can put back. `PROJECT.md` §7
+asks whether the data is backed up anywhere recoverable, and today the
+honest answer is "yes, but restoring it means hand-writing SQL".
+
+A matching `/import`, or even a documented `node scripts/import.js
+file.json`, would close the loop. It needs decisions this note shouldn't
+pre-empt: merge or replace, what to do about id collisions, and whether
+blob URLs in an old export still resolve. Worth doing only now that the
+export actually contains every hand-authored table — importing an
+incomplete backup is worse than not importing at all.
+
+## 19. ABV: validate the unit, not just the comment
+
+The schema pins the unit precisely ("14.5 for 14.5%") and nothing enforces
+it. `parseOptionalFloat` accepts any finite number, `bottleDataFromWine`
+takes `wine.abv` raw from the model, and `applyResearchProposal` takes it
+raw from stored JSON.
+
+The failure to expect is a model answering `0.145` — the fraction form —
+instead of `14.5`. It stores clean, renders as "0.145%", and nothing flags
+it. The form's `min="0" max="100"` is a browser hint the server never
+re-checks, and neither AI path goes through a form at all.
+
+One shared `parseAbv` beside the other `parseOptional*` helpers, dropping
+anything outside a plausible label range rather than storing it, used by
+all three paths. Deliberately not bundled with the research-proposal fixes:
+those were correctness bugs with a known wrong outcome, this is a guard
+against one that hasn't been seen yet.
+
+## 20. List pages ship text nothing renders
+
+`getBottles` uses `include` rather than `select`, so the full `Bottle` row —
+`notes` and `criticNotes` included — reaches `FilterableBottleList` and
+`BottleList`, both client components. `BottleList` reads twelve fields and
+neither of those is among them.
+
+The trimmed `tastingNotes: { select: { rating: true } }` and the
+`{ tastingNotes, favorites, ...rest }` strip show the intent was to keep
+list payloads small; the Bottle row's own wide text columns quietly defeat
+it. The documented "load the whole table" simplification still holds — that
+argument is about row count, and a personal cellar is small. This is about
+column width, which it doesn't cover.
+
+Right now it's a few hundred rows and you won't feel it. Once Research has
+filled `criticNotes` on most of them, Cellar/Wishlist/History each ship a
+few hundred kilobytes of unrendered text on every navigation, on a phone.
+Swap `include` for `select`; the detail page already loads the full row
+separately, so nothing else changes.
+
+## 21. Bottle status as a shared constant
+
+`"inventory"`, `"wishlist"` and `"consumed"` are written as bare string
+literals in roughly 42 places across `app/actions.js`, `lib/bottle-dates.js`,
+`lib/scan-intent.js`, five page components, `ScanPanel.js` (twice, as a
+hand-written `[value, label]` array) and `BottleList.js`. Two of those keep
+their own status→label mapping, so a fourth status — or a rename — means
+finding every one of them by grep and trusting the grep was exhaustive.
+
+`wineColor` had exactly this problem and it was solved properly: one
+exported constant plus a case-insensitive normalizer in `lib/wine-colors.js`.
+`status` never got the same treatment. The shape to copy is a
+`lib/bottle-status.js` exporting `BOTTLE_STATUSES` (value, label, path),
+with `pathForStatus` moving there out of `app/actions.js`.
+
+Worth doing as its own change with nothing else in it, so the diff stays
+purely mechanical and reviewable. Not urgent — nothing is broken today, and
+the status vocabulary hasn't changed since the schema was written.
+
+## 22. Compound index for the list pages
+
+Every list page does `where: { status }, orderBy: { producer: "asc" }`, and
+there is a single-column index on `status` only, so Postgres filters and
+then sorts. `@@index([status, producer])` would serve both halves.
+
+Being straight about this: at a few hundred rows you will never feel the
+difference, and the schema comment beside the existing indexes already makes
+exactly that argument for them. It's noted only because it's the same "cheap
+to have in place before it hurts" reasoning applied to the one query shape
+that runs on literally every page load.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for

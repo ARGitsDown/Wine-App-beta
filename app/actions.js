@@ -12,10 +12,10 @@ import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { characterRule } from "@/lib/suggestion-character";
 import { RESEARCH_FIELDS, researchChanges } from "@/lib/research-fields";
-import { parseTastedDate } from "@/lib/tasting-date";
+import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
 import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
-import { WINE_COLORS } from "@/lib/wine-colors";
+import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 import { uploadLabelPhoto } from "@/lib/blob";
 
 function parseOptionalInt(value) {
@@ -54,9 +54,10 @@ function bottleDataFromForm(formData) {
     quantity: Math.max(1, parseOptionalInt(formData.get("quantity")) || 1),
     notes: String(formData.get("notes") || "").trim() || null,
     abv: parseOptionalFloat(formData.get("abv")),
-    wineColor: WINE_COLORS.includes(formData.get("wineColor"))
-      ? formData.get("wineColor")
-      : null,
+    // Matched case-insensitively, so a value that is right but cased
+    // differently isn't thrown away - see normalizeWineColor for why an
+    // exact-equality check loses real answers here.
+    wineColor: normalizeWineColor(formData.get("wineColor")),
     drinkFrom: parseOptionalInt(formData.get("drinkFrom")),
     drinkTo: parseOptionalInt(formData.get("drinkTo")),
     criticNotes: String(formData.get("criticNotes") || "").trim() || null,
@@ -118,7 +119,9 @@ function bottleDataFromWine(wine) {
     quantity: 1,
     notes: null,
     abv: wine.abv ?? null,
-    wineColor: WINE_COLORS.includes(wine.wineColor) ? wine.wineColor : null,
+    // The scan tool is told the exact casing but isn't schema-constrained
+    // to it, so "white" has to land on "White" rather than on null.
+    wineColor: normalizeWineColor(wine.wineColor),
     drinkFrom: wine.drinkFrom ?? null,
     drinkTo: wine.drinkTo ?? null,
     // Only meaningful when there is a window at all, and only false when
@@ -197,7 +200,9 @@ export async function createBottleWithNote(status, prevState, formData) {
   if (note) {
     const rating = parseOptionalRating(formData.get("rating"));
     try {
-      await prisma.tastingNote.create({ data: { bottleId: bottle.id, note, rating } });
+      await prisma.tastingNote.create({
+        data: { bottleId: bottle.id, note, rating, tastedAt: todayAtNoonUtc() },
+      });
     } catch (err) {
       // Same reasoning as insertBottle's catch: don't let one card's DB
       // hiccup take down the rest of the batch. The bottle itself is
@@ -394,9 +399,12 @@ export async function addTastingNote(bottleId, formData) {
   const note = String(formData.get("note") || "").trim();
   if (!note) return;
   const rating = parseOptionalRating(formData.get("rating"));
-  // Falls back to the column's own now() when the field is missing or
-  // unparseable, so a note is never lost to a bad date.
-  const tastedAt = parseTastedDate(formData.get("tastedAt")) ?? undefined;
+  // Falls back to today when the field is missing or unparseable, so a
+  // note is never lost to a bad date - but anchored at noon UTC rather than
+  // left to the column's now(). A raw instant renders a day off for anyone
+  // west of Greenwich writing in the evening, and sorts inconsistently
+  // against picked dates on the same day. See lib/tasting-date.js.
+  const tastedAt = parseTastedDate(formData.get("tastedAt")) ?? todayAtNoonUtc();
 
   await prisma.tastingNote.create({ data: { bottleId, note, rating, tastedAt } });
   revalidatePath(`/bottles/${bottleId}`);
@@ -676,7 +684,12 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
             if (wine.note) {
               try {
                 await prisma.tastingNote.create({
-                  data: { bottleId: bottle.id, note: wine.note, rating: null },
+                  data: {
+                    bottleId: bottle.id,
+                    note: wine.note,
+                    rating: null,
+                    tastedAt: todayAtNoonUtc(),
+                  },
                 });
               } catch (err) {
                 console.error("Failed to save scanned tasting note:", err);
@@ -1226,6 +1239,12 @@ export async function researchBottle(id) {
 
   const { summary, sources, ...proposed } = result.data;
 
+  // Normalized here, not only on apply, so the diff a reviewer approves is
+  // the value that actually gets stored - RESEARCH_TOOL describes the color
+  // vocabulary in prose rather than as a JSON-Schema enum, so `strict`
+  // doesn't hold the model to the exact casing.
+  proposed.wineColor = normalizeWineColor(proposed.wineColor);
+
   // Upsert, not create: researching a bottle twice should replace the
   // pending answer rather than fail on the unique bottleId.
   await prisma.researchProposal.upsert({
@@ -1274,6 +1293,16 @@ export async function applyResearchProposal(id) {
   for (const { key } of RESEARCH_FIELDS) {
     data[key] = proposal.proposed[key] ?? null;
   }
+  // canonicalVariety is derived, never proposed - it isn't in
+  // RESEARCH_FIELDS, and lib/bottles.js only recomputes it live when the
+  // stored value is null. So a pass that corrects the grape has to
+  // re-derive what the variety filter actually matches on, or the bottle
+  // keeps answering to its old grape with nothing to show it happened.
+  data.canonicalVariety = canonicalizeVarietal(data.type, data.variety);
+  // RESEARCH_TOOL describes the color vocabulary in prose rather than as a
+  // JSON-Schema enum, so `strict` doesn't hold the model to it - same
+  // reasoning as the scan path in bottleDataFromWine.
+  data.wineColor = normalizeWineColor(data.wineColor);
 
   // Both or neither: a bottle updated but with its proposal still pending
   // would come straight back into the review queue claiming changes that

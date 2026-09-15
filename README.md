@@ -213,9 +213,13 @@ features like separate cellars per user.
   goes with it ("Also deletes 2 tasting notes and 2 guest favorites"),
   since a bottle's notes and favorites are cascade-deleted along with it.
 - **Data export** (`/export`, linked from the home page) — downloads
-  everything (every bottle, its tasting notes, guests and their
-  favorites) as one JSON file. Cheap peace of mind for a personal system
-  with no other backup story.
+  every bottle with its tasting notes, guests and their favorites, saved
+  flights with their picks, and any photos added after scan time, as one
+  JSON file. Drinking-window estimates and pending research proposals are
+  left out on purpose: the first is a cache that rebuilds by asking again,
+  the second is unreviewed state. Cheap peace of mind for a personal system
+  with no other backup story — though nothing reads the file back yet
+  (see [`BACKLOG.md`](./BACKLOG.md) #18).
 - **Add to home screen** — the app has a real icon and manifest, so
   "Add to Home Screen" (iOS/Android) gives it its own icon and a
   standalone window (no browser address bar) instead of just a bookmarked
