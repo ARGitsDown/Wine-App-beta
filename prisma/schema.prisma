@@ -66,7 +66,7 @@ model Bottle {
   // behaves very differently at the table than a 12.5% Riesling).
   abv      Float?
   // A small fixed vocabulary (Red/White/Rosé/Orange/Sparkling/Dessert/
-  // Fortified - see WINE_COLORS in app/actions.js), distinct from `type`
+  // Fortified - see WINE_COLORS in lib/wine-colors.js), distinct from `type`
   // (which names the grape/style, not the color) so "show me all my
   // whites" works regardless of how `type` happens to be worded. A plain
   // String rather than a Prisma enum, same reasoning as `status` below -
@@ -119,7 +119,7 @@ model Bottle {
   // guessed: a wishlist bottle isn't owned yet, and a wine logged straight
   // to tasting notes never sat in the cellar at all, so neither has an
   // acquisition date to record. Derived from status changes the way
-  // emptiedAt is (see acquiredAtForStatus in app/actions.js) - stamped when
+  // emptiedAt is (see acquiredAtForStatus in lib/bottle-dates.js) - stamped when
   // a row arrives in the cellar, cleared if it goes back to the wishlist,
   // and carried through to consumed, where "bought 2019, drunk 2026" is
   // exactly the fact worth keeping. Rows that predate this column have

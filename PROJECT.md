@@ -45,8 +45,10 @@ rule them out. Two items originally listed here are since built — see
 - ~~Photo-based label reading~~ — built as `/scan`, including multi-wine
   sheets (a shop's tasting list), not just single bottle labels.
 - Barcode scanning
-- Drinking window tracking (when a bottle is at its peak) — tracked in
-  [`BACKLOG.md`](./BACKLOG.md).
+- ~~Drinking window tracking (when a bottle is at its peak)~~ — built.
+  Every way a bottle gets added now fills one in, `/estimate-windows`
+  backfills the ones that predate it, and the Cellar sorts by "drink soon".
+  See [`BACKLOG.md`](./BACKLOG.md) #4 and #7.
 - ~~Sharing or collaborating with other people~~ — partly built as guest
   favoriting (`/guest`): no accounts, a friend just browses your inventory
   and shortlists bottles for their next visit. Everyone getting their own
@@ -54,9 +56,10 @@ rule them out. Two items originally listed here are since built — see
   [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md) rather than here.
 - Price tracking / valuation
 - Offline support
-- Saved/browsable tasting flights (a "queue" to pull bottles from later to
-  consume and rate) — the current `/suggest` pairing output is ephemeral,
-  not saved anywhere yet.
+- ~~Saved/browsable tasting flights (a "queue" to pull bottles from later
+  to consume and rate)~~ — built as `/flights`, either saved from a
+  `/suggest` result or started by hand. A pairing suggestion is still
+  deliberately ephemeral; a flight is the thing that gets kept.
 
 ## 5. How I want to use it
 
@@ -99,15 +102,23 @@ rule them out. Two items originally listed here are since built — see
 Things worth deciding — with the coding assistant's guidance — before or
 shortly after building starts:
 
-- **Confirm the "web app, not native app" recommendation in section 5** —
-  I'm not attached to it, just don't have the background to evaluate it
-  myself.
-- **Data storage:** where does my data actually live, and is it backed up
-  anywhere I could recover it from if something breaks?
-- **Hosting:** where does the app run once it's more than a local
-  experiment, and does that cost anything?
+- ~~**Confirm the "web app, not native app" recommendation in section 5**~~
+  — answered: built as a mobile-friendly web app. It has its own icon and
+  manifest, so "Add to Home Screen" gives it an icon and a standalone window
+  with no browser address bar — see [`README.md`](./README.md), "Add to home
+  screen".
+- ~~**Data storage**~~ — answered: one hosted Postgres database, used
+  everywhere, with no separate local copy (see `.env.example`). Backup is
+  `/export`, which downloads the contents as a single JSON file whenever you
+  want one.
+- ~~**Hosting**~~ — answered: deployed on [Vercel](https://vercel.com), which
+  also hosts the database; `npm run build` applies any schema changes on every
+  deploy. The running cost that isn't fixed is the Anthropic API calls behind
+  scanning, research and suggestions.
 - **How much do I need to understand vs. just trust?** I want to learn, but
   I also don't want every small step to turn into a lecture — worth
   agreeing on a rhythm (e.g., explain new concepts, don't re-explain
   repeated ones).
-- **Naming:** does this app need a name, or is that unimportant for now?
+- ~~**Naming**~~ — answered: the app is called **Cellarmaster**, with its own
+  mark (a cellar vault with a bunch hanging in it) drawn in
+  `app/components/AppMark.js`.

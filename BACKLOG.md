@@ -220,7 +220,7 @@ indexes) is tracked separately as ordinary work, not here.
   the batching that's already there, but it's one AI call per batch over
   the entire inventory - the same shape of spend as the drinking-window
   backfill, repeated per field group.
-- **Precomputed "drink soon" digest.** BACKLOG #7 already wants a
+- **Precomputed "drink soon" digest.** BACKLOG #7 already has a
   drink-soon sort. Going further - a scheduled job that emails or pushes
   "these three are hitting their window this month" - needs a cron and a
   delivery channel, both recurring costs for something the sort itself
@@ -766,6 +766,17 @@ three.
   notes with wines attached: the name says the second, the implementation
   is the first. Both are defensible, which is what makes it a branch
   question rather than a fix.
+
+## 18. The export doesn't export everything
+
+`/export` is described as a full backup and reads like one, but it covers
+`Bottle` (with `tastingNotes`) and `Guest` (with `favorites`) only. Saved
+flights and their picks, research proposals waiting for review, and the
+`BottlePhoto` rows added after scanning are all left out - the bottle's own
+`photoUrl` comes along, the later photos don't. Flights are the real loss:
+they're hand-curated and exist nowhere else. Either include them or say in
+the README what the file actually holds, because a backup you trust wrongly
+is worse than one you know the limits of.
 
 ## Lower priority / optional
 
