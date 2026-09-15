@@ -204,7 +204,13 @@ answer and into the row, not just into the happy-path UI.
 
 The owner is learning to code and reads these reviews to understand the system.
 Explain what the model will do wrong, in plain language, before explaining the
-fix. Name the file and line, relative to the repository root.
+fix.
+
+**Every path you cite is relative to the repository root** - `app/actions.js:451`,
+never `/home/user/.../app/actions.js:451`. The owner reads these findings beside
+their own editor, and an absolute path from your sandbox is noise they have to
+mentally strip off every line. This applies to prose, headings and code comments
+alike.
 
 Group findings under three headings, most serious first, and leave out any
 heading with nothing under it:
