@@ -313,6 +313,63 @@ bite someone actually using the app.
   inference and the `bottling` field are where a regression would show
   first, and a side-by-side against the heavier model is the check.
 
+- **The Research nav badge undercounts, so work can wait with nothing
+  saying so.** The badge counts bottles with `needsResearch: true`
+  (`app/(owner)/layout.js:15`), but the Research page's "Ready to review"
+  list is driven by the `ResearchProposal` table
+  (`app/(owner)/research/page.js:15-18`). Those are not the same set.
+  Research a bottle from its own page that scanning never flagged and a
+  proposal sits waiting for review while the badge stays at zero - and
+  since `/research` is not in `NAV_LINKS` and the badge only renders when
+  the count is non-zero, there is no route to it and no hint it exists.
+  Counting bottles that are flagged *or* carry a proposal fixes the
+  number; whether `/research` should be a permanent nav entry is the
+  wider question underneath it.
+- **"Research all" stops if you navigate away.** One bottle at a time is
+  safe - `researchBottle` upserts its proposal as the last thing it does
+  (`app/actions.js:1198`), so once the server finishes, the answer is
+  durable whether or not the browser is still listening. The bulk path is
+  not: `ResearchQueue.researchAll` (`app/components/ResearchQueue.js:48-66`)
+  chunks the ids and awaits each batch *in the browser*, so leaving the
+  page stops it after the batch in flight. With thirty flagged bottles
+  you get three. The chunking itself is right - it is what keeps one
+  request from hitting a serverless execution limit, the same shape
+  `/estimate-windows` uses - so the fix is a resumable server-side job
+  that survives the client, not simply moving the loop.
+- **Research has no progress bar, though scanning does.** The text count
+  is there ("Researching… 2 of 7", `ResearchQueue.js:83`) but not the
+  filling bar a photo batch gets, which is the part that reads as
+  progress rather than as a stall. Lifting `BatchProgress` out of
+  `ScanPanel` into a shared component would settle it for both, and for
+  `/estimate-windows`, which already grew its own copy.
+- **Research names destinations in text where the rest of the app uses an
+  icon and a color.** Cellar, Wishlist and Tasted each have an icon and
+  an accent pair that the home cards and the scan destination picker
+  already share. `BOTTLE_DESTINATIONS` (`lib/scan-intent.js`) now holds
+  the status, label and path in one list; adding the icon there would let
+  Research, the scan cards and the bottle page all speak the same visual
+  language from one source rather than three.
+- **A scan review card renders a six-row critic-notes box that scanning
+  never fills.** `bottleDataFromWine` sets `criticNotes: null`
+  (`app/actions.js:131`) and the field's own placeholder says Research
+  fills it in later - but `BottleForm` renders it at `minRows={6}`
+  unconditionally (`app/components/BottleForm.js:241-252`), so every
+  wine on a scanned tasting sheet carries roughly 150px of guaranteed-empty
+  textarea. Nine wines off one sheet is most of a screen of nothing, in a
+  review whose actual job is glancing at nine names and fixing two. A
+  `showCriticNotes` prop defaulting off for scan cards is the small
+  version; collapsing the whole card to a header line with "Edit details"
+  is the real one.
+- **The Tasting notes page shows no tasting notes.** `/consumed` renders
+  the same `FilterableBottleList` as the Cellar with two flags flipped
+  (`app/(owner)/consumed/page.js:22-31`), and an expanded row shows the
+  photo, variety/region/country, favorites, quantity and a link - no note
+  text anywhere (`app/components/BottleList.js:120-156`). So on the one
+  page named after them, a note cannot be read without opening the
+  bottle's own page. The list is right that a row is a wine; what is
+  missing is that on this page the note is the payload, not a detail
+  behind it.
+
 ## ~~11. Steering the character of a suggestion~~ — done
 
 Suggest used to infer two things from one freeform box: pairing vs
