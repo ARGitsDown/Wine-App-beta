@@ -7,8 +7,10 @@ import {
   updateBottle,
   setBottleStatus,
   removeScannedBottle,
+  removeScannedBottles,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import ConfirmButton from "@/app/components/ConfirmButton";
 import Spinner from "@/app/components/Spinner";
 import {
   ScanIcon,
@@ -53,15 +55,24 @@ function batchProgress(photos) {
   const done = photos.filter((p) => p.status !== "loading").length;
   const failed = photos.filter((p) => p.status === "error").length;
   // Only wines from photos that actually read - an errored photo still gets
-  // one blank card to type into, which isn't a wine anyone found.
-  const wines = photos
-    .filter((p) => p.status === "ready")
-    .reduce((n, p) => n + p.entries.length, 0);
-  return { total, done, failed, wines, running: done < total };
+  // one blank card to type into, which isn't a wine anyone found - and,
+  // within those, only the ones that reached the database. A wine whose
+  // save failed is still on screen as a draft card, so counting entries
+  // rather than saves reported it as "saved" when nothing had been stored.
+  const ready = photos.filter((p) => p.status === "ready");
+  const wines = ready.reduce(
+    (n, p) => n + p.entries.filter((e) => e.kind === "saved").length,
+    0
+  );
+  const unsaved = ready.reduce(
+    (n, p) => n + p.entries.filter((e) => e.kind !== "saved").length,
+    0
+  );
+  return { total, done, failed, wines, unsaved, running: done < total };
 }
 
 function BatchProgress({ photos }) {
-  const { total, done, failed, wines, running } = batchProgress(photos);
+  const { total, done, failed, wines, unsaved, running } = batchProgress(photos);
   if (total === 0) return null;
 
   return (
@@ -86,6 +97,11 @@ function BatchProgress({ photos }) {
         {failed > 0 && !running && (
           <span className="text-xs text-red-600 dark:text-red-400">
             {failed} couldn&apos;t be read
+          </span>
+        )}
+        {unsaved > 0 && !running && (
+          <span className="text-xs text-amber-700 dark:text-amber-400">
+            {unsaved} still to save
           </span>
         )}
       </div>
@@ -130,7 +146,47 @@ function entriesFromScanResults(results, intent) {
   return results.map((result) =>
     result.bottle
       ? { localId: nextEntryId++, kind: "saved", bottle: result.bottle }
-      : draftEntriesFromWines([result.wine], intent)[0]
+      : // Flagged so the card can say why it is still a draft. Otherwise it
+        // looks exactly like a wine read from a photo that failed outright,
+        // and the only hint that this one needs a click is the word "Save"
+        // instead of "Saved" in its legend.
+        { ...draftEntriesFromWines([result.wine], intent)[0], saveFailed: true }
+  );
+}
+
+// Removing a photo takes every wine it produced with it, which can be
+// several real bottles at once - so it asks first whenever there is anything
+// saved to lose, and stays a plain link when the photo only left drafts
+// behind. The count is in the button itself because "all its wines" doesn't
+// say how many that is once the card has scrolled.
+function RemovePhotoButton({ photo, onRemove }) {
+  const saved = photo.entries.filter((e) => e.kind === "saved").length;
+  const label = "Remove this photo and all its wines from the batch";
+  const linkClass = "text-xs text-zinc-500 underline underline-offset-2";
+
+  if (saved === 0) {
+    return (
+      <button
+        type="button"
+        onClick={onRemove}
+        className={`self-start pl-0 ${linkClass} sm:pl-[6.5rem]`}
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="self-start pl-0 sm:pl-[6.5rem]">
+      <ConfirmButton
+        action={onRemove}
+        label={label}
+        confirmLabel={`Yes, delete ${saved} wine${saved === 1 ? "" : "s"}`}
+        warning={`Deletes ${saved} saved wine${saved === 1 ? "" : "s"}.`}
+        className={linkClass}
+        confirmClassName="text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-400"
+      />
+    </div>
   );
 }
 
@@ -274,12 +330,20 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
     await runWithConcurrency(newPhotos, 3, (photo) => processPhoto(photo, batchIntent));
   }
 
-  function removePhoto(id) {
-    setPhotos((prev) => {
-      const photo = prev.find((p) => p.id === id);
-      if (photo) URL.revokeObjectURL(photo.previewUrl);
-      return prev.filter((p) => p.id !== id);
-    });
+  // Same rule as the per-wine Delete, applied to everything one photo
+  // produced: a "saved" entry is already a row in the database, so dropping
+  // its card has to delete that row too. Removing only the local state left
+  // the batch looking tidied up while the bottles quietly stayed in the
+  // cellar, with nothing on screen still pointing at them.
+  async function removePhoto(id) {
+    const photo = photos.find((p) => p.id === id);
+    if (!photo) return;
+    const saved = photo.entries.filter((e) => e.kind === "saved");
+    if (saved.length > 0) {
+      await removeScannedBottles(saved.map((e) => e.bottle.id));
+    }
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
+    URL.revokeObjectURL(photo.previewUrl);
   }
 
   // Each preview URL otherwise stays alive (and the image data with it) for
@@ -529,6 +593,14 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                     </p>
                   ) : (
                     <>
+                      {entry.saveFailed && (
+                        <p className="rounded-lg border border-red-300 p-2 text-xs text-red-700 dark:border-red-900 dark:text-red-400">
+                          This wine was read from the photo, but saving it
+                          failed. Nothing has been stored yet &mdash; check the
+                          fields and press Save bottle.
+                        </p>
+                      )}
+
                       {entry.extracted.confident === false && (
                         <p className="rounded-lg border border-amber-300 p-2 text-xs text-amber-700 dark:border-amber-900 dark:text-amber-400">
                           Not fully confident about this one &mdash; please
@@ -584,13 +656,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
             </div>
 
             {photo.status !== "loading" && (
-              <button
-                type="button"
-                onClick={() => removePhoto(photo.id)}
-                className="self-start pl-0 text-xs text-zinc-500 underline underline-offset-2 sm:pl-[6.5rem]"
-              >
-                Remove this photo and all its wines from the batch
-              </button>
+              <RemovePhotoButton photo={photo} onRemove={() => removePhoto(photo.id)} />
             )}
           </div>
         ))}

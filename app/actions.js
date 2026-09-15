@@ -360,6 +360,29 @@ export async function removeScannedBottle(id) {
   revalidatePath(pathForStatus(bottle.status));
 }
 
+// Dropping a whole photo from the scan batch deletes every bottle that photo
+// saved, which can be several at once. Deliberately one action rather than a
+// loop of removeScannedBottle on the client: each of those revalidates, and
+// the router refresh that follows cancels the calls still in flight, so the
+// last bottle or two survived a remove that said it had taken everything.
+export async function removeScannedBottles(ids) {
+  const wanted = (Array.isArray(ids) ? ids : [])
+    .map(Number)
+    .filter(Number.isInteger);
+  if (wanted.length === 0) return;
+
+  // Read the statuses before deleting - afterwards there is nothing left to
+  // say which lists need refreshing.
+  const bottles = await prisma.bottle.findMany({
+    where: { id: { in: wanted } },
+    select: { status: true },
+  });
+  await prisma.bottle.deleteMany({ where: { id: { in: wanted } } });
+  for (const path of new Set(bottles.map((b) => pathForStatus(b.status)))) {
+    revalidatePath(path);
+  }
+}
+
 export async function addTastingNote(bottleId, formData) {
   const note = String(formData.get("note") || "").trim();
   if (!note) return;

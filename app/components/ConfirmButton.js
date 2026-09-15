@@ -8,8 +8,10 @@ import { useState } from "react";
 // the part worth pausing over, and a browser dialog can't be styled, reads
 // as a system error on mobile, and is suppressible.
 //
-// `action` is a bound Server Action. Nothing is submitted until the second
-// click, so the first one is free to be a mis-tap.
+// `action` is whatever React accepts as a form action - usually a bound
+// Server Action, or a client function where the delete is a few actions in
+// a row. Nothing runs until the second click, so the first one is free to
+// be a mis-tap.
 export default function ConfirmButton({
   action,
   label,
