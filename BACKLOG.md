@@ -1,10 +1,17 @@
 # Hygiene Backlog
 
-Known data-model gaps and inconsistencies worth revisiting as the app
-matures. These aren't new features — they're refinements to data we
-already collect, where the current model is a working simplification
-rather than a wrong one. Add to this list as new gaps surface; check items
-off (or delete them) once addressed.
+Known gaps worth revisiting as the app matures. Mostly data-model
+refinements, where the current shape is a working simplification rather
+than a wrong one — but the list has grown past that: it also holds the UX
+passes (#9, #16), the speed work parked on what it would cost to run (#8),
+and the model choices waiting on a measurement rather than on a decision
+(#9's last two). What they have in common is that none of them is a new
+feature. They are the app it already is, done more carefully.
+
+Add to this list as new gaps surface; check items off (or delete them)
+once addressed. Section numbers are referenced from README.md and from
+commit messages, so they stay put — which is why the order stops making
+sense partway down.
 
 ## ~~1. Standardized/canonical varietal name~~ — done
 
@@ -489,12 +496,13 @@ constraint on (flightId, bottleId). Flights saved from Suggest before this
 existed could already contain a repeat, and a migration that fails on live
 data is a worse trade than a guard in the one function that adds picks.
 
-## 16. The scan flow, reviewed end to end
+## ~~16. The scan flow, reviewed end to end~~ — done
 
 A UX pass over the whole scan flow - picking a destination, reading a
-batch, and reviewing what came back. Two of its findings were real bugs
-and are fixed; one was declined on the owner's read of how the app is
-actually used. The rest are listed here rather than in a chat log.
+batch, and reviewing what came back. Eight of its nine findings are fixed;
+the ninth was declined on the owner's read of how the app is actually
+used. Kept here rather than in a chat log, since what was declined and why
+is as much a part of the record as what was built.
 
 - ~~**Removing a photo left its bottles in the cellar.**~~ — fixed. The
   control says it removes "all its wines from the batch" and only dropped
