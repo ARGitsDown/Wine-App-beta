@@ -599,7 +599,11 @@ reintroduced later as a fresh idea.
 
 ### Cheap, and independent of any redesign
 
-- **The whole app renders in Arial.** `app/layout.js:1-12` loads Geist and
+- ~~**The whole app rendered in Arial.**~~ — fixed. The create-next-app
+  line is gone and `<body>` carries `font-sans`, so Geist finally applies
+  and the two downloaded fonts are the ones on screen. Done first, because
+  every judgment about spacing and weight is a judgment about whichever
+  font is actually rendering. Original finding: `app/layout.js:1-12` loads Geist and
   Geist Mono and puts their variables on `<html>`; `app/globals.css:8-14`
   maps `--font-sans` to Geist. Then `app/globals.css:25` sets
   `body { font-family: Arial, Helvetica, sans-serif; }` and `<body>`
@@ -609,7 +613,19 @@ reintroduced later as a fresh idea.
   it. Deleting that one line is the whole fix, and it is worth doing
   before any other visual work, because it changes how every later
   judgment about spacing and weight reads.
-- **There is no error boundary anywhere in `app/`.** No `error.js`, no
+- ~~**There was no error boundary anywhere in `app/`.**~~ — fixed, with
+  two rather than one. A boundary replaces everything it wraps, and a root
+  one wraps the owner group's layout, so a single failed page took the
+  whole nav with it and left one link as the only way anywhere. There is
+  now `app/(owner)/error.js` for the common case, keeping the nav and
+  confining the failure to `<main>`, and `app/error.js` as the outer net -
+  a segment's error.js does not wrap the layout beside it, so the root one
+  is what catches a failure in the group layout itself, the research
+  badge's query included. Both render `ErrorScreen`, which offers `retry()`
+  and shows `error.digest`, the only thread back to a server error whose
+  real message never reaches the browser. Note for anyone writing another:
+  the prop is `retry`, not `reset`, in this version of Next. Original
+  finding: No `error.js`, no
   `global-error.js`. Most server actions catch deliberately - the comment
   at `insertBottle` explains that one scan card's database error must not
   take down the batch - but any action that does not catch throws to
@@ -634,7 +650,10 @@ reintroduced later as a fresh idea.
 
 All three verified still open against the current scan code.
 
-- **Deleting one scanned wine is still unguarded.** #16 replaced the
+- ~~**Deleting one scanned wine was unguarded.**~~ — fixed, and
+  `removeScannedBottles` with it, which had the same gap. Both return
+  `{ ok }` / `{ error }`, and the card or photo is dropped only once the
+  row is actually gone. Original finding: #16 replaced the
   whole-photo path with `removeScannedBottles`, for good reasons about
   revalidation cancelling in-flight calls - but the single-card delete
   still goes through `removeScannedBottle` (`app/actions.js:365-368`),
@@ -643,7 +662,10 @@ All three verified still open against the current scan code.
   action and - with no error boundary, above - takes every unreviewed card
   with it. Wants a try/catch returning `{ error }`, and the card's removal
   only on success.
-- **Correcting a flagged wine never clears its flag.** `updateBottle`
+- ~~**Correcting a flagged wine never cleared its flag.**~~ — fixed. The
+  card's amber banner now carries a "Looks right — clear the flag" button
+  calling the existing `dismissResearch`, deliberately a control rather
+  than a side effect of saving. Original finding: `updateBottle`
   deliberately does not touch `needsResearch` - right when the bottle page
   was the only place to edit, since a plain edit should not silently
   resolve a research question. But a scan card is now a full editor too,
@@ -654,7 +676,10 @@ All three verified still open against the current scan code.
   a control, not a silent clear: a "Looks right, clear the flag" button
   calling the existing `dismissResearch`, so one field corrected without
   checking the rest does not resolve the whole question by accident.
-- **Changing a card's destination can silently lie.** Tapping Cellar /
+- ~~**Changing a card's destination could silently lie.**~~ — fixed.
+  `setBottleStatus` returns `{ ok }` / `{ error }`, and the card puts the
+  radio back where it was and says why when the write doesn't land.
+  Original finding: Tapping Cellar /
   Wishlist / Tasted updates the radio immediately and fires
   `setBottleStatus`, which returns nothing on success and returns silently
   when the row is gone (`app/actions.js:240-245`). If it fails, the radio
@@ -662,7 +687,10 @@ All three verified still open against the current scan code.
   Wishlist, the database says Cellar, and nothing on screen disagrees.
   Wants an `{ ok }` / `{ error }` return and a revert of the optimistic
   update on failure.
-- **The per-card destination control is a 20px target beside a 44px one.**
+- ~~**The per-card destination control was a 20px target beside a 44px
+  one.**~~ — fixed. Both cards use one segmented control borrowing the page
+  picker's icons and accents, measured at 44px with no overflow at 375px.
+  Original finding:
   The destination picker is `h-11` and tints only its selection. The
   control making the same decision per wine - the "Saved to" / "Save to"
   fieldsets - is three browser-default radios with `text-sm` labels,
@@ -672,7 +700,11 @@ All three verified still open against the current scan code.
 
 ### Research
 
-- **The nav badge undercounts, so work can wait with nothing saying so.**
+- ~~**The nav badge undercounted, so work could wait with nothing saying
+  so.**~~ — fixed. It counts bottles flagged *or* carrying a proposal, so
+  it now counts the same work `/research` will show. Whether `/research`
+  deserves a permanent nav entry is still open, and still the wider
+  question underneath. Original finding:
   The badge counts bottles with `needsResearch: true`
   (`app/(owner)/layout.js`), but the Research page's "Ready to review"
   list is driven by the `ResearchProposal` table
