@@ -19,6 +19,7 @@ import { flightName as nameOfFlight, isOpenFlight } from "@/lib/flights";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
 import InlineDateEditor from "@/app/components/InlineDateEditor";
+import EstimateWindowButton from "@/app/components/EstimateWindowButton";
 import { todayInputValue } from "@/lib/tasting-date";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 
@@ -149,6 +150,15 @@ export default async function BottleDetailPage({ params, searchParams }) {
                   )}
                 </span>
               )}
+              {/* Scanning and Research now always propose a window, so a
+                  blank one means a bottle added by hand or a wine neither
+                  could place. Not offered on a bottle already drunk - when
+                  to open it is no longer a question. */}
+              {!bottle.drinkFrom &&
+                !bottle.drinkTo &&
+                bottle.status !== "consumed" && (
+                  <EstimateWindowButton bottleId={bottle.id} />
+                )}
             </div>
             {/* A wishlist bottle isn't owned, so there's nothing to date.
                 Everywhere else it can be true - including History, where

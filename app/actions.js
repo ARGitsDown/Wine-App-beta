@@ -75,6 +75,14 @@ function clearEstimatedFlagIfWindowChanged(data, existingBottle) {
   return changed ? { ...data, drinkWindowEstimated: false } : data;
 }
 
+// A window only counts as estimated when there is one at all, and only
+// counts as sourced when the research pass said so outright - an absent or
+// malformed flag lands on "estimated", which is the honest default.
+function windowEstimatedFromProposal(data, proposal) {
+  if (data.drinkFrom == null && data.drinkTo == null) return false;
+  return proposal?.proposed?.drinkWindowEstimated !== false;
+}
+
 // The Region autocomplete's list is cached (see getRegionOptions), and a
 // bottle write is the only way a region name it hasn't seen can appear.
 // Called after creating or editing a bottle, not after deleting one: a
@@ -113,6 +121,13 @@ function bottleDataFromWine(wine) {
     wineColor: WINE_COLORS.includes(wine.wineColor) ? wine.wineColor : null,
     drinkFrom: wine.drinkFrom ?? null,
     drinkTo: wine.drinkTo ?? null,
+    // Only meaningful when there is a window at all, and only false when
+    // the model says the source stated one outright - so an unanswered or
+    // malformed flag lands on "estimated", which is the honest default.
+    drinkWindowEstimated:
+      (wine.drinkFrom ?? null) !== null || (wine.drinkTo ?? null) !== null
+        ? wine.drinkWindowEstimated !== false
+        : false,
     criticNotes: null,
   };
 }
@@ -450,11 +465,16 @@ const WINE_ENTRY_SCHEMA = {
     drinkFrom: {
       type: ["integer", "null"],
       description:
-        "Start of the drinking window (a year), if the label/sheet states one outright, or you have a genuinely confident basis to estimate one from the wine's style/structure and vintage. Null rather than a speculative guess - most wines shouldn't get one.",
+        "Start of the drinking window (a year). Always give your best estimate from the wine's style, structure, region and vintage - not only when the label states one. A rough window the owner can correct is worth far more to them than a blank field. Null only when you genuinely cannot judge, e.g. the producer or vintage was unreadable.",
     },
     drinkTo: {
       type: ["integer", "null"],
       description: "End of the drinking window (a year), same standard as drinkFrom.",
+    },
+    drinkWindowEstimated: {
+      type: "boolean",
+      description:
+        "True when the window above is your own judgment; false only when the label or source document states it outright. Nearly always true - very few labels print a drinking window - and the app shows an 'estimated' marker either way, so answer honestly rather than generously.",
     },
     note: {
       type: ["string", "null"],
@@ -1025,7 +1045,13 @@ const RESEARCH_TOOL = {
       },
       drinkFrom: {
         type: ["integer", "null"],
-        description: "Start of the drinking window (a year), only if genuinely well-supported.",
+        description:
+          "Start of the drinking window (a year). Prefer one your sources state; where they don't, still give your best estimate from the producer, region, style and vintage rather than leaving it blank. Null only when you genuinely cannot judge.",
+      },
+      drinkWindowEstimated: {
+        type: "boolean",
+        description:
+          "True when the window above is your own judgment rather than something your sources state outright. The app marks an estimated window as such, so answer honestly - a guess labelled as sourced is worse than a guess labelled as a guess.",
       },
       drinkTo: {
         type: ["integer", "null"],
@@ -1195,7 +1221,7 @@ export async function researchBottles(ids) {
 // whole point of having reviewed the diff first.
 export async function applyResearchProposal(id) {
   const [bottle, proposal] = await Promise.all([
-    prisma.bottle.findUnique({ where: { id }, select: { drinkFrom: true, drinkTo: true } }),
+    prisma.bottle.findUnique({ where: { id }, select: { id: true } }),
     prisma.researchProposal.findUnique({ where: { bottleId: id } }),
   ]);
   if (!bottle) return { error: "That bottle no longer exists." };
@@ -1215,7 +1241,14 @@ export async function applyResearchProposal(id) {
   const [updated] = await prisma.$transaction([
     prisma.bottle.update({
       where: { id },
-      data: { ...clearEstimatedFlagIfWindowChanged(data, bottle), needsResearch: false },
+      data: {
+        ...data,
+        // The proposal already says whether its window was sourced or
+        // judged, so carry that. Running it through the human-edit rule
+        // instead would read "accepted a guess" as "confirmed a guess".
+        drinkWindowEstimated: windowEstimatedFromProposal(data, proposal),
+        needsResearch: false,
+      },
     }),
     prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
   ]);
@@ -1236,17 +1269,30 @@ export async function applyResearch(id, prevState, formData) {
   if (!data.producer) return { error: "Producer is required." };
 
   try {
-    const existing = await prisma.bottle.findUnique({
-      where: { id },
-      select: { drinkFrom: true, drinkTo: true },
-    });
+    const [existing, proposal] = await Promise.all([
+      prisma.bottle.findUnique({
+        where: { id },
+        select: { drinkFrom: true, drinkTo: true },
+      }),
+      prisma.researchProposal.findUnique({ where: { bottleId: id } }),
+    ]);
+    // Keeping the proposal's own years untouched means accepting its
+    // answer, flag and all; typing different ones is the human making the
+    // call, which is exactly what clearEstimatedFlagIfWindowChanged is for.
+    const keptProposedWindow =
+      proposal &&
+      (proposal.proposed.drinkFrom ?? null) === data.drinkFrom &&
+      (proposal.proposed.drinkTo ?? null) === data.drinkTo;
+    const withFlag = keptProposedWindow
+      ? { ...data, drinkWindowEstimated: windowEstimatedFromProposal(data, proposal) }
+      : clearEstimatedFlagIfWindowChanged(data, existing);
     // Edited and saved settles the proposal just as much as accepting it
     // does; leaving it would put the bottle straight back in the review
     // queue with an answer that has already been dealt with.
     const [bottle] = await prisma.$transaction([
       prisma.bottle.update({
         where: { id },
-        data: { ...clearEstimatedFlagIfWindowChanged(data, existing), needsResearch: false },
+        data: { ...withFlag, needsResearch: false },
       }),
       prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
     ]);
@@ -1309,7 +1355,7 @@ const DRINK_WINDOW_ESTIMATE_TOOL = {
 };
 
 const DRINK_WINDOW_SYSTEM_PROMPT =
-  "You estimate drinking windows (the year range a wine is expected to be at its best) for a batch of wines already in a personal cellar, using your general knowledge of the producer, variety, region, and vintage - not a web search. This is a bulk backfill for wines with no window on file at all, so bias toward giving a genuine best estimate rather than null - a rough estimate the owner can refine later is far more useful than a blank field. Call record_drink_window_estimates exactly once with one entry per wine listed, in the same order, echoing back each id.";
+  "You estimate drinking windows (the year range a wine is expected to be at its best) for a batch of wines already in a personal cellar, using your general knowledge of the producer, variety, region, and vintage - not a web search. You are asked about wines with no window on file at all - sometimes a whole cellar's worth, sometimes a single bottle - so bias toward giving a genuine best estimate rather than null - a rough estimate the owner can refine later is far more useful than a blank field. Call record_drink_window_estimates exactly once with one entry per wine listed, in the same order, echoing back each id.";
 
 function describeBottleForWindowEstimate(bottle) {
   return [
@@ -1326,6 +1372,45 @@ function describeBottleForWindowEstimate(bottle) {
 }
 
 // One-time bulk pass over inventory bottles with no drinking window at all
+// One estimate onto one bottle. Shared by the bulk pass and the
+// single-bottle action so neither can forget the part that matters: an
+// estimate is always stored marked as an estimate.
+async function writeWindowEstimate(bottleId, { drinkFrom, drinkTo }) {
+  await prisma.bottle.update({
+    where: { id: bottleId },
+    data: { drinkFrom, drinkTo, drinkWindowEstimated: true },
+  });
+}
+
+// Failing to remember an answer is never a reason to discard it, so this
+// swallows its own errors.
+async function cacheWindowEstimate(key, { drinkFrom, drinkTo }) {
+  try {
+    await prisma.drinkWindowEstimate.upsert({
+      where: { key },
+      create: { key, drinkFrom, drinkTo },
+      update: { drinkFrom, drinkTo },
+    });
+  } catch (err) {
+    console.error(`Failed to cache drink window estimate for ${key}:`, err);
+  }
+}
+
+// What the estimate needs to know about a wine - the same shape the cache
+// key is built from, plus the id.
+const WINDOW_ESTIMATE_SELECT = {
+  id: true,
+  producer: true,
+  bottling: true,
+  vintage: true,
+  type: true,
+  variety: true,
+  canonicalVariety: true,
+  region: true,
+  subRegion: true,
+  country: true,
+};
+
 // (both drinkFrom and drinkTo null - a partial window someone deliberately
 // left open-ended is never touched). Applies estimates directly rather
 // than reviewing one by one, since that isn't practical at the hundreds-
@@ -1337,18 +1422,7 @@ function describeBottleForWindowEstimate(bottle) {
 export async function estimateDrinkWindows(bottleIds) {
   const bottles = await prisma.bottle.findMany({
     where: { id: { in: bottleIds } },
-    select: {
-      id: true,
-      producer: true,
-      bottling: true,
-      vintage: true,
-      type: true,
-      variety: true,
-      canonicalVariety: true,
-      region: true,
-      subRegion: true,
-      country: true,
-    },
+    select: WINDOW_ESTIMATE_SELECT,
   });
   if (bottles.length === 0) return { data: { updated: 0, total: 0, fromCache: 0 } };
 
@@ -1358,10 +1432,7 @@ export async function estimateDrinkWindows(bottleIds) {
     let applied = 0;
     for (const bottle of targets) {
       try {
-        await prisma.bottle.update({
-          where: { id: bottle.id },
-          data: { drinkFrom, drinkTo, drinkWindowEstimated: true },
-        });
+        await writeWindowEstimate(bottle.id, { drinkFrom, drinkTo });
         applied++;
       } catch (err) {
         // One bad id (e.g. a bottle deleted mid-run) shouldn't cost the
@@ -1436,17 +1507,7 @@ export async function estimateDrinkWindows(bottleIds) {
       const key = keyByBottleId.get(estimate.id);
       if (!key) continue;
 
-      try {
-        await prisma.drinkWindowEstimate.upsert({
-          where: { key },
-          create: { key, drinkFrom: estimate.drinkFrom, drinkTo: estimate.drinkTo },
-          update: { drinkFrom: estimate.drinkFrom, drinkTo: estimate.drinkTo },
-        });
-      } catch (err) {
-        // Failing to remember the answer is not a reason to discard it.
-        console.error(`Failed to cache drink window estimate for ${key}:`, err);
-      }
-
+      await cacheWindowEstimate(key, estimate);
       updated += await applyToBottles(byKey.get(key) ?? [], estimate);
     }
 
@@ -1463,6 +1524,84 @@ export async function estimateDrinkWindows(bottleIds) {
       return { error: `Estimate error: ${err.message}` };
     }
     return { error: "Something went wrong estimating that batch. Please try again." };
+  }
+}
+
+// The gap the bulk pass doesn't cover: one bottle, on demand. A wine added
+// by hand never goes past the scanner, and the backfill only runs when you
+// remember to open it - so without this, "every add path fills the window
+// in" isn't true of the most deliberate add path there is.
+//
+// Same tool, same prompt and the same cache as the backfill, because the
+// answer is about the wine rather than about how it was asked for: a
+// bottle estimated here costs nothing when the bulk pass later meets the
+// same wine, and vice versa. No web search - that's what Research is for,
+// and it costs a great deal more.
+export async function estimateWindowForBottle(id) {
+  const bottle = await prisma.bottle.findUnique({
+    where: { id },
+    select: WINDOW_ESTIMATE_SELECT,
+  });
+  if (!bottle) return { error: "That bottle no longer exists." };
+  if (!bottle.producer) {
+    return { error: "Add a producer first — there's nothing to estimate from." };
+  }
+
+  const key = drinkWindowCacheKey(bottle);
+  const cached = await prisma.drinkWindowEstimate.findUnique({ where: { key } });
+  if (cached) {
+    await writeWindowEstimate(id, cached);
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/inventory");
+    return {
+      data: { drinkFrom: cached.drinkFrom, drinkTo: cached.drinkTo, fromCache: true },
+    };
+  }
+
+  try {
+    const response = await anthropic.messages.create({
+      model: EXTRACTION_MODEL,
+      max_tokens: 2048,
+      thinking: { type: "adaptive" },
+      system: DRINK_WINDOW_SYSTEM_PROMPT,
+      tools: [DRINK_WINDOW_ESTIMATE_TOOL],
+      messages: [
+        {
+          role: "user",
+          content: `Estimate a drinking window for this wine:\n\nid ${bottle.id}: ${describeBottleForWindowEstimate(bottle)}`,
+        },
+      ],
+    });
+
+    const finalCall = response.content.find(
+      (block) => block.type === "tool_use" && block.name === "record_drink_window_estimates"
+    );
+    const estimate = finalCall?.input?.estimates?.[0];
+    if (!estimate) return { error: "Couldn't estimate that one. Please try again." };
+    if (estimate.drinkFrom == null && estimate.drinkTo == null) {
+      // Not cached, deliberately: having nothing to say this time
+      // shouldn't permanently stop the app asking about this wine.
+      return { error: "Not enough to go on for this wine — try Research instead." };
+    }
+
+    await cacheWindowEstimate(key, estimate);
+    await writeWindowEstimate(id, estimate);
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath("/inventory");
+    return {
+      data: { drinkFrom: estimate.drinkFrom, drinkTo: estimate.drinkTo, fromCache: false },
+    };
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) {
+      return { error: "The estimate feature isn't configured correctly (invalid API key)." };
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return { error: "Too many requests at once — wait a moment and try again." };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { error: `Estimate error: ${err.message}` };
+    }
+    return { error: "Something went wrong estimating that one. Please try again." };
   }
 }
 

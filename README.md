@@ -44,6 +44,13 @@ features like separate cellars per user.
   matches bottles logged under a regional synonym for the same grape (e.g.
   searching "Grenache" also finds one logged as "Garnacha" or "Cannonau") -
   see [`BACKLOG.md`](./BACKLOG.md) #1.
+- **Drinking windows, never left blank** — scanning and Research both
+  propose a window for every wine now, rather than only when one is stated
+  outright, and each says whether the answer was read from a source or
+  judged, so an estimate is always shown as one. A bottle added by hand
+  gets an **Estimate drinking window** button on its own page: the same
+  model knowledge and the same cache as the bulk pass below, no web
+  search.
 - **Estimate drinking windows** (`/estimate-windows`, linked from a banner
   on the Cellar whenever any bottle qualifies) — a one-time bulk pass that
   gives every bottle with no drinking window at all a best

@@ -129,13 +129,13 @@ much wine you actually have.
 feature when printed on the label (nearly always), and editable manually
 otherwise.
 
-## 7. Drinking window: default to an estimate, never leave blank
+## ~~7. Drinking window: default to an estimate, never leave blank~~ — done
 
-Today's scan/Research only fill `drinkFrom`/`drinkTo` when there's a
-stated date or a "genuinely confident" basis - otherwise both stay null,
-which conveys nothing. For a cellar large enough that bottles are
+Scan and Research used to fill `drinkFrom`/`drinkTo` only when there was
+a stated date or a "genuinely confident" basis - otherwise both stayed
+null, which conveys nothing. For a cellar large enough that bottles are
 actively passing their peak, a rough estimate you can refine beats a
-blank you have to remember to fill in yourself. Plan:
+blank you have to remember to fill in yourself. What that took:
 
 - ~~**New field**: `drinkWindowEstimated` (bool)~~ — done. Distinguishes
   an AI guess from a confirmed window (label text, a real Research
@@ -152,13 +152,31 @@ blank you have to remember to fill in yourself. Plan:
   since that isn't practical at hundreds of bottles. Chunked client-side
   (20 bottles/request) so a single request never risks a serverless
   timeout across a large cellar.
-- **Every add path fills it in, not just the one-time pass**: the scan
-  tool's schema changes from "only if confident" to "always propose your
-  best estimate," and Research's fallback (when its web search finds
-  nothing stated) does the same instead of leaving the field untouched.
-  A lightweight "Estimate" action (producer/variety/region/vintage only,
-  no web search - cheaper and faster than full Research) covers manual
-  entry.
+- ~~**Every add path fills it in, not just the one-time pass**~~ — done.
+  The scan tool went from "null rather than a speculative guess - most
+  wines shouldn't get one" to "always give your best estimate", and
+  Research's schema from "only if genuinely well-supported" to "prefer one
+  your sources state; where they don't, still estimate". Manual entry gets
+  an **Estimate drinking window** button on the bottle's page - the same
+  tool, prompt and cache as the bulk pass, no web search, so a wine
+  estimated here costs nothing when the backfill later meets it.
+
+  Both tools now also return **`drinkWindowEstimated`** themselves, which
+  is what makes the change safe: a model told to always guess will, so
+  something has to carry whether the answer was read off a label, found in
+  a source, or invented. Without it the "· estimated" badge would quietly
+  become a lie, and the badge is the only reason always-guessing is
+  acceptable at all.
+
+  The accept paths had to learn the same distinction. Accepting a proposal
+  wholesale carries the proposal's own flag; editing its years first is
+  the human taking the call and clears it. The old rule - "the years
+  changed, so a person must have decided" - was right for the Details form
+  and wrong here, where the years always change relative to a blank field.
+
+  Deliberately **not** changed: the photo-details reader. Its prompt is
+  "read what is actually visible, don't invent" - telling its tool to
+  always guess would have it contradict itself.
 - ~~**A small cache**~~ — done. `DrinkWindowEstimate` stores each answer
   against a normalized producer/bottling/grape/region/vintage key (see
   `lib/drink-window-cache.js`), so the same wine is never asked about
@@ -271,11 +289,14 @@ bite someone actually using the app.
   lighter model are structured extraction ("read this back label, invent
   nothing"), where deliberation buys little. Worth measuring with it off
   for the added-photo read and the drinking-window estimates.
-- **The lighter-model switch has not been checked against real bottles.**
-  Scan, Research, window estimates and photo reads moved to a mid-tier
-  model without a live API key available to test. Grape-from-appellation
-  inference and the `bottling` field are where a regression would show up
-  first.
+- **The lighter-model switch has not been rigorously compared.** Scan,
+  Research, window estimates and photo reads moved to a mid-tier model
+  without a live API key available to test. The owner's read after real
+  use is that it "seems to be working okay", which retires this as an
+  active worry - but it is a judgment from ordinary use, not a measured
+  comparison. If scan quality ever feels off, grape-from-appellation
+  inference and the `bottling` field are where a regression would show
+  first, and a side-by-side against the heavier model is the check.
 
 ## ~~11. Steering the character of a suggestion~~ — done
 
