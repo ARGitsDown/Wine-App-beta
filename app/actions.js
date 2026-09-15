@@ -206,8 +206,12 @@ export async function createBottleWithNote(status, prevState, formData) {
   revalidatePath(`/bottles/${bottle.id}`);
   // The saved row goes back to the caller, not just a success flag: the scan
   // flow turns the card it was typed into over to the same "already saved"
-  // rendering the auto-saved cards use, which needs the bottle itself.
-  return { success: true, bottle };
+  // rendering the auto-saved cards use, which needs the bottle itself. The
+  // note rides along under the same key that rendering already shows a note
+  // through - it lives in its own table, so it isn't a column on the bottle,
+  // and without it a note the user had just typed vanished from the card the
+  // moment they saved it.
+  return { success: true, bottle: { ...bottle, scannedNote: note || null } };
 }
 
 export async function updateBottle(id, prevState, formData) {

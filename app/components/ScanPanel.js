@@ -64,18 +64,19 @@ function batchProgress(photos) {
   const saved = photos.flatMap((p) => p.entries).filter((e) => e.kind === "saved");
   const wines = saved.length;
   const flagged = saved.filter((e) => e.bottle.needsResearch).length;
-  return { total, done, failed, wines, flagged, running: done < total };
+  // Read off the saved rows themselves, never off the destination picker.
+  // The picker is live state that steers the *next* photos, so a finished
+  // batch linked to it re-pointed itself the moment the user chose where
+  // the next shelf should go - claiming the wines were somewhere they had
+  // never been. A card's status can also be changed after it saves, so one
+  // batch can legitimately end up spanning two places; each gets a link.
+  const destinations = [...new Set(saved.map((e) => e.bottle.status))].map(destinationForStatus);
+  return { total, done, failed, wines, flagged, destinations, running: done < total };
 }
 
-function BatchProgress({ photos, intent }) {
-  const { total, done, failed, wines, flagged, running } = batchProgress(photos);
+function BatchProgress({ photos }) {
+  const { total, done, failed, wines, flagged, destinations, running } = batchProgress(photos);
   if (total === 0) return null;
-
-  // Where this batch was pointed. Individual cards can be re-homed
-  // afterward, so this is "where the batch went", not a promise about
-  // every wine in it - which is why the link is a plain destination
-  // rather than a count of what's waiting there.
-  const destination = destinationForStatus(statusForScanIntent(intent));
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
@@ -125,9 +126,15 @@ function BatchProgress({ photos, intent }) {
           it worked. These are that proof. */}
       {!running && wines > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          <Link href={destination.path} className="font-medium underline underline-offset-2">
-            View {destination.label}
-          </Link>
+          {destinations.map((destination) => (
+            <Link
+              key={destination.status}
+              href={destination.path}
+              className="font-medium underline underline-offset-2"
+            >
+              View {destination.label}
+            </Link>
+          ))}
           {flagged > 0 && (
             <Link
               href="/research"
@@ -467,7 +474,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
         </div>
       )}
 
-      <BatchProgress photos={photos} intent={intent} />
+      <BatchProgress photos={photos} />
 
       <div className="flex flex-col gap-6">
         {photos.map((photo) => {
@@ -550,7 +557,9 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
 
                         {entry.bottle.scannedNote && (
                           <p className="text-xs text-zinc-500">
-                            Tasting note logged from the photo:{" "}
+                            {entry.typedNote
+                              ? "Tasting note saved:"
+                              : "Tasting note logged from the photo:"}{" "}
                             <span className="italic">
                               &ldquo;{entry.bottle.scannedNote}&rdquo;
                             </span>
@@ -575,11 +584,18 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                             action={() => handleRemove(photo, entry)}
                             label="Delete this wine"
                             confirmLabel="Yes, delete"
-                            warning={
+                            // Named off the card's own status, not a
+                            // hardcoded "cellar" - this card may have been
+                            // scanned straight to the wishlist. And the note
+                            // clause is appended rather than swapped in, so a
+                            // wine with a note warns about both things going.
+                            warning={`Removes it from your ${
+                              destinationForStatus(entry.bottle.status).label
+                            } for good.${
                               entry.bottle.scannedNote
-                                ? "Also deletes the tasting note read from the photo."
-                                : "Removes it from your cellar for good."
-                            }
+                                ? " Its tasting note goes with it."
+                                : ""
+                            }`}
                             className="text-xs text-zinc-500 underline underline-offset-2"
                             confirmClassName="text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-400"
                           />
@@ -630,6 +646,12 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                               updateEntry(photo.id, entry.localId, {
                                 kind: "saved",
                                 bottle: result.bottle,
+                                // The saved rendering has no tasting-note
+                                // field of its own, so without carrying the
+                                // note over the one just typed into this card
+                                // would disappear with nothing saying it had
+                                // been kept.
+                                typedNote: Boolean(result.bottle.scannedNote),
                               });
                             }
                           }}
