@@ -73,7 +73,9 @@ features like separate cellars per user.
 - **Research** (`/research`) — bottles the scan feature wasn't confident
   about, and what a web search turned up for them. Each can be researched
   in one click from the list, or all at once behind a confirmation that
-  says how many live searches that will run. Results wait in a review
+  says how many bottles that covers - at most that many live searches, and
+  fewer when two rows turn out to be the same wine with the same details on
+  file, since those share one lookup. Results wait in a review
   queue rather than being applied: each shows a field-by-field diff of
   current against proposed, which you can accept in one click, edit first,
   or dismiss. A proposal whose bottle changed after the research ran is
@@ -228,10 +230,13 @@ features like separate cellars per user.
   goes with it ("Also deletes 2 tasting notes and 2 guest favorites"),
   since a bottle's notes and favorites are cascade-deleted along with it.
 - **Data export** (`/export`, linked from the home page) — downloads every
-  bottle, its tasting notes, and every guest with their favorites, as one
-  JSON file. Cheap peace of mind for a personal system with no other backup
-  story. Saved flights and the extra photos added to a bottle aren't in the
-  file yet — see [`BACKLOG.md`](./BACKLOG.md) #18.
+  bottle with its tasting notes and photo links, every guest with their
+  favorites, every saved flight with its picks in tasting order, and any
+  research still sitting in the review queue, as one JSON file. Cheap peace
+  of mind for a personal system with no other backup story. The photos
+  themselves live in blob storage, so the file holds their links rather than
+  the images; drinking-window estimates are left out deliberately, being a
+  cache the app can refill rather than anything you'd miss.
 - **Add to home screen** — the app has a real icon and manifest, so
   "Add to Home Screen" (iOS/Android) gives it its own icon and a
   standalone window (no browser address bar) instead of just a bookmarked
