@@ -802,7 +802,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
 const BROWSE_CELLAR_TOOL = {
   name: "browse_cellar",
   description:
-    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns each matching bottle's id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, average personal rating if any exists, and drinkFrom/drinkTo (its drinking window, if known - null fields mean no window is recorded, not that it's unready). Results are capped, so use filters if the cellar is large.",
+    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns each matching bottle's id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, average personal rating if any exists, drinkFrom/drinkTo (its drinking window, if known - null fields mean no window is recorded, not that it's unready), and drinkWindowEstimated (true when that window is the app's own guess rather than something read from a source or typed by the owner; only meaningful when a window is actually present). Results are capped, so use filters if the cellar is large.",
   input_schema: {
     type: "object",
     properties: {
@@ -974,6 +974,10 @@ async function browseCellar(filters) {
     averageRating: bottle.averageRating,
     drinkFrom: bottle.drinkFrom,
     drinkTo: bottle.drinkTo,
+    // Without this the model reads every window as established fact and
+    // quotes the years back that way, which is the one place this feature
+    // can quietly undo the guess/fact line the rest of the app holds.
+    drinkWindowEstimated: bottle.drinkWindowEstimated,
   }));
 }
 
@@ -993,7 +997,7 @@ function buildSuggestSystemPrompt(currentYear, includeOutside, character) {
   const steer = characterRule(character);
   const steerRule = steer ? `${steer} ` : "";
 
-  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. ${outsideRule} ${steerRule}For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
+  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. Each window also carries drinkWindowEstimated: true means the years are the app's own guess rather than anything anyone looked up, so treat them as approximate and don't claim where they came from; false means they were read from a source or entered by the owner. The flag only means anything when drinkFrom or drinkTo is actually set - for a bottle with no window at all, ignore it. Choose between bottles using an estimated window exactly as you would a sourced one, but never quote an estimated one back as established fact - write "estimated to be drinking now" or "roughly 2024-2028", not "drinking right in its window (2024-2028)". Every other screen marks an estimate as an estimate, and a recommendation that quietly promotes a guess to a fact is the one way this feature misleads. ${outsideRule} ${steerRule}For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
 }
 
 // Turns a freeform request (a meal to pair, or a tasting theme/mood) into
@@ -1169,7 +1173,7 @@ const RESEARCH_TOOL = {
       drinkWindowEstimated: {
         type: "boolean",
         description:
-          "True when the window above is your own judgment rather than something your sources state outright. The app marks an estimated window as such, so answer honestly - a guess labelled as sourced is worse than a guess labelled as a guess.",
+          "True when the window above is your own judgment rather than something your sources state outright. If you are repeating back a window that was already on file and that window was labelled as the app's own estimate, answer true - only your own sourcing can turn an estimate into a fact, and copying it forward is not sourcing it. The app marks an estimated window as such, so answer honestly - a guess labelled as sourced is worse than a guess labelled as a guess.",
       },
       drinkTo: {
         type: ["integer", "null"],
@@ -1228,7 +1232,11 @@ function describeBottleForResearch(bottle) {
     bottle.abv ? `ABV: ${bottle.abv}%` : null,
     bottle.wineColor ? `Color: ${bottle.wineColor}` : null,
     bottle.drinkFrom || bottle.drinkTo
-      ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}`
+      ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}${
+          bottle.drinkWindowEstimated
+            ? " (the app's own estimate - nobody looked this up, so treat it as a placeholder to verify or replace, not as data on file)"
+            : " (read from a source or entered by the owner)"
+        }`
       : null,
     bottle.criticNotes ? `Existing critic/winemaker notes on file: ${bottle.criticNotes}` : null,
   ].filter(Boolean);
