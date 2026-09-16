@@ -10,10 +10,12 @@ export const dynamic = "force-dynamic";
 // "Everything" means everything a human would be sad to lose, which is not
 // the same as every table. Flights are the clearest case: they're
 // hand-curated, they exist nowhere else, and they were missing from this
-// file until BACKLOG.md #18. Research proposals are here because a queue
-// of reviewed-but-not-yet-accepted answers is work you'd have to pay to
-// redo. Photo rows are here for their URLs - the images themselves live in
-// blob storage and are not in this file.
+// file until BACKLOG.md #18. Kept pairings are here on the same footing -
+// a pairing exists only because someone decided it was worth keeping,
+// which is the test at the bottom of this comment. Research proposals are
+// here because a queue of reviewed-but-not-yet-accepted answers is work
+// you'd have to pay to redo. Photo rows are here for their URLs - the
+// images themselves live in blob storage and are not in this file.
 //
 // DrinkWindowEstimate is deliberately left out. It's a cache keyed on the
 // wine rather than user data (see lib/drink-window-cache.js): losing it
@@ -23,7 +25,7 @@ export const dynamic = "force-dynamic";
 // A new model that holds something the owner typed, curated or reviewed
 // belongs here. One that only memoises an answer does not.
 export async function GET() {
-  const [bottles, guests, flights, researchProposals] = await Promise.all([
+  const [bottles, guests, flights, pairings, researchProposals] = await Promise.all([
     prisma.bottle.findMany({
       include: { tastingNotes: true, photos: true },
       orderBy: { id: "asc" },
@@ -37,6 +39,11 @@ export async function GET() {
       include: { picks: { orderBy: { order: "asc" } } },
       orderBy: { id: "asc" },
     }),
+    prisma.savedPairing.findMany({
+      // Same reason as a flight's picks: in the order the pairing reads.
+      include: { picks: { orderBy: { order: "asc" } } },
+      orderBy: { id: "asc" },
+    }),
     prisma.researchProposal.findMany({ orderBy: { id: "asc" } }),
   ]);
 
@@ -45,6 +52,7 @@ export async function GET() {
     bottles,
     guests,
     flights,
+    pairings,
     researchProposals,
   };
 

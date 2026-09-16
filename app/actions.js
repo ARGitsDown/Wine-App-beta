@@ -4,7 +4,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL, REASONING_MODEL } from "@/lib/anthropic";
-import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
+import { DEFAULT_EFFORT, normalizeEffort, outputConfig } from "@/lib/effort";
+import { normalizeCharacter } from "@/lib/suggestion-character";
+import { wineLabelForBottle, wineLabelForGap } from "@/lib/pairings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -1072,11 +1074,17 @@ export async function getSuggestions(
   const text = String(request || "").trim();
   if (!text) return { error: "Describe what you're working with first." };
 
+  // Normalized once, so the prompt, the API request and the copy handed
+  // back for saving all describe the same three settings.
+  const steer = normalizeCharacter(character);
+  const level = normalizeEffort(effort);
+  const outside = Boolean(includeOutside);
+
   const messages = [{ role: "user", content: text }];
   const systemPrompt = buildSuggestSystemPrompt(
     new Date().getFullYear(),
-    includeOutside,
-    character
+    outside,
+    steer
   );
 
   try {
@@ -1092,7 +1100,7 @@ export async function getSuggestions(
         // invalidates the prefix cached below mid-run; across runs each
         // level keeps its own cached copy of that prefix, which costs one
         // cache write the first time a level is used.
-        output_config: outputConfig(effort),
+        output_config: outputConfig(level),
         // Tools render before system, so one breakpoint here covers both.
         // The request text and every browse result live in messages, after
         // the prefix, so nothing volatile is inside it. The cache key
@@ -1152,6 +1160,17 @@ export async function getSuggestions(
             title: finalCall.input.title,
             summary: finalCall.input.summary,
             picks: resolvedPicks,
+            // Handed back rather than re-read from the form when the
+            // pairing is kept. The form is still editable while the
+            // result is on screen, so reading it at save time would file
+            // a request that did not produce these wines - and it is
+            // what a saved pairing is reloaded from to refine it.
+            asked: {
+              request: text,
+              character: steer,
+              includeOutside: outside,
+              effort: level,
+            },
           },
         };
       }
@@ -2289,4 +2308,131 @@ export async function deleteTastingFlight(id) {
   await prisma.tastingFlight.delete({ where: { id } });
   revalidatePath("/flights");
   redirect("/flights");
+}
+
+// A pairing is kept only when the owner says so - unlike a flight, which
+// is a queue you build, a pairing is a decision you either want a record
+// of or you don't. Everything below therefore runs on a Suggest result
+// that is still on screen.
+//
+// Every argument here arrived from a browser, so nothing is trusted: the
+// two steers are normalized, the text is bounded, and each pick's wine is
+// re-resolved against the database rather than labelled from whatever the
+// client sent.
+const MAX_PAIRING_PICKS = 24;
+const MAX_PAIRING_TEXT = 4000;
+
+function trimmedOrNull(value, max = 500) {
+  const text = String(value ?? "").trim();
+  return text ? text.slice(0, max) : null;
+}
+
+// The four fields a gap suggestion carries, and nothing else - the value
+// is stored as Json, so it is the one place a client could otherwise put
+// anything it liked into the database.
+function gapFromInput(gap) {
+  const producer = trimmedOrNull(gap?.producer, 200);
+  if (!producer) return null;
+  return {
+    producer,
+    type: trimmedOrNull(gap?.type, 200),
+    region: trimmedOrNull(gap?.region, 200),
+    country: trimmedOrNull(gap?.country, 200),
+  };
+}
+
+export async function savePairing(input) {
+  const request = String(input?.request ?? "").trim();
+  if (!request) return { error: "That suggestion is missing what you asked for." };
+
+  const rawPicks = Array.isArray(input?.picks)
+    ? input.picks.slice(0, MAX_PAIRING_PICKS)
+    : [];
+  if (rawPicks.length === 0) return { error: "There are no wines in that suggestion to keep." };
+
+  // One query for every owned wine in the pairing, which both checks the
+  // bottles are real and supplies the labels. A pick naming a bottle that
+  // has since been deleted is dropped rather than saved label-less - the
+  // same call getSuggestions makes when a pick resolves to nothing.
+  const bottleIds = rawPicks
+    .map((pick) => pick.bottleId)
+    .filter((id) => Number.isInteger(id));
+  const bottles = bottleIds.length
+    ? await prisma.bottle.findMany({ where: { id: { in: bottleIds } } })
+    : [];
+  const bottleById = new Map(bottles.map((bottle) => [bottle.id, bottle]));
+
+  const picks = [];
+  for (const pick of rawPicks) {
+    const bottle = Number.isInteger(pick.bottleId)
+      ? bottleById.get(pick.bottleId) ?? null
+      : null;
+    const gap = bottle ? null : gapFromInput(pick.gap);
+    if (!bottle && !gap) continue;
+
+    picks.push({
+      order: picks.length,
+      dish: trimmedOrNull(pick.dish),
+      reason: trimmedOrNull(pick.reason, MAX_PAIRING_TEXT) ?? "",
+      bottleId: bottle ? bottle.id : null,
+      wineLabel: bottle ? wineLabelForBottle(bottle) : wineLabelForGap(gap),
+      gap,
+    });
+  }
+  if (picks.length === 0) {
+    return { error: "None of those wines could be saved — they may have been removed since." };
+  }
+
+  // The model's own title is the default, per the owner's call, and the
+  // detail page is where it gets renamed. The fallback is only for a
+  // result that somehow arrived without one: a pairing with no heading
+  // would be a row you cannot find again.
+  const title =
+    trimmedOrNull(input?.title, 200) ?? `Pairing for ${request.slice(0, 60)}`;
+
+  try {
+    const pairing = await prisma.savedPairing.create({
+      data: {
+        title,
+        request: request.slice(0, MAX_PAIRING_TEXT),
+        character: normalizeCharacter(input?.character),
+        effort: normalizeEffort(input?.effort),
+        includeOutside: Boolean(input?.includeOutside),
+        summary: trimmedOrNull(input?.summary, MAX_PAIRING_TEXT),
+        picks: { create: picks },
+      },
+    });
+    revalidatePath("/pairings");
+    return { data: { id: pairing.id, kept: picks.length } };
+  } catch (err) {
+    console.error("Failed to save a pairing:", err);
+    return { error: "Couldn't keep that pairing. Please try again." };
+  }
+}
+
+// Renaming is the whole of "allow modification": the request, the steers
+// and the wines are a record of what happened and are not editable, but
+// what you call it is yours.
+export async function renamePairing(id, formData) {
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return { error: "Give it a name." };
+
+  try {
+    await prisma.savedPairing.update({
+      where: { id },
+      data: { title: title.slice(0, 200) },
+    });
+    revalidatePath(`/pairings/${id}`);
+    revalidatePath("/pairings");
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to rename a pairing:", err);
+    return { error: "Couldn't save that name. Please try again." };
+  }
+}
+
+export async function deletePairing(id) {
+  await prisma.savedPairing.delete({ where: { id } });
+  revalidatePath("/pairings");
+  redirect("/pairings");
 }

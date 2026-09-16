@@ -1038,7 +1038,7 @@ Sharing one table would make `order` and `consumed` meaningless for half the
 rows, putting "null means not applicable" in the same column as "null means
 unknown" - the distinction the rest of this schema works to keep.
 
-### Proposed shape
+### ~~Proposed shape~~ — built
 
 ```
 SavedPairing
@@ -1076,13 +1076,38 @@ Only pairings deliberately kept are persisted. The consequence, worth stating:
 comparing two attempts means keeping both on purpose, so the refine control
 has to make keeping cheap and obvious or the preferred version is lost.
 
-### The index
+Four things came out differently from the sketch above, each for a reason:
 
-One screen listing both kinds, rows expanding in place, flights keeping
-`/flights/[id]` and their queue behaviour untouched. A flight row expands to
-progress and a link; a pairing row expands fully. Naming is the open wrinkle -
-with hand-built flights in it, the honest heading is "Saved" rather than
-"Suggestions". Costs a nav slot, so it is tangled with the tab bar in #17.
+- **`title` is NOT NULL**, unlike `TastingFlight.title`. Every pairing is born
+  from a Suggest result where the title is a required tool field, so there is
+  no such thing as a pairing without one and no reader that has to cope with
+  the absence. Renaming is on the detail page; the request, the settings and
+  the wines are the record and stay as they were.
+- **`effort` joined `character` and `includeOutside`.** The sketch predates the
+  effort control. "Which one was the Thorough one" is a real question a month
+  later, so it is stored and shown, not just replayed.
+- **`wineLabel` is written server-side** from the bottle row at save time,
+  rather than taken from what the browser sent. It is a snapshot either way,
+  but this way it is a snapshot of the database.
+- **Refining reloads the request and the settings, not the wines.** The point
+  of asking again is to get different ones; restoring the old picks would just
+  be the old answer with a new form around it.
+
+Kept pairings are in `/export` too, by the rule that file's own comment sets:
+a model holding something the owner curated belongs in the backup.
+
+### The index — still open
+
+Pairings currently live at `/pairings`, reached from Suggest rather than from
+the nav, because the nav is already at seven links and where the eighth goes
+is the parked question in #17. That is a holding position, not the answer.
+
+The answer is still one screen listing both kinds, rows expanding in place,
+flights keeping `/flights/[id]` and their queue behaviour untouched. A flight
+row expands to progress and a link; a pairing row expands fully. Naming is the
+open wrinkle - with hand-built flights in it, the honest heading is "Saved"
+rather than "Suggestions". It costs a nav slot either way, so it stays
+tangled with the tab bar in #17.
 
 ### ~~Two bugs, independent of all of the above~~ — done
 

@@ -149,6 +149,7 @@ model Bottle {
   tastingNotes TastingNote[]
   favorites    Favorite[]
   flightPicks  FlightPick[]
+  pairingPicks PairingPick[]
   photos       BottlePhoto[]
   researchProposal ResearchProposal?
 
@@ -313,4 +314,82 @@ model ResearchProposal {
   // from values that have since changed. Flagged in the review rather than
   // discarded - see isProposalStale().
   createdAt DateTime @default(now())
+}
+
+// A pairing worth keeping. Its own table rather than a row in
+// TastingFlight, for three reasons that all point the same way.
+//
+// Origin: a flight has two - Suggest and NewFlightForm - and FlightPick's
+// `reason` is nullable for the hand-added ones. A pairing only ever comes
+// from Suggest. Lifecycle: isOpenFlight() says a flight is a queue while
+// any pick is undrunk and "a record now, not a queue" once they are all
+// done; a pairing has no such state, it is a decision you wrote down.
+// Owned vs not: FlightPick.bottleId is correctly NOT NULL because you
+// cannot open a wine you do not have, and "buy this for that dish" is the
+// entire point of Suggest's include-outside toggle.
+//
+// Sharing one table would leave `order` and `consumed` meaningless for
+// half the rows, which is "null means not applicable" living in the same
+// column as "null means unknown" - the distinction the rest of this
+// schema works to keep.
+model SavedPairing {
+  id             Int           @id @default(autoincrement())
+  // The model's own title, which the owner can rename. NOT NULL unlike
+  // TastingFlight.title: every pairing is born from a Suggest result,
+  // where the title is a required tool field, so there is no such thing
+  // as a pairing without one and no reader that has to cope with the
+  // absence.
+  title          String
+  // What was asked for, word for word, plus the three settings that were
+  // in force. These are what make refining cheap - reload the form from a
+  // saved pairing, change one control, run it again - and without them
+  // iterating would be a feature rather than four columns.
+  request        String
+  character      String
+  effort         String
+  includeOutside Boolean
+  // The model's "why these". Nullable because it is the argument, not the
+  // identity: a pairing with its picks and their reasons is still whole
+  // without it.
+  summary        String?
+  createdAt      DateTime      @default(now())
+  picks          PairingPick[]
+}
+
+model PairingPick {
+  id        Int          @id @default(autoincrement())
+  pairingId Int
+  pairing   SavedPairing @relation(fields: [pairingId], references: [id], onDelete: Cascade)
+  // The order the wines were suggested in. Not a tasting order the way
+  // FlightPick.order is - a menu's courses have a sequence, a single dish
+  // with one wine does not - but the order is still what was said, and
+  // re-sorting it on read would be inventing something.
+  order     Int
+  // Which dish or course this wine is for. Null when the request named one
+  // dish, or none: a pairing can be a dish with one wine or a menu with
+  // several, and this column is what tells them apart.
+  dish      String?
+  reason    String
+
+  // The wine, if it is one the owner has. SetNull rather than Cascade -
+  // the opposite of FlightPick - because the two rows mean different
+  // things. A bottle you no longer have cannot be in a queue of bottles to
+  // open, but it can certainly be in the record of what you drank with the
+  // lamb in June, and losing that record to an October tidy-up would be
+  // the wrong answer.
+  bottleId  Int?
+  bottle    Bottle? @relation(fields: [bottleId], references: [id], onDelete: SetNull)
+  // How the wine read at the moment it was saved. The reason the row
+  // above can go null without the pairing becoming unreadable, and the
+  // reason a bottle renamed since still shows the name it was chosen
+  // under.
+  wineLabel String
+  // A wine that was not owned, as {producer, type, region, country}. Json
+  // for the same reason ResearchProposal.proposed is: it is only ever
+  // rendered as a unit, never queried into. It also means keeping a
+  // pairing never quietly creates a wishlist bottle nobody asked for.
+  gap       Json?
+
+  @@index([pairingId])
+  @@index([bottleId])
 }
