@@ -169,8 +169,11 @@ The owner pays per call, and these are the only recurring costs in the app.
 
 The whole value of the drinking-window and research features rests on this
 line, and both `ux-critic` and `data-engineer` guard their own side of it.
-Yours is the source: a new AI path must carry provenance out of the model
-answer and into the row, not just into the happy-path UI.
+Yours is the model boundary, and it has **two directions**. Check both every
+time - the second is the one that gets forgotten.
+
+**Writing provenance in** - a new AI path must carry the distinction out of
+the model answer and into the row, not just into the happy-path UI.
 
 - Does the tool schema ask the model to say whether it *found* something or
   *judged* it? The research and window paths already do.
@@ -178,6 +181,31 @@ answer and into the row, not just into the happy-path UI.
   being inferred later from which code path ran?
 - Does a model-written value overwrite something the owner typed by hand? That
   is the worst outcome this app can produce. Check every write path.
+
+**Reading provenance back out** - any path that feeds stored data *to* a model
+has to hand over the flags alongside the values, or the model treats every
+value as equally solid and says so in prose the owner reads as fact.
+
+- Take every field list passed to a model - a tool's return shape, a
+  `describe...` helper, anything assembled into a prompt - and for each value
+  in it, ask whether a companion column records how trustworthy that value is.
+  If one exists and isn't in the list, that is the finding.
+- This is how the real one got through: `browseCellar` returned
+  `drinkFrom`/`drinkTo` without `drinkWindowEstimated`, so Suggest wrote "the
+  2024 is drinking right in its window (2024-2027)" about years the bulk
+  estimator had guessed - stating an estimate more confidently than the
+  bottle's own page, which shows "· estimated" right beside it. The column was
+  already loaded; it was dropped in the mapping on the way out. A missing
+  field in a hand-written return shape leaves no trace at all, so read those
+  shapes against the model they describe, not against what looks complete.
+- Passing the flag is only half of it: **does the prompt say what to do with
+  it?** A flag the prompt never mentions changes nothing. The rule should
+  separate choosing from describing - an estimated window is fine to *pick* on
+  and must not be *quoted* as established.
+- The same question applies to anything else the app knows is soft: a
+  `'Likely '`-prefixed variety, a `confident: false` scan entry, a research
+  proposal not yet reviewed. If a model is told about the value, it should be
+  told how much to trust it.
 
 ## What is not a finding
 
