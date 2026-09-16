@@ -23,6 +23,27 @@ function bottleHeader(bottle) {
     .join(" ");
 }
 
+// The same line the gap card itself shows, so a note about what was left
+// out of a flight names each wine the way the card above it does.
+function gapHeader(gap) {
+  return [gap.producer, gap.type].filter(Boolean).join(" — ");
+}
+
+// What to call a gap wine in a sentence. The card's own heading pairs the
+// producer with the grape, which reads fine as a heading and badly mid-
+// sentence next to a second one - so a sentence uses the producer alone,
+// and only falls back to the full heading when there isn't one.
+function gapName(gap) {
+  return gap.producer || gapHeader(gap);
+}
+
+// "A and B", "A, B and C". Two or three wines left out of a flight is the
+// normal case and reads better named than counted.
+function andList(items) {
+  if (items.length < 2) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
 export default function SuggestPage() {
   const [request, setRequest] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,6 +52,11 @@ export default function SuggestPage() {
   const [includeOutside, setIncludeOutside] = useState(false);
   const [character, setCharacter] = useState(DEFAULT_CHARACTER);
   const [savedGapIds, setSavedGapIds] = useState(new Set());
+  // Which gap cards have their wishlist form showing. Held here rather than
+  // left to the <details> element because saving a flight opens the forms
+  // for the wines it could not include - the offer has to be the thing you
+  // are looking at, not a sentence telling you where to find it.
+  const [expandedGaps, setExpandedGaps] = useState(new Set());
   const [flightSave, setFlightSave] = useState({ status: "idle" });
 
   async function handleSubmit(event) {
@@ -41,6 +67,11 @@ export default function SuggestPage() {
     setError(null);
     setResult(null);
     setFlightSave({ status: "idle" });
+    // Both are keyed by position in result.picks, so they mean nothing once
+    // the picks change: without this, wishlisting pick #1 of one search left
+    // pick #1 of the next claiming to be on the wishlist already.
+    setSavedGapIds(new Set());
+    setExpandedGaps(new Set());
 
     const response = await getSuggestions(request, includeOutside, character);
     if (response.error) {
@@ -51,11 +82,34 @@ export default function SuggestPage() {
     setLoading(false);
   }
 
+  // A flight is a queue of bottles you can open, so a wine you do not own
+  // genuinely cannot go in one - FlightPick.bottleId is NOT NULL for that
+  // reason. What was wrong was doing it silently: you asked for a flight of
+  // five and got a saved flight of three with no indication the other two
+  // had gone anywhere. So the picks that cannot be saved are named, and
+  // their wishlist forms are opened, which is the only place left for them.
   async function handleSaveFlight() {
+    const ownedPicks = [];
+    const missing = [];
+    result.picks.forEach((pick, index) => {
+      if (pick.bottle) {
+        ownedPicks.push({ bottleId: pick.bottle.id, reason: pick.reason });
+      } else {
+        missing.push(index);
+      }
+    });
+
+    if (ownedPicks.length === 0) {
+      setExpandedGaps(new Set(missing));
+      setFlightSave({
+        status: "error",
+        error:
+          "None of these are in your cellar, so there is no flight to save yet. Add them to your wishlist below.",
+      });
+      return;
+    }
+
     setFlightSave({ status: "saving" });
-    const ownedPicks = result.picks
-      .filter((pick) => pick.bottle)
-      .map((pick) => ({ bottleId: pick.bottle.id, reason: pick.reason }));
     const response = await saveTastingFlight({
       title: result.title,
       summary: result.summary,
@@ -64,9 +118,13 @@ export default function SuggestPage() {
     if (response.error) {
       setFlightSave({ status: "error", error: response.error });
     } else {
-      setFlightSave({ status: "saved", id: response.data.id });
+      if (missing.length > 0) setExpandedGaps(new Set(missing));
+      setFlightSave({ status: "saved", id: response.data.id, missing });
     }
   }
+
+  const gapPicks = result ? result.picks.filter((pick) => !pick.bottle) : [];
+  const ownedCount = result ? result.picks.length - gapPicks.length : 0;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
@@ -182,6 +240,8 @@ export default function SuggestPage() {
                   >
                     {flightSave.status === "saving" ? (
                       <Spinner label="Saving…" />
+                    ) : gapPicks.length > 0 && ownedCount > 0 ? (
+                      `Save the ${ownedCount} I own`
                     ) : (
                       "Save this flight"
                     )}
@@ -192,6 +252,36 @@ export default function SuggestPage() {
           </div>
           {flightSave.status === "error" && (
             <p className="text-sm text-red-600 dark:text-red-400">{flightSave.error}</p>
+          )}
+
+          {/* Said before the click as well as after it, so the number on the
+              button is not the first you hear of it. */}
+          {result.mode === "tasting" &&
+            gapPicks.length > 0 &&
+            flightSave.status === "idle" && (
+              <p className="text-sm text-zinc-500">
+                {ownedCount === 0
+                  ? "None of these are in your cellar yet, so there is nothing to save as a flight - a flight is a queue of bottles you can open."
+                  : `${andList(gapPicks.map((pick) => gapName(pick.gap)))} ${
+                      gapPicks.length === 1 ? "is not" : "are not"
+                    } in your cellar, so saving covers the ${ownedCount} you own - a flight is a queue of bottles you can open. Add the ${
+                      gapPicks.length === 1 ? "other one" : "others"
+                    } to your wishlist below.`}
+              </p>
+            )}
+
+          {flightSave.status === "saved" && flightSave.missing?.length > 0 && (
+            <p className="text-sm text-zinc-500">
+              Saved without{" "}
+              {andList(
+                flightSave.missing.map((index) =>
+                  gapName(result.picks[index].gap),
+                ),
+              )}
+              , which you do not own yet. The wishlist{" "}
+              {flightSave.missing.length === 1 ? "form is" : "forms are"} open
+              below.
+            </p>
           )}
 
           {result.picks.map((pick, index) => (
@@ -231,7 +321,7 @@ export default function SuggestPage() {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-medium">
                       {result.mode === "tasting" ? `${index + 1}. ` : ""}
-                      {[pick.gap.producer, pick.gap.type].filter(Boolean).join(" — ")}
+                      {gapHeader(pick.gap)}
                     </span>
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
                       Not in your cellar
@@ -247,7 +337,19 @@ export default function SuggestPage() {
                       ✓ Added to wishlist
                     </p>
                   ) : (
-                    <details>
+                    <details
+                      open={expandedGaps.has(index)}
+                      onToggle={(event) => {
+                        const { open } = event.currentTarget;
+                        setExpandedGaps((prev) => {
+                          if (prev.has(index) === open) return prev;
+                          const next = new Set(prev);
+                          if (open) next.add(index);
+                          else next.delete(index);
+                          return next;
+                        });
+                      }}
+                    >
                       <summary className="cursor-pointer text-sm underline underline-offset-2">
                         Add to wishlist
                       </summary>
