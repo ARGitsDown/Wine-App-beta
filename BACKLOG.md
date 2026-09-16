@@ -799,7 +799,14 @@ three.
   is the first. Both are defensible, which is what makes it a branch
   question rather than a fix.
 
-## 18. The export doesn't export everything
+## ~~18. The export doesn't export everything~~ — done
+
+Flights with their picks, research proposals and photo rows are all in the
+file now. `DrinkWindowEstimate` is still left out on purpose - it's a cache
+keyed on the wine, so losing it costs money to refill rather than
+information - and the route says so, along with the rule for deciding where
+a new model belongs.
+
 
 `/export` is described as a full backup and reads like one, but it covers
 `Bottle` (with `tastingNotes`) and `Guest` (with `favorites`) only. Saved
@@ -810,7 +817,12 @@ they're hand-curated and exist nowhere else. Either include them or say in
 the README what the file actually holds, because a backup you trust wrongly
 is worse than one you know the limits of.
 
-## 19. What the AI review turned up, beyond the two fixed
+## ~~19. What the AI review turned up, beyond the two fixed~~ — done
+
+All four shipped. The first two turned out to need a different fix than
+drafted here, and the notes below say how - worth reading before trusting a
+drafted fix in this file again.
+
 
 From the first run of the `ai-reviewer` agent. The two findings that could
 write a wrong answer into the cellar - scanning inventing a `bottling` it
