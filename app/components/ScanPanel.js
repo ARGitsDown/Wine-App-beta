@@ -353,7 +353,9 @@ const INTENT_LOOK = {
 // the status each one writes rather than by scan intent, and sharing that
 // picker's icons and accents.
 const DESTINATIONS = [
-  { value: "inventory", label: "Cellar", path: "/inventory", Icon: CellarIcon, accent: INTENT_LOOK.cellar.accent },
+  // Sorted newest-first, so finishing a scan lands on the wines just added
+  // rather than on whatever happens to sort first by producer.
+  { value: "inventory", label: "Cellar", path: "/inventory?sort=acquired", Icon: CellarIcon, accent: INTENT_LOOK.cellar.accent },
   { value: "wishlist", label: "Wishlist", path: "/wishlist", Icon: WishlistIcon, accent: INTENT_LOOK.wishlist.accent },
   { value: "consumed", label: "Tasted", path: "/consumed", Icon: TastingHistoryIcon, accent: INTENT_LOOK.tasting.accent },
 ];

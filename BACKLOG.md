@@ -769,7 +769,16 @@ The most-used screen, and the one that scales worst. The modules on it are
 distinct enough; what is off is which comes first and how much room each
 gets.
 
-- **Adding outranks browsing on a page that exists for browsing.** Before
+- ~~**Adding outranked browsing on a page that exists for browsing.**~~ —
+  fixed. The guest paragraph became a chip in the heading row, hand entry
+  became a line instead of a boxed disclosure, and the page's own gaps
+  tightened. Measured at 375px on a 117-bottle cellar, the first bottle
+  moved from 605px down the page to 441px — the Cellar is now slightly
+  tighter than the Wishlist despite carrying the drinking-window banner as
+  well. Scanning stays a full-width button: it is the fast way in and the
+  one you reach for at the rack. The Wishlist is deliberately untouched,
+  and the test asserts its list sits exactly where it did. Original
+  finding: Before
   a single bottle there is a title, a two-line paragraph about the guest
   link, a "Scan a label or shelf" button, an "Add a bottle" disclosure, a
   conditional drinking-window banner, and the filter panel. Three of those
@@ -778,11 +787,20 @@ gets.
   is added to constantly and browsed rarely, a cellar of hundreds is the
   reverse. Collapsing the two add controls into one and letting the list
   start near the top is the change.
-- **Collapsed filters become invisible.** The panel summary shows "12 of
+- ~~**Collapsed filters were invisible.**~~ — fixed. A row of chips names
+  each active filter and removes it on tap, next to a "Clear all" once
+  there is more than one. Deliberately its own row rather than inside
+  `<summary>`, which is already a button and makes a mess of the keyboard
+  order once more buttons go in it. The "12 of 247 shown" count stays — the
+  chips replace the mystery, not the count. `FilterBar` is shared, so this
+  lands on Cellar, Wishlist, Tasting notes and the guest view at once.
+  Original finding: The panel summary shows "12 of
   247 shown" but not *which* filters are on, so a collapsed panel leaves a
   narrowed list with no visible reason. Filter chips in the summary row
   would say what is active without reopening it.
-- **The guest-link paragraph sits above the bottles.** Two lines of prose
+- ~~**The guest-link paragraph sat above the bottles.**~~ — fixed. It is
+  "Guest link" plus the `/guest` chip in the heading row now. The ❤️ the
+  prose explained is visible in the list itself. Original finding: Two lines of prose
   about a feature used a few times a year, above the most-used list in the
   app. It belongs behind the `/guest` chip.
 
