@@ -176,7 +176,14 @@ features like separate cellars per user.
   "Avant-garde" is a claim about the boldness of the *choice*, not the
   style of the wine. It knows each
   candidate's drinking window (if one is set) and steers toward a bottle
-  that's actually ready over one that's too young or past peak. Every
+  that's actually ready over one that's too young or past peak. It also
+  knows which of those windows the app guessed rather than read from a
+  source, and it will pick a bottle on a guessed window just as readily -
+  but it won't quote the years back at you as established fact, saying a
+  bottle is "estimated to be drinking now" instead. The bottle's own page
+  marks a guess with a "· estimated" badge right beside the window; a
+  recommendation that quietly dropped that marker would be the one place in
+  the app where a guess reads as a certainty. Every
   result leads with a short evocative title ("The Many Faces of Pinot")
   and keeps the fuller explanation behind a "Why these" disclosure, so
   you can see what was suggested before reading why. A pairing

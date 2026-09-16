@@ -830,9 +830,14 @@ real but none of them corrupts data, so they wait.
   it and the proposal is correctly marked estimated - but Apply is one click
   and the diff gives no sign the current value was yours. The fix is to make
   the field description name the two cases: estimate freely when there is no
-  window on file, repeat the existing years back unchanged when there is.
-  `describeBottleForResearch` already sends the current window, so the model
-  has what it needs to tell them apart.
+  window on file, repeat the existing years back unchanged when there is -
+  but *only* when those years were sourced or typed by hand. Applied to a
+  window the app guessed, "repeat it unchanged" would freeze that guess in
+  place and stop research ever improving it, which is the same guess/fact
+  confusion pointing the other way. `describeBottleForResearch` now labels
+  the window as estimated or sourced on the way in, so the model can tell
+  the two apart - that half is done; what remains is the field description
+  itself.
 
 - **`browse_cellar` hands Suggest a slice of the cellar without saying so.**
   `browseCellar` returns `matches.slice(0, 40)` ordered by producer name, and
