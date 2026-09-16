@@ -997,6 +997,142 @@ real but none of them corrupts data, so they wait.
   current values, so the search is shared but `researchChanges` still has to
   be computed per bottle.
 
+## 20. Suggest: keep what you asked for
+
+Scoped with the owner rather than drafted from a review, so the decisions
+below are settled unless noted.
+
+### What is already true
+
+A **tasting flight** is already persisted - `TastingFlight` + `FlightPick`
+hold a title, a summary and ordered picks each with a reason. A **pairing**
+has the same shape at runtime and no storage at all: `result` is
+`useState` in `app/(owner)/suggest/page.js`, so following any pick's own
+link destroys the other picks. That is the sharper version of "lost on
+navigation": the page's primary affordance is what throws the answer away.
+
+One correction to #17's entry, which is wrong: refining does **not** require
+retyping. `request` is never cleared and the form stays rendered above the
+result, so changing Character and re-running already works. The friction is
+scrolling, not typing.
+
+### Why pairings get their own table rather than joining flights
+
+Three differences, and the first is the one that decides it:
+
+- **Origin.** Flights have two - `createFlight` is reachable from
+  `NewFlightForm` and from `AddToFlight` on any Cellar row, and
+  `FlightPick.reason` is nullable "for a pick added by hand". A pairing only
+  ever comes from Suggest. A combined table's natural name is "suggestions",
+  which would be a small lie about half its rows.
+- **Lifecycle.** `isOpenFlight` says it plainly: a flight is a queue while
+  any pick is undrunk and "a record now, not a queue" once they are all
+  done. It has live state and the Cellar wires into it. A pairing has none -
+  it is a decision you recorded, and "Log this pairing" already writes the
+  tasting note.
+- **Owned vs not.** `FlightPick.bottleId` is correctly NOT NULL: you cannot
+  open a wine you do not have. A pairing is the opposite - "buy this for
+  that dish" is the entire point of the include-outside toggle.
+
+Sharing one table would make `order` and `consumed` meaningless for half the
+rows, putting "null means not applicable" in the same column as "null means
+unknown" - the distinction the rest of this schema works to keep.
+
+### Proposed shape
+
+```
+SavedPairing
+  id, createdAt
+  title      String?   -- defaults to the model's own title, renameable
+  request    String    -- the original text, verbatim
+  character  String
+  includeOutside Boolean
+  summary    String?   -- the model's "why these"
+  picks      PairingPick[]
+
+PairingPick
+  id, pairingId, order
+  dish       String?   -- pairingContext; null on a whole-menu pick
+  reason     String
+  bottleId   Int?      -- the wine owned, null for a gap
+  wineLabel  String    -- how it read when saved
+  gap        Json?     -- the not-in-cellar wine's fields
+```
+
+Three of those earn their place deliberately:
+
+- **`request`/`character`/`includeOutside` are what make refining cheap** -
+  reload the form from a saved pairing, change one control, re-run. Without
+  them, iteration is a second feature rather than three columns.
+- **`gap` is Json** for the same reason `ResearchProposal.proposed` is: it is
+  only ever rendered as a unit. It also means saving never quietly creates a
+  wishlist bottle nobody asked for.
+- **`wineLabel` is a snapshot, and `bottleId` sets null on delete.**
+  `FlightPick` cascades, which is right for a queue - a bottle you no longer
+  have cannot be in one. A pairing is a record of a decision made in June and
+  should not lose a wine because the cellar was tidied in October.
+
+Only pairings deliberately kept are persisted. The consequence, worth stating:
+comparing two attempts means keeping both on purpose, so the refine control
+has to make keeping cheap and obvious or the preferred version is lost.
+
+### The index
+
+One screen listing both kinds, rows expanding in place, flights keeping
+`/flights/[id]` and their queue behaviour untouched. A flight row expands to
+progress and a link; a pairing row expands fully. Naming is the open wrinkle -
+with hand-built flights in it, the honest heading is "Saved" rather than
+"Suggestions". Costs a nav slot, so it is tangled with the tab bar in #17.
+
+### Two bugs, independent of all of the above
+
+- **`savedGapIds` is keyed by array index and never reset**
+  (`suggest/page.js:33`, `:268`; `handleSubmit` resets four other pieces of
+  state but not this). Save a gap to the wishlist, run a different search, and
+  pick #1 of the new result claims to be on your wishlist already.
+- **"Save this flight" drops the wines you do not own, silently**
+  (`suggest/page.js:56-58`). The exclusion is correct - a flight is a queue of
+  bottles you can open - so the fix is to say what is being left out and offer
+  to wishlist it, not to loosen the column.
+
+### Effort, not model
+
+The owner's interest is speed and thoroughness, and effort is the lever, not
+model choice. `output_config` is never set anywhere in `app/actions.js`, so
+all five AI calls run at the default. Two reasons to reach for effort first:
+current guidance is to measure the capable model at lower effort before
+building a model cascade, and prompt caches are model-scoped - the Suggest and
+scan prefixes are cached (`actions.js:678`, `:1050`), so routing some calls to
+a cheaper model would forfeit the cache hit and eat the per-token saving. If
+latency specifically is the complaint, fast mode runs the same model faster at
+a price premium, which trades money rather than quality.
+
+## 21. The wine card's three kinds of note, and two of its dates
+
+Raised by the owner looking at a bottle page.
+
+- **Two notes boxes, one explanation.** `Bottle.notes`, `Bottle.criticNotes`
+  and `TastingNote.note` are a real three-way split - your standing notes
+  about the wine, somebody else's published notes, and your dated tasting
+  entries. `criticNotes` is documented thoroughly in the schema and carries a
+  placeholder saying Research fills it. `Bottle.notes` has **no schema comment
+  at all** (`schema.prisma:62`) and is labelled just "Notes" directly above
+  it. The distinction survives in the schema and nowhere on screen. A label
+  and a placeholder fix it; no data change.
+- **The acquired date is already there and hard to see.** It renders for
+  every non-wishlist bottle (`bottles/[id]/page.js:166-178`), reads "date
+  unknown" in small grey when null, and sits among up to three dates on a
+  consumed bottle. Nothing to build; it wants the contrast and prominence
+  treatment the rest of the app has had.
+- **Acquisition source** - where a bottle came from: a shop, direct from the
+  winery, a gift. New nullable field. Worth noting it is exactly what is
+  currently being dumped into the undocumented `notes` box, so the two items
+  above are related: structuring this is part of giving `notes` a clear job.
+  Open question before building: free text with autocomplete over sources
+  already used (the `getRegionOptions` pattern), or a fixed vocabulary like
+  `wineColor`. Sources are open-ended and personal, so the autocomplete
+  shape looks right.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
