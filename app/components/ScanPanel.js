@@ -23,6 +23,7 @@ import {
 } from "@/app/components/icons";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
+import { wineDetail } from "@/lib/wine-origin";
 import {
   DEFAULT_SCAN_INTENT,
   SCAN_INTENTS,
@@ -255,9 +256,7 @@ function wineTitle(wine) {
 
 function EntryHeading({ wine }) {
   const title = wineTitle(wine);
-  const detail = [wine.variety || wine.type, wine.region, wine.subRegion, wine.country]
-    .filter(Boolean)
-    .join(" \u00b7 ");
+  const detail = wineDetail(wine);
 
   return (
     <div className="flex flex-col gap-0.5">

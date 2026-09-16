@@ -5,6 +5,7 @@ import Link from "next/link";
 import { adjustBottleQuantity } from "@/app/actions";
 import AddToFlight from "@/app/components/AddToFlight";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
+import { wineDetailOrNone, wineOrigin } from "@/lib/wine-origin";
 import { formatTastedDate } from "@/lib/tasting-date";
 
 const stepperClass =
@@ -80,26 +81,45 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
             key={bottle.id}
             className="rounded-lg border border-zinc-200 dark:border-zinc-800"
           >
+            {/* The marker is its own column now rather than sitting
+                inside the name: the row has two lines of text, and an
+                indent that has to clear a triangle and a colour dot of
+                different widths is a guess that goes wrong on half the
+                rows. */}
             <button
               type="button"
               onClick={() => toggle(bottle.id)}
               aria-expanded={expanded}
-              className="flex w-full items-baseline justify-between gap-2 px-4 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+              className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
             >
-              <span className="font-medium">
-                <span className="mr-1.5 inline-block text-zinc-400">
-                  {expanded ? "▾" : "▸"}
+              <span aria-hidden="true" className="shrink-0 text-zinc-400">
+                {expanded ? "▾" : "▸"}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">
+                  {WINE_COLOR_SWATCH[bottle.wineColor] && (
+                    <span
+                      className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle ${WINE_COLOR_SWATCH[bottle.wineColor]}`}
+                      title={bottle.wineColor}
+                    />
+                  )}
+                  {bottle.producer}
+                  {bottle.bottling ? ` “${bottle.bottling}”` : ""}
+                  {bottle.vintage ? ` ${bottle.vintage}` : ""}
+                  {bottle.type ? ` — ${bottle.type}` : ""}
                 </span>
-                {WINE_COLOR_SWATCH[bottle.wineColor] && (
-                  <span
-                    className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle ${WINE_COLOR_SWATCH[bottle.wineColor]}`}
-                    title={bottle.wineColor}
-                  />
+                {/* Where the wine is from, on the face of the row rather
+                    than one tap inside it: scanning a list for "something
+                    from the Loire" was opening rows one at a time. Quieter
+                    than the name because it is what you scan by, not what
+                    you read. Nothing at all when the bottle has no
+                    origin set - a blank line is not information, and the
+                    expanded panel already says so in words. */}
+                {wineOrigin(bottle) && (
+                  <span className="mt-0.5 block text-xs text-zinc-500">
+                    {wineOrigin(bottle)}
+                  </span>
                 )}
-                {bottle.producer}
-                {bottle.bottling ? ` “${bottle.bottling}”` : ""}
-                {bottle.vintage ? ` ${bottle.vintage}` : ""}
-                {bottle.type ? ` — ${bottle.type}` : ""}
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 {bottle.favoritedBy?.length > 0 && (
@@ -130,9 +150,7 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
                 )}
                 <div className="flex flex-col gap-2">
                   <div className="text-sm text-zinc-500">
-                    {[bottle.variety, bottle.region, bottle.subRegion, bottle.country]
-                      .filter(Boolean)
-                      .join(" · ") || "No variety/region set"}
+                    {wineDetailOrNone(bottle)}
                   </div>
                   {/* Only the Tasting notes page asks getBottles for this,
                       so only that page renders it - everywhere else

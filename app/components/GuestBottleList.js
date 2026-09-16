@@ -4,6 +4,7 @@ import { toggleFavorite } from "@/app/actions";
 import FilterBar from "@/app/components/FilterBar";
 import useBottleFilters from "@/app/components/useBottleFilters";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
+import { wineDetail } from "@/lib/wine-origin";
 
 function bottleHeader(bottle) {
   return [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage || null]
@@ -54,9 +55,10 @@ export default function GuestBottleList({ bottles, regionOptions, initialFilters
                   {bottleHeader(bottle)}
                   {bottle.type ? ` — ${bottle.type}` : ""}
                 </p>
-                <p className="text-sm text-zinc-500">
-                  {[bottle.variety, bottle.region, bottle.country].filter(Boolean).join(" · ")}
-                </p>
+                {/* The full line, not the owner list's short one: this
+                    row does not expand, so what is on its face is all a
+                    guest ever sees. It was dropping the sub-region. */}
+                <p className="text-sm text-zinc-500">{wineDetail(bottle)}</p>
               </div>
               <form action={toggleFavorite.bind(null, bottle.id)}>
                 <button

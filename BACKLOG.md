@@ -1172,29 +1172,41 @@ Raised by the owner looking at a bottle page; settled with them and shipped.
   `Bottle.emptiedAt` is what History sorts by - leaving them free to diverge
   would have put History in an order the dates on screen denied.
 
-## 22. Region and country in the Cellar's wine titles
+## ~~22. Region and country in the Cellar's wine titles~~ — done
 
-Raised by the owner: a Cellar row names the producer, bottling and vintage,
-and says the type, but not where the wine is from - so scanning the list for
-"something from the Loire" means opening rows or reaching for the filter.
-Proposed as part of the title in a quieter font, which is the right instinct:
-it is the same shape the scan cards already use, where the producer line is
-followed by `variety · region · subRegion · country` in small grey
-(`EntryHeading` in `ScanPanel.js`), so there is a pattern to copy rather than
-a new one to invent.
+Raised by the owner: a Cellar row named the producer, bottling and vintage
+and said the type, but not where the wine was from - so scanning the list for
+"something from the Loire" meant opening rows one at a time. The origin was
+always there, one tap inside the row; the fix was to put it on the face of it,
+in small grey under the name, following the shape the scan cards already used.
 
-Worth deciding when it is built:
+The three decisions, as made:
 
-- **Which fields.** `region` alone is often enough ("Barolo", "Mosel") and
-  `country` is the redundant half of "Barolo, Italy"; but "Sonoma Coast" and
-  "South Australia" want it. Showing both always is the honest default and
-  the scan cards already do.
-- **Where the room comes from.** At 375px the row already carries the colour
-  swatch, the title, the type and the quantity. This is a second line, not
-  more on the first.
-- **Whether History and the guest list follow.** They render the same bottle
-  through different components; a change here that stops at Cellar leaves
-  three lists that describe a wine three ways.
+- **Which fields: region, sub-region and country** - one more than was asked
+  for. Whether a wine's sub-region is set at all depends on how the bottle
+  happened to be entered ("Margaux" as the region, or Bordeaux plus Margaux as
+  the sub-region), so leaving it out would have shown the same wine two
+  different ways depending on which route it came in by. At `text-xs`,
+  "Bordeaux · Margaux · France" costs nothing at 375px.
+- **Where the room comes from: a second line**, and the disclosure marker
+  moved out of the name into its own column. Indenting a second line to clear
+  a triangle and a colour dot of different widths is a guess that goes wrong
+  on half the rows.
+- **The other lists followed** - and one of them was already ahead. History
+  and the wishlist share `BottleList`, so they came along for free. The guest
+  list had carried an origin line all along and was quietly dropping the
+  sub-region.
+
+The real finding was underneath the question. The same line existed in four
+places, written four ways: the scan card had
+`(variety || type) · region · subRegion · country`, the cellar's expanded
+panel had `variety · region · subRegion · country`, the guest list had
+`variety · region · country`, and the collapsed row had nothing. That is
+drift, not design, so all four now read from `lib/wine-origin.js`. A fifth
+case fell out of it: with the grape falling back to the type, a bottle with
+a type but no variety and no region would have shown its type twice instead
+of saying nothing was recorded, so `wineDetailOrNone` draws that line
+explicitly.
 
 ## 23. Measure before turning the mechanical calls down
 
