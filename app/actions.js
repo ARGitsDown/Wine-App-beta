@@ -1168,7 +1168,7 @@ const RESEARCH_TOOL = {
       drinkFrom: {
         type: ["integer", "null"],
         description:
-          "Start of the drinking window (a year). Prefer one your sources state; where they don't, still give your best estimate from the producer, region, style and vintage rather than leaving it blank. Null only when you genuinely cannot judge.",
+          "Start of the drinking window (a year). Prefer one your sources state. Where they don't, what to do depends on what the bottle already has, which the description above tells you: if there is no window on file, or the one on file is labelled as the app's own estimate, give your best estimate from the producer, region, style and vintage rather than leaving it blank - replacing one guess with a better-researched one is progress. If the window on file was read from a source or entered by the owner, repeat those years back unchanged; they may be the owner's own judgment, and overwriting them with yours is not research. Null only when you genuinely cannot judge.",
       },
       drinkWindowEstimated: {
         type: "boolean",
