@@ -7,7 +7,10 @@ import {
   WishlistIcon,
   TastingHistoryIcon,
   FlightsIcon,
+  PairingsIcon,
+  ResearchIcon,
 } from "@/app/components/icons";
+import { getResearchCount } from "@/lib/bottles";
 
 export const dynamic = "force-dynamic";
 
@@ -52,8 +55,14 @@ function Card({ card }) {
 }
 
 export default async function HomePage() {
-  const [inventoryCount, wishlistCount, tastedCount, flightCount] =
-    await Promise.all([
+  const [
+    inventoryCount,
+    wishlistCount,
+    tastedCount,
+    flightCount,
+    pairingCount,
+    researchCount,
+  ] = await Promise.all([
       prisma.bottle.count({ where: { status: "inventory" } }),
       prisma.bottle.count({ where: { status: "wishlist" } }),
       // Wines tasted, not notes written. A bottle you finished without
@@ -66,6 +75,8 @@ export default async function HomePage() {
         where: { OR: [{ status: "consumed" }, { tastingNotes: { some: {} } }] },
       }),
       prisma.tastingFlight.count(),
+      prisma.savedPairing.count(),
+      getResearchCount(),
     ]);
 
   // Actions first: on a phone this is the top of the screen, and scanning a
@@ -120,6 +131,27 @@ export default async function HomePage() {
       Icon: FlightsIcon,
       accent:
         "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400",
+    },
+    // Both of these were reachable from exactly one place before the tab
+    // bar: kept pairings only from Suggest, and research only from a nav
+    // badge that vanished when its count hit zero. With four tabs, home is
+    // the way to everything not in the bar, so "everything" has to be here.
+    {
+      href: "/pairings",
+      label: "Pairings",
+      count: pairingCount,
+      description: "Kept",
+      Icon: PairingsIcon,
+      accent: "bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-400",
+    },
+    {
+      href: "/research",
+      label: "Research",
+      count: researchCount,
+      description: "Waiting on a look",
+      Icon: ResearchIcon,
+      accent:
+        "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-400",
     },
   ];
 

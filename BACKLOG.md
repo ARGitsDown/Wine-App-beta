@@ -820,37 +820,42 @@ three.
 
 ### Bigger questions, worth a branch
 
-- **The nav spends vertical space on every screen.** The owner layout is a
-  `flex-wrap` row of seven text links plus a conditional Research badge;
-  at 375px that wraps to two or three lines above every page,
-  permanently, on the device the app was built for. It is a desktop nav on
-  a phone-first app. Given the manifest and icons already support
-  standalone mode, a bottom tab bar is the natural form - four or five
-  destinations under the thumb, the rest behind the home cards - giving
-  back most of that space while putting Scan within reach of a hand
-  already holding a bottle. It would also give the Research count a real
-  badge rather than a text link in a wrapping row.
+- ~~**The nav spends vertical space on every screen.**~~ — done. The owner
+  layout was a `flex-wrap` row of seven text links plus a conditional
+  Research badge; at 375px it wrapped to two lines above every page,
+  permanently, on the device the app was built for. It was a desktop nav on
+  a phone-first app.
 
-  The Cellar reordering it was waiting on is done, so the space question is
-  settled: the first bottle sits at 441px on a 375x800 screen, of which
-  roughly 70px is this nav. What is *not* settled is which destinations earn
-  a slot, and that is an owner decision about how the app is actually used
-  rather than something the code can answer. The two open questions, so they
-  do not have to be re-derived:
+  Both open questions were answered from a contact sheet of the options
+  (`tab-bar-sheet.html`), and the answers were:
 
-  1. **Which four or five tabs.** Home and Scan are not in doubt, and the
-     Cellar is the most-used list. The contested slots are Suggest (an
-     action, used how often?) against Wishlist or Tasting notes (lists,
-     already reachable from Home), and whether Research earns one - it is
-     currently the only page with no route at all when its badge reads
-     zero, and a tab would give its count a real badge.
-  2. **What happens above phone width.** Either the top row returns past
-     ~640px, which costs one media query and keeps a laptop looking like a
-     laptop, or the bottom bar is the only nav everywhere, which is less
-     code and nothing to keep in step.
+  1. **Four tabs — Home, Scan, Cellar, Suggest.** The two things you do, the
+     one list you live in, and the way back to everything else. Research did
+     not earn a slot, being empty most of the time.
+  2. **The top row returns above 640px.** Owner's default rather than an
+     explicit choice, so it is a one-line flip: a bar pinned to the bottom of
+     a laptop screen is a long way from the mouse, and the wrapping this
+     replaces only ever happened on a phone.
 
-  Whatever is not in the bar stays a Home card, so nothing becomes
-  unreachable either way.
+  Measured: the cellar's first bottle moved from 441px to 372px on a 375x800
+  screen, which is the whole 69px back.
+
+  Two things the choice forced, both of which were latent problems anyway.
+  **Research needed somewhere else to be seen**: its count was a nav link
+  that only existed above zero, and with four tabs there is no nav on a
+  phone. It is now a dot on the Home tab (with the count in its aria-label,
+  since on a phone the dot is the only thing saying so) plus a real home
+  card carrying the number. **Kept pairings needed a card too** - it was
+  reachable only from Suggest, which was a holding position from #20 and is
+  now resolved: home is the way to everything not in the bar, so everything
+  not in the bar is on home.
+
+  Three icons were drawn for it - Home, Research, Pairings - and none is
+  built from the set's shared bottle-and-glass geometry. The reasoning is
+  in `icons.js`: a house because the thematic choice (a cellar arch) is
+  already Cellar two slots along, a lens over text because a bottle inside
+  a 14px lens is mud at 20px, and a fork because a pairing is the only
+  thing here that needed something from the table.
 - **A Suggest result is lost on navigation, with no warning.** The result
   lives in component state. Pairings being ephemeral is a deliberate call
   and a defensible one, but ephemeral and unannounced are different

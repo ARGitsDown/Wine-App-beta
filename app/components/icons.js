@@ -151,6 +151,39 @@ const TASTING_HISTORY = [
 // A flight is a sequence, so the icon shows one.
 const FLIGHTS = [glass(5, 6, 3.2, 15, 2), glass(12, 6, 3.2, 15, 2), glass(19, 6, 3.2, 15, 2)];
 
+// The three below are for the tab bar and the home cards, and none of them
+// is built from the bottle-and-glass geometry above. That is deliberate in
+// each case rather than laziness.
+
+// Home has nothing to do with wine, and shouldn't: in a tab bar the house
+// is the universal "start here", and the thematic choice - the cellar arch -
+// is already two slots along as Cellar. Two arches in one bar would be one
+// icon shown twice.
+const HOME = [
+  "M3.2 10.6 12 3.4l8.8 7.2",
+  "M5.4 9.4V20.6h13.2V9.4",
+  "M9.8 20.6v-5.2h4.4v5.2",
+];
+
+// A lens over two lines of text: research is reading closely, and it is the
+// reading rather than the wine that separates it from every other icon
+// here. A bottle inside the lens was the obvious idea and is unreadable at
+// 20px - the lens is 14px across and the bottle would have to fit inside it.
+const RESEARCH = [
+  "M10.6 3.6a7 7 0 1 0 0 14 7 7 0 0 0 0-14z",
+  "M15.7 15.7 20.6 20.6",
+  "M7.6 9h6M7.6 12h4",
+];
+
+// A fork and a glass: the two halves of a pairing, and the only icon in the
+// set that needed something from the table rather than from the cellar.
+const PAIRINGS = [
+  "M3.6 3.6v4.4M6 3.6v4.4M8.4 3.6v4.4",
+  "M3.6 8c0 1.5 1.1 2.4 2.4 2.4S8.4 9.5 8.4 8",
+  "M6 10.4v10",
+  glass(16.5, 4.6, 3.8, 20.4, 2.8),
+];
+
 function Icon({ paths, className }) {
   return (
     <svg {...commonProps} className={className} aria-hidden="true">
@@ -190,4 +223,16 @@ export function TastingHistoryIcon({ className = "h-6 w-6" }) {
 
 export function FlightsIcon({ className = "h-6 w-6" }) {
   return <Icon paths={FLIGHTS} className={className} />;
+}
+
+export function HomeIcon({ className = "h-6 w-6" }) {
+  return <Icon paths={HOME} className={className} />;
+}
+
+export function ResearchIcon({ className = "h-6 w-6" }) {
+  return <Icon paths={RESEARCH} className={className} />;
+}
+
+export function PairingsIcon({ className = "h-6 w-6" }) {
+  return <Icon paths={PAIRINGS} className={className} />;
 }

@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getResearchCount } from "@/lib/bottles";
 import NavLinks from "@/app/components/NavLinks";
+import TabBar from "@/app/components/TabBar";
 
 // The badge is the only part of the shell that needs the database, so it
 // renders on its own and streams in: awaiting it in the layout put a DB
@@ -19,11 +20,7 @@ async function ResearchNavLink() {
   // badge still at zero and no way to reach it. The Research page's "Ready
   // to review" list is driven by the proposal table, so this now counts the
   // same work that page will show.
-  const count = await prisma.bottle.count({
-    where: {
-      OR: [{ needsResearch: true }, { researchProposal: { isNot: null } }],
-    },
-  });
+  const count = await getResearchCount();
   if (count === 0) return null;
 
   return (
@@ -42,7 +39,12 @@ async function ResearchNavLink() {
 export default function OwnerLayout({ children }) {
   return (
     <>
-      <header className="border-b border-zinc-200 dark:border-zinc-800">
+      {/* Two navs, one at a time. The row of text links was a desktop nav
+          on a phone-first app: at 375px it wrapped to two lines above every
+          screen, permanently, and pushed the first bottle in the cellar to
+          441px. Below 640px it is gone and the tab bar has it; above, it
+          comes back unchanged and the bar is the one that hides. */}
+      <header className="hidden border-b border-zinc-200 sm:block dark:border-zinc-800">
         <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
           <NavLinks />
           <Suspense fallback={null}>
@@ -50,7 +52,11 @@ export default function OwnerLayout({ children }) {
           </Suspense>
         </nav>
       </header>
-      <main className="flex flex-1 flex-col">{children}</main>
+      {/* The bar is fixed, so it sits over the end of the page unless the
+          page ends above it. 56px of bar plus a little air, and only on the
+          widths where the bar exists. */}
+      <main className="flex flex-1 flex-col pb-20 sm:pb-0">{children}</main>
+      <TabBar />
     </>
   );
 }
