@@ -698,6 +698,33 @@ All three verified still open against the current scan code.
   bottle. Rendering them as the same segmented control would make one
   decision look like one decision wherever it is made.
 
+### Scan: finishing a batch
+
+- ~~**Nothing closed a reviewed card.**~~ — fixed. Scan saves each wine as
+  it reads it, so by the time you have checked a batch every card on screen
+  is already stored - and yet every control that emptied the page deleted
+  bottles. The only way to get a clean screen after a good scan was to
+  reload. Two controls now do the tidying the deletes were being misused
+  for: a per-card **Done** that collapses a finished card to its own name
+  and destination (with Reopen, and the research flag carried along so a
+  collapsed card can't look settled when it isn't), and a batch-level
+  **Done — clear the screen** that empties the workspace and keeps every
+  wine, then says what landed where with a link into each list. It asks
+  first only when clearing would actually cost something: a wine read but
+  not saved, or a card with unsaved edits. A dirty card hides its own Done,
+  since collapsing it would tuck the edit out of sight.
+
+  This gap was made by #16's fix, and is worth remembering as a shape:
+  removing a dishonest affordance ("remove from the batch", which left the
+  bottles) removed a *use* people had for it (getting the screen clean)
+  along with the dishonesty. The fix was right and the replacement should
+  have shipped with it.
+- ~~**The photo-level control still read like tidying.**~~ — fixed. "Remove
+  this photo and all its wines from the batch" is now "Delete these 5
+  wines", or "Remove this photo" when that photo saved nothing. With Done
+  next to it doing the non-destructive job, the words have to tell them
+  apart.
+
 ### Research
 
 - ~~**The nav badge undercounted, so work could wait with nothing saying

@@ -10,6 +10,7 @@ import {
   removeScannedBottles,
   dismissResearch,
 } from "@/app/actions";
+import Link from "next/link";
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import Spinner from "@/app/components/Spinner";
@@ -73,7 +74,58 @@ function batchProgress(photos) {
   return { total, done, failed, wines, unsaved, running: done < total };
 }
 
-function BatchProgress({ photos }) {
+// What clearing the screen would cost. A blank manual card nobody typed into
+// is not a loss; a wine read from a photo whose save failed is, and so is a
+// card someone has edited without saving.
+function pendingLoss(photos) {
+  let drafts = 0;
+  let edits = 0;
+  for (const photo of photos) {
+    for (const entry of photo.entries) {
+      if (entry.dirty) edits += 1;
+      else if (entry.kind !== "saved" && entry.status !== "saved" && entry.saveFailed) {
+        drafts += 1;
+      }
+    }
+  }
+  return { drafts, edits, any: drafts + edits > 0 };
+}
+
+// Finishing a batch is not the same as undoing it, and until this existed the
+// app could only do the second: every control that emptied the page deleted
+// bottles, so the way to get a clean screen after a good scan was to reload
+// the page. Everything here is already saved - this clears the workspace and
+// keeps the wine.
+function DoneButton({ photos, onDone }) {
+  const { drafts, edits, any } = pendingLoss(photos);
+  const className =
+    "rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:focus-visible:outline-zinc-100";
+
+  if (!any) {
+    return (
+      <button type="button" onClick={onDone} className={className}>
+        Done &mdash; clear the screen
+      </button>
+    );
+  }
+
+  const parts = [];
+  if (edits > 0) parts.push(`${edits} card${edits === 1 ? "" : "s"} with unsaved edits`);
+  if (drafts > 0) parts.push(`${drafts} wine${drafts === 1 ? "" : "s"} still to save`);
+
+  return (
+    <ConfirmButton
+      action={onDone}
+      label="Done &mdash; clear the screen"
+      confirmLabel="Clear it anyway"
+      warning={`Loses ${parts.join(" and ")}. Wines already saved are kept.`}
+      className={className}
+      confirmClassName="rounded-lg bg-red-700 px-4 py-2.5 text-sm font-medium text-white dark:bg-red-800"
+    />
+  );
+}
+
+function BatchProgress({ photos, onDone }) {
   const { total, done, failed, wines, unsaved, running } = batchProgress(photos);
   if (total === 0) return null;
 
@@ -127,6 +179,16 @@ function BatchProgress({ photos }) {
           region with only two states rather than role="status" on the
           running text above, which would announce on every completed
           photo - nine interruptions to say the same thing nine times. */}
+      {!running && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <DoneButton photos={photos} onDone={onDone} />
+          <span className="text-xs text-zinc-500">
+            Everything above is already saved &mdash; this just puts the page
+            away.
+          </span>
+        </div>
+      )}
+
       <p className="sr-only" role="status">
         {running
           ? `Reading ${total} photo${total === 1 ? "" : "s"}.`
@@ -179,14 +241,19 @@ function entriesFromScanResults(results, intent) {
 // cellar list uses, so a wine read from a photo is described the way you
 // already read wines everywhere else in the app. Until this existed the only
 // way to see what had been found was to read it off the form fields.
-function EntryHeading({ wine }) {
-  const title = [
+// Producer, bottling and vintage in one line, the shape the cellar list uses.
+function wineTitle(wine) {
+  return [
     wine.producer,
     wine.bottling ? `\u201c${wine.bottling}\u201d` : null,
     wine.vintage || null,
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function EntryHeading({ wine }) {
+  const title = wineTitle(wine);
   const detail = [wine.variety || wine.type, wine.region, wine.subRegion, wine.country]
     .filter(Boolean)
     .join(" \u00b7 ");
@@ -215,7 +282,14 @@ function EntryHeading({ wine }) {
 function RemovePhotoButton({ photo, onRemove }) {
   const saved = photo.entries.filter((e) => e.kind === "saved").length;
   const dirty = photo.entries.filter((e) => e.dirty).length;
-  const label = "Remove this photo and all its wines from the batch";
+  // Says delete, because that is what it does. It used to read "remove this
+  // photo and all its wines from the batch", which sounded like tidying up
+  // even after it started deleting - and now that Done actually is the
+  // tidying-up control, the difference has to be visible in the words.
+  const label =
+    saved === 0
+      ? "Remove this photo"
+      : `Delete ${saved === 1 ? "this wine" : `these ${saved} wines`}`;
   const linkClass =
     "-mx-2 rounded px-2 py-2 text-xs text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100";
 
@@ -279,10 +353,14 @@ const INTENT_LOOK = {
 // the status each one writes rather than by scan intent, and sharing that
 // picker's icons and accents.
 const DESTINATIONS = [
-  { value: "inventory", label: "Cellar", Icon: CellarIcon, accent: INTENT_LOOK.cellar.accent },
-  { value: "wishlist", label: "Wishlist", Icon: WishlistIcon, accent: INTENT_LOOK.wishlist.accent },
-  { value: "consumed", label: "Tasted", Icon: TastingHistoryIcon, accent: INTENT_LOOK.tasting.accent },
+  { value: "inventory", label: "Cellar", path: "/inventory", Icon: CellarIcon, accent: INTENT_LOOK.cellar.accent },
+  { value: "wishlist", label: "Wishlist", path: "/wishlist", Icon: WishlistIcon, accent: INTENT_LOOK.wishlist.accent },
+  { value: "consumed", label: "Tasted", path: "/consumed", Icon: TastingHistoryIcon, accent: INTENT_LOOK.tasting.accent },
 ];
+
+function destinationFor(status) {
+  return DESTINATIONS.find((d) => d.value === status);
+}
 
 // One decision should look like one decision wherever it is made. This
 // control picks the same destination as the 44px picker above it, and was
@@ -326,6 +404,9 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
   const fileInputRef = useRef(null);
   const [intent, setIntent] = useState(initialIntent);
   const [photos, setPhotos] = useState([]);
+  // Survives clearing the batch, so the empty page can still say where the
+  // wines went rather than looking like nothing happened.
+  const [finished, setFinished] = useState(null);
   const photosRef = useRef(photos);
   useEffect(() => {
     photosRef.current = photos;
@@ -505,6 +586,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
     }));
 
     setPhotos((prev) => [...prev, ...newPhotos]);
+    setFinished(null);
     event.target.value = "";
 
     // Captured now rather than read inside the worker: changing the picker
@@ -512,6 +594,23 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
     // value each photo carries, for the same reason.
     const batchIntent = intent;
     await runWithConcurrency(newPhotos, 3, (photo) => processPhoto(photo, batchIntent));
+  }
+
+  // Clears the review workspace, not the cellar. Every saved wine stays
+  // exactly where it is; what goes is client state and the object URLs behind
+  // the previews. The counts are kept so the empty page can point at the
+  // lists the batch landed in.
+  function finishBatch() {
+    const counts = {};
+    for (const photo of photos) {
+      for (const entry of photo.entries) {
+        if (entry.kind !== "saved") continue;
+        counts[entry.bottle.status] = (counts[entry.bottle.status] ?? 0) + 1;
+      }
+    }
+    photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    setPhotos([]);
+    setFinished(Object.keys(counts).length > 0 ? counts : null);
   }
 
   // A photo that fails to read falls back to a blank manual card, which
@@ -589,7 +688,29 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
 
       {photos.length === 0 ? (
         <>
-          <p className="-mt-3 text-sm text-zinc-500">
+          {/* A cleared screen would otherwise look exactly like a screen
+              nothing had happened on. This says what landed where, and links
+              straight to it - the batch is gone from here, not from the app. */}
+          {finished && (
+            <div className="-mt-3 flex flex-col gap-1.5 rounded-lg border border-green-300 p-3 dark:border-green-900">
+              <p className="text-sm font-medium text-green-800 dark:text-green-400">
+                &#10003; Batch finished &mdash; everything was saved.
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {DESTINATIONS.filter((d) => finished[d.value]).map((d) => (
+                  <Link
+                    key={d.value}
+                    href={d.path}
+                    className="underline underline-offset-2"
+                  >
+                    {finished[d.value]} in {d.label} &rarr;
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className={`text-sm text-zinc-500 ${finished ? "" : "-mt-3"}`}>
             A bottle label, a shelf, or a whole tasting sheet. Tap where the
             wines should land.
           </p>
@@ -706,7 +827,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
         </div>
       )}
 
-      <BatchProgress photos={photos} />
+      <BatchProgress photos={photos} onDone={finishBatch} />
 
       <div className="flex flex-col gap-6">
         {photos.map((photo) => (
@@ -754,9 +875,47 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
               {photo.entries.map((entry) => (
                 <div
                   key={entry.localId}
-                  className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+                  // A card you have finished with shrinks to its own name
+                  // rather than disappearing: the batch summary still counts
+                  // it, and a mis-tap costs one click to undo.
+                  className={
+                    entry.kind === "saved" && entry.done
+                      ? "flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-4 py-2.5 dark:border-zinc-800"
+                      : "flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+                  }
                 >
-                  {entry.kind === "saved" ? (
+                  {entry.kind === "saved" && entry.done ? (
+                    <>
+                      <p className="min-w-0 text-sm">
+                        <span className="mr-1.5 text-green-700 dark:text-green-400">
+                          &#10003;
+                        </span>
+                        <span className="font-medium">
+                          {wineTitle(entry.bottle)}
+                        </span>
+                        <span className="text-zinc-500">
+                          {" \u2014 "}
+                          {destinationFor(entry.bottle.status)?.label}
+                        </span>
+                        {/* Collapsing shouldn't make an unsure wine look
+                            settled - the flag travels with the line. */}
+                        {entry.bottle.needsResearch && (
+                          <span className="text-amber-700 dark:text-amber-400">
+                            {" \u00b7 needs a check"}
+                          </span>
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateEntry(photo.id, entry.localId, { done: false })
+                        }
+                        className="-mx-2 shrink-0 rounded px-2 py-2 text-xs text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100"
+                      >
+                        Reopen
+                      </button>
+                    </>
+                  ) : entry.kind === "saved" ? (
                     <>
                       <EntryHeading wine={entry.bottle} />
 
@@ -894,7 +1053,21 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                         </p>
                       )}
 
-                      <div className="self-start">
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Hidden while the card is dirty: collapsing then
+                            would tuck unsaved edits out of sight, which is
+                            the thing the unsaved badge exists to prevent. */}
+                        {!entry.dirty && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateEntry(photo.id, entry.localId, { done: true })
+                            }
+                            className="min-h-11 rounded-lg border border-zinc-300 px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:focus-visible:outline-zinc-100"
+                          >
+                            Done
+                          </button>
+                        )}
                         <ConfirmButton
                           action={() => handleRemove(photo, entry)}
                           label="Delete this wine"
