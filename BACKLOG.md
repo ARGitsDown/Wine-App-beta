@@ -835,16 +835,28 @@ three.
   now carries the most recent note, its date, and "most recent of 3" when
   there are more. `getBottles` deliberately strips note text off every row,
   so this is an opt-in `withLatestNote` rather than a wider select: the
-  reason the text is trimmed everywhere else still holds, and the opt-in
-  runs one bounded query returning a single note per bottle rather than
-  every note filtered down afterwards. Verified against the RSC payload,
+  reason the text is trimmed everywhere else still holds, and only one note
+  per bottle is ever serialized to the browser. One claim in the first
+  version of this entry was wrong, and is worth recording as a correction:
+  the query does *not* return one row per bottle from the database. Prisma
+  applies `distinct` in the client, so Postgres hands back every note for
+  those bottles, text and all, and the client keeps the newest per bottle.
+  Caught by reading the SQL Postgres actually received rather than trusting
+  the API's name. Fine at this size; the bound that matters is the browser
+  payload. Verified against the RSC payload,
   not just the rendered page - `latestNote` is absent from `/inventory`'s
   payload entirely, so the guard is that the server never sends it. Whether
   `distinct` + `orderBy` really returns the *newest* note was the part
   worth proving rather than assuming: two bottles were seeded where id
   order and date order disagree in opposite directions, and picking by id
-  either way would fail one of them. Original finding, and the branch
-  question that remains: `/consumed` renders
+  either way would fail one of them. That test was still not enough on its
+  own: it used notes with *different* dates, so it never produced a tie -
+  and `tastedAt` is date-only at noon UTC, so two notes on one day are
+  exactly equal. Without a tiebreaker the winner was whatever Postgres'
+  sort happened to produce, and could contradict the bottle's own page.
+  `{ id: "desc" }` is now the third order key, matching how the detail page
+  settles the same tie. Original finding, and the branch question that
+  remains: `/consumed` renders
   the same `FilterableBottleList` as the Cellar with two flags flipped,
   and `BottleList` has no note rendering at all - an expanded row shows
   the photo, variety/region/country, favourites, quantity and a link. So
@@ -857,6 +869,20 @@ three.
   notes with wines attached: the name says the second, the implementation
   is the first. Both are defensible, which is what makes it a branch
   question rather than a fix.
+
+  A second reason to settle it, found once the note rendering landed:
+  **search on this page cannot find the text the page now shows.** The
+  filter bar's free-text search reads producer, bottling, type, variety,
+  region, subRegion, country and vintage (`searchableText` in
+  `lib/filter-bottles.js`), so typing a word visible on your own screen -
+  "smoky", "corked" - hides the row containing it. Fixing it properly runs
+  straight into the question above: matching only the *latest* note is
+  misleading, since the word you remember is often in an older one, and
+  matching every note means shipping all the note text to the browser,
+  which is what the trimmed select exists to avoid. The honest options are
+  a server-side search over `TastingNote` for this page only, or settling
+  the branch question so the text is on the client anyway. Worth deciding
+  before adding more note-aware UI to the shared `BottleList`.
 
 ## ~~18. The export doesn't export everything~~ — done
 
