@@ -483,7 +483,7 @@ const WINE_ENTRY_SCHEMA = {
     bottling: {
       type: ["string", "null"],
       description:
-        "The specific bottling, if this producer is known to make more than one wine from the same grape/vintage - a vineyard designation (e.g. 'Rochioli Vineyard', 'Kanzler Vineyard') or a proprietary/cuvée name (e.g. 'Madeleine', 'Reserve', 'Insignia'). This is what a producer prints to distinguish this specific wine from their other bottlings of the same variety - use your knowledge of the producer's lineup, not just what's printed, since it may not be obvious which of a producer's several similarly-labeled wines this is without checking. Null if this producer only makes one bottling of this grape, or there's no such distinguishing name.",
+        "The specific bottling, if this producer is known to make more than one wine from the same grape/vintage - a vineyard designation (e.g. 'Rochioli Vineyard', 'Kanzler Vineyard') or a proprietary/cuvée name (e.g. 'Madeleine', 'Reserve', 'Insignia'). This is what a producer prints to distinguish this specific wine from their other bottlings of the same variety. Fill this in only from text actually visible in the photo, including a name that is partial, small or half-cropped - knowing a producer's lineup is for *recognising* what you can partly see, never for choosing on its behalf. If you believe this producer makes several bottlings but cannot see which one this is, leave this null and set `confident` to false; naming the wrong one invents a bottle the owner does not own. Null also when this producer only makes one bottling of this grape, or there's no such distinguishing name.",
     },
     vintage: {
       type: ["integer", "null"],
@@ -618,8 +618,38 @@ async function searchCellar(query) {
   });
 }
 
+// A Claude call can come back 200-OK with no usable answer, and neither
+// case throws, so neither is caught by the typed error handling below:
+//
+// - "refusal" - the safety classifiers declined the request. stop_details
+//   says which category, and is null for every other stop reason, so it is
+//   only ever read here.
+// - "max_tokens" - the answer ran out of room part-way through. Adaptive
+//   thinking spends the same budget, so a crowded photo costs far more of
+//   it than a single label does.
+//
+// Both matter most *before* the tool-call lookup. strict:true guarantees a
+// completed tool call validates, but says nothing about one cut off
+// mid-array: a nine-wine tasting sheet truncated at six looks exactly like
+// a six-wine sheet, and the app has no expected count to notice otherwise.
+// Checking here means a truncated answer is never read as a whole one.
+//
+// Returns null when the response is usable, so callers read:
+//   const unusable = unusableResponseError(response, {...});
+//   if (unusable) return unusable;
+function unusableResponseError(response, messages) {
+  if (response.stop_reason === "refusal") {
+    console.error("Claude declined the request:", response.stop_details);
+    return { error: messages.refused };
+  }
+  if (response.stop_reason === "max_tokens") {
+    return { error: messages.truncated };
+  }
+  return null;
+}
+
 const LABEL_SYSTEM_PROMPT =
-  "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). Many producers make several distinct wines from the same grape and vintage - a regional/estate bottling plus one or more vineyard-designated or proprietary-named bottlings (e.g. a producer's basic Pinot Noir alongside a 'Rochioli Vineyard' or a 'Madeleine' bottling). Think about whether this producer is one of those before settling on the `bottling` field - a label that only shows a small or partial vineyard/cuvée name (easy to crop out of a photo, or in small print) is exactly the kind of detail worth getting right, since it's what tells two of a producer's own bottlings apart. If the photo includes descriptive or tasting-note-style text for a wine, mind whose words they are: anything printed by a shop, a winery or a critic (a shelf talker, a tasting-sheet write-up, a back label) goes in `criticNotes`, while `note` is only for something the owner wrote themselves, since that becomes their personal tasting note and marks the wine as one they have tasted. Never invent either for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
+  "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). Many producers make several distinct wines from the same grape and vintage - a regional/estate bottling plus one or more vineyard-designated or proprietary-named bottlings (e.g. a producer's basic Pinot Noir alongside a 'Rochioli Vineyard' or a 'Madeleine' bottling). Think about whether this producer is one of those before settling on the `bottling` field - a label that only shows a small or partial vineyard/cuvée name (easy to crop out of a photo, or in small print) is exactly the kind of detail worth getting right, since it's what tells two of a producer's own bottlings apart - but only when you can actually see some of it. If the lineup makes you suspect a bottling name that is nowhere in the photo, leave `bottling` null and set `confident` to false rather than picking the producer's best-known one. If the photo includes descriptive or tasting-note-style text for a wine, mind whose words they are: anything printed by a shop, a winery or a critic (a shelf talker, a tasting-sheet write-up, a back label) goes in `criticNotes`, while `note` is only for something the owner wrote themselves, since that becomes their personal tasting note and marks the wine as one they have tasted. Never invent either for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
 
 // Reads a photo - one bottle label, or a document listing several wines -
 // optionally researching the user's own saved bottles and the model's wine
@@ -658,6 +688,14 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         tools: [SEARCH_CELLAR_TOOL, WINES_TOOL],
         messages,
       });
+
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined to read that photo. Nothing was saved — if it's a wine label, try another shot; otherwise add the details by hand.",
+        truncated:
+          "That photo had more on it than one read could finish, so some wines would have been missed. Nothing was saved — try photographing fewer wines at a time, or one label per shot.",
+      });
+      if (unusable) return unusable;
 
       const toolUses = response.content.filter((block) => block.type === "tool_use");
       const finalCall = toolUses.find((t) => t.name === "record_wines");
@@ -989,6 +1027,14 @@ export async function getSuggestions(request, includeOutside = false, character 
         messages,
       });
 
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined that request. Try describing the meal or the theme a different way.",
+        truncated:
+          "That suggestion ran out of room before it finished. Try a shorter description, or ask for fewer wines.",
+      });
+      if (unusable) return unusable;
+
       const toolUses = response.content.filter((block) => block.type === "tool_use");
       const finalCall = toolUses.find((t) => t.name === "record_suggestions");
       if (finalCall) {
@@ -1215,6 +1261,14 @@ async function runResearch(bottle) {
         tools: [WEB_SEARCH_TOOL, RESEARCH_TOOL],
         messages,
       });
+
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined to research that bottle. Its current details are unchanged.",
+        truncated:
+          "That research ran out of room before it finished. Nothing was changed — please try again.",
+      });
+      if (unusable) return unusable;
 
       const finalCall = response.content.find(
         (block) => block.type === "tool_use" && block.name === "record_research"
@@ -1573,6 +1627,14 @@ export async function estimateDrinkWindows(bottleIds) {
       ],
     });
 
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to estimate that batch. Nothing was changed.",
+      truncated:
+        "That batch was too large to finish in one go. Any wines it did estimate are saved, and running it again will skip those and pick up the rest.",
+    });
+    if (unusable) return unusable;
+
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_drink_window_estimates"
     );
@@ -1651,6 +1713,14 @@ export async function estimateWindowForBottle(id) {
       ],
     });
 
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to estimate a window for this bottle.",
+      truncated:
+        "That estimate ran out of room before it finished. Please try again.",
+    });
+    if (unusable) return unusable;
+
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_drink_window_estimates"
     );
@@ -1725,6 +1795,11 @@ const PHOTO_DETAILS_TOOL = {
         type: ["integer", "null"],
         description: "End of the drinking window (a year), same standard as drinkFrom.",
       },
+      drinkWindowEstimated: {
+        type: "boolean",
+        description:
+          "True when the window above is your own judgment rather than one printed in this photo. Almost always true - very few labels print a drinking window - and the app marks an estimated window as such either way, so answer honestly.",
+      },
       criticNotes: {
         type: ["string", "null"],
         description:
@@ -1793,6 +1868,14 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
       messages,
     });
 
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to read that photo. The photo itself was still saved to this bottle.",
+      truncated:
+        "Reading that photo ran out of room before it finished. The photo itself was still saved — try again, or edit the bottle by hand.",
+    });
+    if (unusable) return unusable;
+
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_photo_details"
     );
@@ -1809,6 +1892,44 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
       return { error: `Photo reader error: ${err.message}` };
     }
     return { error: "Something went wrong reading that photo. Please try again." };
+  }
+}
+
+// The photo panel can't save through updateBottle. A drinking window the
+// photo read proposed is the model's own judgment, but updateBottle treats
+// any change to the years as the human making the call and clears
+// drinkWindowEstimated - which would strip the "estimated" marker off a
+// pure guess and show it as fact. This is the same split applyResearch
+// makes, with the proposed answer passed in from the panel's own state
+// rather than read back from a stored ResearchProposal row.
+export async function applyPhotoDetails(id, proposed, prevState, formData) {
+  const data = bottleDataFromForm(formData);
+  if (!data.producer) return { error: "Producer is required." };
+
+  try {
+    const existing = await prisma.bottle.findUnique({
+      where: { id },
+      select: { drinkFrom: true, drinkTo: true },
+    });
+    // Leaving the proposed years untouched means accepting the photo's
+    // answer, flag and all; typing different ones is the human deciding,
+    // which is exactly what clearEstimatedFlagIfWindowChanged is for.
+    const keptProposedWindow =
+      (proposed?.drinkFrom ?? null) === data.drinkFrom &&
+      (proposed?.drinkTo ?? null) === data.drinkTo;
+    const withFlag = keptProposedWindow
+      ? // windowEstimatedFromProposal reads a stored proposal record; the
+        // photo read's answer is that same shape one level up.
+        { ...data, drinkWindowEstimated: windowEstimatedFromProposal(data, { proposed }) }
+      : clearEstimatedFlagIfWindowChanged(data, existing);
+    const bottle = await prisma.bottle.update({ where: { id }, data: withFlag });
+    invalidateRegionOptions();
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath(pathForStatus(bottle.status));
+    return { success: true, bottle };
+  } catch (err) {
+    console.error("Failed to apply photo details:", err);
+    return { error: "Couldn't save those changes. Please try again." };
   }
 }
 

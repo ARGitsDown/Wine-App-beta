@@ -19,8 +19,8 @@ features like separate cellars per user.
   and a narrowed list still has a shareable URL. A Sort control sits
   beside it — producer A–Z, **drink soon** (most urgent first: past peak,
   then whichever window closes soonest, then not-ready-yet, then bottles
-  with no window on file), recently added, vintage either way, or highest
-  rated. Also tracks ABV and a drinking window (from/to year) - both
+  with no window on file), recently added, recently acquired, vintage
+  either way, or highest rated. Also tracks ABV and a drinking window (from/to year) - both
   filled in automatically when scanned, editable by hand otherwise. Lists
   show
   just each bottle's header line by default (producer, bottling, vintage,
@@ -103,16 +103,22 @@ features like separate cellars per user.
   bottle you opened last month can be backdated rather than stamped with
   the day you got round to writing it up — and the date on an existing
   note can be corrected by clicking it. Rating is optional so a note can
-  be logged without a personal score yet (e.g. a shop's own write-up
-  brought in via scanning, before you've actually tasted it yourself).
+  be logged without a personal score yet — an impression written down the
+  night you opened a bottle, before you've settled on what it's actually
+  worth.
 - **Scan a label** (`/scan`) — photograph (or pick from your library) one or
   more photos at once. Each photo can hold a single bottle label *or* a
   document listing several wines (a shop's tasting sheet, a menu) - Claude
   figures out which and produces one reviewable card per wine either way.
   For each, it checks your own saved bottles for anything similar and
   infers what it can (e.g. the grape variety for a Bordeaux or Burgundy
-  labeled only by region), and carries over any tasting-note-style text the
-  source document already had. Each wine is saved as soon as it's read,
+  labeled only by region), and carries over any descriptive text the source
+  already had, filed by whose words they are: something you wrote yourself
+  becomes your tasting note and counts the wine as tasted, while a shop's
+  shelf talker, a menu write-up or a back-label blurb goes to the bottle's
+  "Critic & winemaker notes" instead. Somebody else's prose reading back as
+  your own verdict is the mistake worth designing out — see
+  [`BACKLOG.md`](./BACKLOG.md) #16. Each wine is saved as soon as it's read,
   rather than waiting on a manual confirm - so navigating away (or the tab
   closing) mid-batch never loses a wine that already came back; review and
   correct each card afterward, or remove one you don't want. Before picking
@@ -138,11 +144,13 @@ features like separate cellars per user.
   new it shows (an ABV or tasting note printed on a back label, a vintage
   on a case) and proposes field updates the same reviewable way as
   Research - nothing changes until you review and save.
-- **Needs research** (`/research`) — a queue of bottles the scan feature
-  flagged as unsure about some field. Open one and hit "Research further"
-  on its page to have Claude look it up with an actual web search (not
-  just its training knowledge) and propose corrections - reviewed and
-  edited the same way as everywhere else before you save them. Dismiss a
+- **Needs research** (the other half of the same `/research` page) —
+  bottles the scan feature flagged as unsure about some field, before
+  anything has been looked up. Research one straight from the queue, or
+  open it and hit "Research further" on its own page, to have Claude look
+  it up with an actual web search (not just its training knowledge) and
+  propose corrections - reviewed and edited the same way as everywhere
+  else before you save them. Dismiss a
   bottle straight from the queue if the current details already look
   fine, without spending a search on it. Research also looks for existing
   winemaking/tasting notes about the wine - the winery's own site first,
@@ -212,10 +220,11 @@ features like separate cellars per user.
   saved flight takes a second click, and the confirmation says what else
   goes with it ("Also deletes 2 tasting notes and 2 guest favorites"),
   since a bottle's notes and favorites are cascade-deleted along with it.
-- **Data export** (`/export`, linked from the home page) — downloads
-  everything (every bottle, its tasting notes, guests and their
-  favorites) as one JSON file. Cheap peace of mind for a personal system
-  with no other backup story.
+- **Data export** (`/export`, linked from the home page) — downloads every
+  bottle, its tasting notes, and every guest with their favorites, as one
+  JSON file. Cheap peace of mind for a personal system with no other backup
+  story. Saved flights and the extra photos added to a bottle aren't in the
+  file yet — see [`BACKLOG.md`](./BACKLOG.md) #18.
 - **Add to home screen** — the app has a real icon and manifest, so
   "Add to Home Screen" (iOS/Android) gives it its own icon and a
   standalone window (no browser address bar) instead of just a bookmarked

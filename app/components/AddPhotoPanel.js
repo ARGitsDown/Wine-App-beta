@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { addBottlePhoto, extractBottlePhotoDetails, updateBottle } from "@/app/actions";
+import { addBottlePhoto, applyPhotoDetails, extractBottlePhotoDetails } from "@/app/actions";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
 import BottleForm from "@/app/components/BottleForm";
 import Spinner from "@/app/components/Spinner";
@@ -94,7 +94,7 @@ export default function AddPhotoPanel({ bottle, regionOptions }) {
             </button>
           </div>
           <BottleForm
-            action={updateBottle.bind(null, bottle.id)}
+            action={applyPhotoDetails.bind(null, bottle.id, result)}
             defaultValues={{ ...bottle, ...result }}
             submitLabel="Apply these changes"
             regionOptions={regionOptions}
