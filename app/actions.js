@@ -1173,7 +1173,7 @@ const RESEARCH_TOOL = {
       drinkWindowEstimated: {
         type: "boolean",
         description:
-          "True when the window above is your own judgment rather than something your sources state outright. The app marks an estimated window as such, so answer honestly - a guess labelled as sourced is worse than a guess labelled as a guess.",
+          "True when the window above is your own judgment rather than something your sources state outright. If you are repeating back a window that was already on file and that window was labelled as the app's own estimate, answer true - only your own sourcing can turn an estimate into a fact, and copying it forward is not sourcing it. The app marks an estimated window as such, so answer honestly - a guess labelled as sourced is worse than a guess labelled as a guess.",
       },
       drinkTo: {
         type: ["integer", "null"],
@@ -1232,7 +1232,11 @@ function describeBottleForResearch(bottle) {
     bottle.abv ? `ABV: ${bottle.abv}%` : null,
     bottle.wineColor ? `Color: ${bottle.wineColor}` : null,
     bottle.drinkFrom || bottle.drinkTo
-      ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}`
+      ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}${
+          bottle.drinkWindowEstimated
+            ? " (the app's own estimate - nobody looked this up, so treat it as a placeholder to verify or replace, not as data on file)"
+            : " (read from a source or entered by the owner)"
+        }`
       : null,
     bottle.criticNotes ? `Existing critic/winemaker notes on file: ${bottle.criticNotes}` : null,
   ].filter(Boolean);
