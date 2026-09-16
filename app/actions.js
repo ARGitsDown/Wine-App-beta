@@ -483,7 +483,7 @@ const WINE_ENTRY_SCHEMA = {
     bottling: {
       type: ["string", "null"],
       description:
-        "The specific bottling, if this producer is known to make more than one wine from the same grape/vintage - a vineyard designation (e.g. 'Rochioli Vineyard', 'Kanzler Vineyard') or a proprietary/cuvée name (e.g. 'Madeleine', 'Reserve', 'Insignia'). This is what a producer prints to distinguish this specific wine from their other bottlings of the same variety - use your knowledge of the producer's lineup, not just what's printed, since it may not be obvious which of a producer's several similarly-labeled wines this is without checking. Null if this producer only makes one bottling of this grape, or there's no such distinguishing name.",
+        "The specific bottling, if this producer is known to make more than one wine from the same grape/vintage - a vineyard designation (e.g. 'Rochioli Vineyard', 'Kanzler Vineyard') or a proprietary/cuvée name (e.g. 'Madeleine', 'Reserve', 'Insignia'). This is what a producer prints to distinguish this specific wine from their other bottlings of the same variety. Fill this in only from text actually visible in the photo, including a name that is partial, small or half-cropped - knowing a producer's lineup is for *recognising* what you can partly see, never for choosing on its behalf. If you believe this producer makes several bottlings but cannot see which one this is, leave this null and set `confident` to false; naming the wrong one invents a bottle the owner does not own. Null also when this producer only makes one bottling of this grape, or there's no such distinguishing name.",
     },
     vintage: {
       type: ["integer", "null"],
@@ -618,8 +618,38 @@ async function searchCellar(query) {
   });
 }
 
+// A Claude call can come back 200-OK with no usable answer, and neither
+// case throws, so neither is caught by the typed error handling below:
+//
+// - "refusal" - the safety classifiers declined the request. stop_details
+//   says which category, and is null for every other stop reason, so it is
+//   only ever read here.
+// - "max_tokens" - the answer ran out of room part-way through. Adaptive
+//   thinking spends the same budget, so a crowded photo costs far more of
+//   it than a single label does.
+//
+// Both matter most *before* the tool-call lookup. strict:true guarantees a
+// completed tool call validates, but says nothing about one cut off
+// mid-array: a nine-wine tasting sheet truncated at six looks exactly like
+// a six-wine sheet, and the app has no expected count to notice otherwise.
+// Checking here means a truncated answer is never read as a whole one.
+//
+// Returns null when the response is usable, so callers read:
+//   const unusable = unusableResponseError(response, {...});
+//   if (unusable) return unusable;
+function unusableResponseError(response, messages) {
+  if (response.stop_reason === "refusal") {
+    console.error("Claude declined the request:", response.stop_details);
+    return { error: messages.refused };
+  }
+  if (response.stop_reason === "max_tokens") {
+    return { error: messages.truncated };
+  }
+  return null;
+}
+
 const LABEL_SYSTEM_PROMPT =
-  "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). Many producers make several distinct wines from the same grape and vintage - a regional/estate bottling plus one or more vineyard-designated or proprietary-named bottlings (e.g. a producer's basic Pinot Noir alongside a 'Rochioli Vineyard' or a 'Madeleine' bottling). Think about whether this producer is one of those before settling on the `bottling` field - a label that only shows a small or partial vineyard/cuvée name (easy to crop out of a photo, or in small print) is exactly the kind of detail worth getting right, since it's what tells two of a producer's own bottlings apart. If the photo includes descriptive or tasting-note-style text for a wine, mind whose words they are: anything printed by a shop, a winery or a critic (a shelf talker, a tasting-sheet write-up, a back label) goes in `criticNotes`, while `note` is only for something the owner wrote themselves, since that becomes their personal tasting note and marks the wine as one they have tasted. Never invent either for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
+  "You read wine photos for a personal cellar-tracking app. A photo is usually a single bottle label, but may instead be a document listing several wines - a shop's tasting sheet, a menu, a price list - in which case treat each distinct wine as its own entry. Extract what's stated, and use your wine knowledge to fill in what's implied but not stated outright (grape variety from an appellation's convention, broader geography from a narrow appellation). Many producers make several distinct wines from the same grape and vintage - a regional/estate bottling plus one or more vineyard-designated or proprietary-named bottlings (e.g. a producer's basic Pinot Noir alongside a 'Rochioli Vineyard' or a 'Madeleine' bottling). Think about whether this producer is one of those before settling on the `bottling` field - a label that only shows a small or partial vineyard/cuvée name (easy to crop out of a photo, or in small print) is exactly the kind of detail worth getting right, since it's what tells two of a producer's own bottlings apart - but only when you can actually see some of it. If the lineup makes you suspect a bottling name that is nowhere in the photo, leave `bottling` null and set `confident` to false rather than picking the producer's best-known one. If the photo includes descriptive or tasting-note-style text for a wine, mind whose words they are: anything printed by a shop, a winery or a critic (a shelf talker, a tasting-sheet write-up, a back label) goes in `criticNotes`, while `note` is only for something the owner wrote themselves, since that becomes their personal tasting note and marks the wine as one they have tasted. Never invent either for a plain label with no such text. You may call search_cellar first to check whether this user already logged a given producer/region with fuller details - use that as a grounding signal, not a guarantee, since it's the user's own inventory, not a verified reference. Call record_wines exactly once, when you're done with every wine in the photo, with your best final answer.";
 
 // Reads a photo - one bottle label, or a document listing several wines -
 // optionally researching the user's own saved bottles and the model's wine
@@ -640,6 +670,12 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         {
           type: "text",
           text: "Read this photo and record every distinct wine in it.",
+          // Caches everything before this point - both tool schemas, the
+          // system prompt, and the photo - so the search_cellar turns that
+          // follow reread it instead of resending it. The loop only ever
+          // pushes onto messages, so messages[0] stays byte-identical
+          // across turns, which is what makes this safe.
+          cache_control: { type: "ephemeral" },
         },
       ],
     },
@@ -658,6 +694,14 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         tools: [SEARCH_CELLAR_TOOL, WINES_TOOL],
         messages,
       });
+
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined to read that photo. Nothing was saved — if it's a wine label, try another shot; otherwise add the details by hand.",
+        truncated:
+          "That photo had more on it than one read could finish, so some wines would have been missed. Nothing was saved — try photographing fewer wines at a time, or one label per shot.",
+      });
+      if (unusable) return unusable;
 
       const toolUses = response.content.filter((block) => block.type === "tool_use");
       const finalCall = toolUses.find((t) => t.name === "record_wines");
@@ -764,7 +808,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
 const BROWSE_CELLAR_TOOL = {
   name: "browse_cellar",
   description:
-    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns each matching bottle's id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, average personal rating if any exists, and drinkFrom/drinkTo (its drinking window, if known - null fields mean no window is recorded, not that it's unready). Results are capped, so use filters if the cellar is large.",
+    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns `bottles` (at most 40, ordered by producer name), `totalMatching` (how many bottles actually matched your filters), and `truncated`. Each bottle has its id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, average personal rating if any exists, drinkFrom/drinkTo (its drinking window, if known - null fields mean no window is recorded, not that it's unready), and drinkWindowEstimated (true when that window is the app's own guess rather than something read from a source or typed by the owner; only meaningful when a window is actually present). When `truncated` is true you are looking at an alphabetical slice, not the cellar - narrow the filters and call again rather than choosing from what came back.",
   input_schema: {
     type: "object",
     properties: {
@@ -923,20 +967,33 @@ async function browseCellar(filters) {
     return true;
   });
 
-  return matches.slice(0, 40).map((bottle) => ({
-    id: bottle.id,
-    producer: bottle.producer,
-    bottling: bottle.bottling,
-    vintage: bottle.vintage,
-    type: bottle.type,
-    variety: bottle.variety,
-    region: bottle.region,
-    country: bottle.country,
-    quantity: bottle.quantity,
-    averageRating: bottle.averageRating,
-    drinkFrom: bottle.drinkFrom,
-    drinkTo: bottle.drinkTo,
-  }));
+  const capped = matches.slice(0, 40);
+  return {
+    // The cap is invisible from the rows alone, and the ordering is
+    // alphabetical by producer - so an unfiltered browse of a large cellar
+    // returns the A's and nothing else, and a model that can't tell would
+    // recommend the best of those as if it were the best of the cellar.
+    totalMatching: matches.length,
+    truncated: matches.length > capped.length,
+    bottles: capped.map((bottle) => ({
+      id: bottle.id,
+      producer: bottle.producer,
+      bottling: bottle.bottling,
+      vintage: bottle.vintage,
+      type: bottle.type,
+      variety: bottle.variety,
+      region: bottle.region,
+      country: bottle.country,
+      quantity: bottle.quantity,
+      averageRating: bottle.averageRating,
+      drinkFrom: bottle.drinkFrom,
+      drinkTo: bottle.drinkTo,
+      // Without this the model reads every window as established fact and
+      // quotes the years back that way, which is the one place this feature
+      // can quietly undo the guess/fact line the rest of the app holds.
+      drinkWindowEstimated: bottle.drinkWindowEstimated,
+    })),
+  };
 }
 
 function buildSuggestSystemPrompt(currentYear, includeOutside, character) {
@@ -955,7 +1012,7 @@ function buildSuggestSystemPrompt(currentYear, includeOutside, character) {
   const steer = characterRule(character);
   const steerRule = steer ? `${steer} ` : "";
 
-  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. ${outsideRule} ${steerRule}For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
+  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. A browse_cellar result with truncated true is a partial view - the first 40 matches by producer name, not the best 40 - so narrow the filters and browse again before deciding, and never call a pick the best in their cellar on the strength of a truncated browse. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. Each window also carries drinkWindowEstimated: true means the years are the app's own guess rather than anything anyone looked up, so treat them as approximate and don't claim where they came from; false means they were read from a source or entered by the owner. The flag only means anything when drinkFrom or drinkTo is actually set - for a bottle with no window at all, ignore it. Choose between bottles using an estimated window exactly as you would a sourced one, but never quote an estimated one back as established fact - write "estimated to be drinking now" or "roughly 2024-2028", not "drinking right in its window (2024-2028)". Every other screen marks an estimate as an estimate, and a recommendation that quietly promotes a guess to a fact is the one way this feature misleads. ${outsideRule} ${steerRule}For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
 }
 
 // Turns a freeform request (a meal to pair, or a tasting theme/mood) into
@@ -984,10 +1041,25 @@ export async function getSuggestions(request, includeOutside = false, character 
         model: REASONING_MODEL,
         max_tokens: 8192,
         thinking: { type: "adaptive" },
-        system: systemPrompt,
+        // Tools render before system, so one breakpoint here covers both.
+        // The request text and every browse result live in messages, after
+        // the prefix, so nothing volatile is inside it. The cache key
+        // varies by year and by the includeOutside/character steer, which
+        // is correct - a different steer is a different prompt.
+        system: [
+          { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+        ],
         tools: [BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL],
         messages,
       });
+
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined that request. Try describing the meal or the theme a different way.",
+        truncated:
+          "That suggestion ran out of room before it finished. Try a shorter description, or ask for fewer wines.",
+      });
+      if (unusable) return unusable;
 
       const toolUses = response.content.filter((block) => block.type === "tool_use");
       const finalCall = toolUses.find((t) => t.name === "record_suggestions");
@@ -1118,12 +1190,12 @@ const RESEARCH_TOOL = {
       drinkFrom: {
         type: ["integer", "null"],
         description:
-          "Start of the drinking window (a year). Prefer one your sources state; where they don't, still give your best estimate from the producer, region, style and vintage rather than leaving it blank. Null only when you genuinely cannot judge.",
+          "Start of the drinking window (a year). Prefer one your sources state. Where they don't, what to do depends on what the bottle already has, which the description above tells you: if there is no window on file, or the one on file is labelled as the app's own estimate, give your best estimate from the producer, region, style and vintage rather than leaving it blank - replacing one guess with a better-researched one is progress. If the window on file was read from a source or entered by the owner, repeat those years back unchanged; they may be the owner's own judgment, and overwriting them with yours is not research. Null only when you genuinely cannot judge.",
       },
       drinkWindowEstimated: {
         type: "boolean",
         description:
-          "True when the window above is your own judgment rather than something your sources state outright. The app marks an estimated window as such, so answer honestly - a guess labelled as sourced is worse than a guess labelled as a guess.",
+          "True when the window above is your own judgment rather than something your sources state outright. If you are repeating back a window that was already on file and that window was labelled as the app's own estimate, answer true - only your own sourcing can turn an estimate into a fact, and copying it forward is not sourcing it. The app marks an estimated window as such, so answer honestly - a guess labelled as sourced is worse than a guess labelled as a guess.",
       },
       drinkTo: {
         type: ["integer", "null"],
@@ -1182,7 +1254,11 @@ function describeBottleForResearch(bottle) {
     bottle.abv ? `ABV: ${bottle.abv}%` : null,
     bottle.wineColor ? `Color: ${bottle.wineColor}` : null,
     bottle.drinkFrom || bottle.drinkTo
-      ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}`
+      ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}${
+          bottle.drinkWindowEstimated
+            ? " (the app's own estimate - nobody looked this up, so treat it as a placeholder to verify or replace, not as data on file)"
+            : " (read from a source or entered by the owner)"
+        }`
       : null,
     bottle.criticNotes ? `Existing critic/winemaker notes on file: ${bottle.criticNotes}` : null,
   ].filter(Boolean);
@@ -1215,6 +1291,14 @@ async function runResearch(bottle) {
         tools: [WEB_SEARCH_TOOL, RESEARCH_TOOL],
         messages,
       });
+
+      const unusable = unusableResponseError(response, {
+        refused:
+          "Claude declined to research that bottle. Its current details are unchanged.",
+        truncated:
+          "That research ran out of room before it finished. Nothing was changed — please try again.",
+      });
+      if (unusable) return unusable;
 
       const finalCall = response.content.find(
         (block) => block.type === "tool_use" && block.name === "record_research"
@@ -1249,6 +1333,17 @@ async function runResearch(bottle) {
 // reviewed. Nothing about the bottle changes here - this is the "Claude
 // proposes, you confirm" trust model the scan and suggest features follow,
 // except the proposal now survives navigating away.
+// Upsert, not create: researching a bottle twice should replace the
+// pending answer rather than fail on the unique bottleId.
+async function saveResearchProposal(bottleId, { proposed, summary, sources }) {
+  await prisma.researchProposal.upsert({
+    where: { bottleId },
+    create: { bottleId, proposed, summary, sources: sources ?? [] },
+    update: { proposed, summary, sources: sources ?? [], createdAt: new Date() },
+  });
+  revalidatePath(`/bottles/${bottleId}`);
+}
+
 export async function researchBottle(id) {
   const bottle = await prisma.bottle.findUnique({ where: { id } });
   if (!bottle) return { error: "That bottle no longer exists." };
@@ -1257,34 +1352,65 @@ export async function researchBottle(id) {
   if (result.error) return result;
 
   const { summary, sources, ...proposed } = result.data;
-
-  // Upsert, not create: researching a bottle twice should replace the
-  // pending answer rather than fail on the unique bottleId.
-  await prisma.researchProposal.upsert({
-    where: { bottleId: id },
-    create: { bottleId: id, proposed, summary, sources: sources ?? [] },
-    update: { proposed, summary, sources: sources ?? [], createdAt: new Date() },
-  });
+  await saveResearchProposal(id, { proposed, summary, sources });
 
   revalidatePath("/research");
-  revalidatePath(`/bottles/${id}`);
   return { data: { changed: researchChanges(bottle, proposed).length } };
 }
 
 // The bulk pass. Chunked by the caller so no single request has to carry
-// the whole queue; each bottle is still one web-search call, which is why
-// the button that reaches this is behind a count and a confirmation.
+// the whole queue. Each distinct wine is one web-search call, which is why
+// the button that reaches this is behind a count and a confirmation - the
+// count is of bottles, so it now overstates the searches rather than
+// understating them.
 export async function researchBottles(ids) {
+  const bottles = await prisma.bottle.findMany({ where: { id: { in: ids } } });
+
+  // Two rows of the same wine - a case split across two entries, or one
+  // re-added after being drunk - ask the web the same question, and a
+  // research pass is by some distance the most expensive call in the app.
+  // Group them so the search runs once.
+  //
+  // The key is the research input itself rather than the wine's identity,
+  // and that distinction is the safety property. A proposal is a diff
+  // against one row's current values, so sharing an answer is only sound
+  // when the question was word-for-word the same. Two rows of the same wine
+  // that differ in anything research reads - a drinking window, whether
+  // that window is the app's own guess or the owner's own judgment,
+  // existing critic notes - describe differently and get their own pass.
+  // Keying on identity alone would save more calls and would hand one row's
+  // window provenance to another, which is the laundering the research
+  // input labelling exists to prevent.
+  const byQuestion = new Map();
+  for (const bottle of bottles) {
+    const key = describeBottleForResearch(bottle);
+    if (!byQuestion.has(key)) byQuestion.set(key, []);
+    byQuestion.get(key).push(bottle);
+  }
+
   let researched = 0;
   let failed = 0;
-  for (const id of ids) {
-    const result = await researchBottle(id);
+  for (const group of byQuestion.values()) {
+    const result = await runResearch(group[0]);
     if (result.error) {
-      failed += 1;
-    } else {
-      researched += 1;
+      // One wine failing shouldn't cost the rest of the queue its
+      // otherwise-good answers.
+      failed += group.length;
+      continue;
+    }
+    const { summary, sources, ...proposed } = result.data;
+    for (const bottle of group) {
+      try {
+        await saveResearchProposal(bottle.id, { proposed, summary, sources });
+        researched += 1;
+      } catch (err) {
+        console.error(`Failed to save research proposal for bottle ${bottle.id}:`, err);
+        failed += 1;
+      }
     }
   }
+
+  revalidatePath("/research");
   return { data: { researched, failed } };
 }
 
@@ -1573,6 +1699,14 @@ export async function estimateDrinkWindows(bottleIds) {
       ],
     });
 
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to estimate that batch. Nothing was changed.",
+      truncated:
+        "That batch was too large to finish in one go. Any wines it did estimate are saved, and running it again will skip those and pick up the rest.",
+    });
+    if (unusable) return unusable;
+
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_drink_window_estimates"
     );
@@ -1651,6 +1785,14 @@ export async function estimateWindowForBottle(id) {
       ],
     });
 
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to estimate a window for this bottle.",
+      truncated:
+        "That estimate ran out of room before it finished. Please try again.",
+    });
+    if (unusable) return unusable;
+
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_drink_window_estimates"
     );
@@ -1725,6 +1867,11 @@ const PHOTO_DETAILS_TOOL = {
         type: ["integer", "null"],
         description: "End of the drinking window (a year), same standard as drinkFrom.",
       },
+      drinkWindowEstimated: {
+        type: "boolean",
+        description:
+          "True when the window above is your own judgment rather than one printed in this photo. Almost always true - very few labels print a drinking window - and the app marks an estimated window as such either way, so answer honestly.",
+      },
       criticNotes: {
         type: ["string", "null"],
         description:
@@ -1793,6 +1940,14 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
       messages,
     });
 
+    const unusable = unusableResponseError(response, {
+      refused:
+        "Claude declined to read that photo. The photo itself was still saved to this bottle.",
+      truncated:
+        "Reading that photo ran out of room before it finished. The photo itself was still saved — try again, or edit the bottle by hand.",
+    });
+    if (unusable) return unusable;
+
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_photo_details"
     );
@@ -1809,6 +1964,44 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
       return { error: `Photo reader error: ${err.message}` };
     }
     return { error: "Something went wrong reading that photo. Please try again." };
+  }
+}
+
+// The photo panel can't save through updateBottle. A drinking window the
+// photo read proposed is the model's own judgment, but updateBottle treats
+// any change to the years as the human making the call and clears
+// drinkWindowEstimated - which would strip the "estimated" marker off a
+// pure guess and show it as fact. This is the same split applyResearch
+// makes, with the proposed answer passed in from the panel's own state
+// rather than read back from a stored ResearchProposal row.
+export async function applyPhotoDetails(id, proposed, prevState, formData) {
+  const data = bottleDataFromForm(formData);
+  if (!data.producer) return { error: "Producer is required." };
+
+  try {
+    const existing = await prisma.bottle.findUnique({
+      where: { id },
+      select: { drinkFrom: true, drinkTo: true },
+    });
+    // Leaving the proposed years untouched means accepting the photo's
+    // answer, flag and all; typing different ones is the human deciding,
+    // which is exactly what clearEstimatedFlagIfWindowChanged is for.
+    const keptProposedWindow =
+      (proposed?.drinkFrom ?? null) === data.drinkFrom &&
+      (proposed?.drinkTo ?? null) === data.drinkTo;
+    const withFlag = keptProposedWindow
+      ? // windowEstimatedFromProposal reads a stored proposal record; the
+        // photo read's answer is that same shape one level up.
+        { ...data, drinkWindowEstimated: windowEstimatedFromProposal(data, { proposed }) }
+      : clearEstimatedFlagIfWindowChanged(data, existing);
+    const bottle = await prisma.bottle.update({ where: { id }, data: withFlag });
+    invalidateRegionOptions();
+    revalidatePath(`/bottles/${id}`);
+    revalidatePath(pathForStatus(bottle.status));
+    return { success: true, bottle };
+  } catch (err) {
+    console.error("Failed to apply photo details:", err);
+    return { error: "Couldn't save those changes. Please try again." };
   }
 }
 
