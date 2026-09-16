@@ -6,7 +6,9 @@ export const dynamic = "force-dynamic";
 export default async function ConsumedPage({ searchParams }) {
   const filters = await searchParams;
   const [bottles, regionOptions] = await Promise.all([
-    getBottles("consumed"),
+    // The one page that renders note text - see getBottles for why this is
+    // opt-in rather than the default.
+    getBottles("consumed", { withLatestNote: true }),
     getRegionOptions(),
   ]);
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { adjustBottleQuantity } from "@/app/actions";
 import AddToFlight from "@/app/components/AddToFlight";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
+import { formatTastedDate } from "@/lib/tasting-date";
 
 const stepperClass =
   "flex h-6 w-6 items-center justify-center rounded border border-zinc-300 text-sm leading-none disabled:opacity-40 dark:border-zinc-700";
@@ -133,8 +134,27 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
                       .filter(Boolean)
                       .join(" · ") || "No variety/region set"}
                   </div>
+                  {/* Only the Tasting notes page asks getBottles for this,
+                      so only that page renders it - everywhere else
+                      `latestNote` is absent rather than null and this stays
+                      out of the way entirely. Until it existed, the page
+                      named after tasting notes showed none of them: reading
+                      one meant opening the bottle's own page. */}
+                  {bottle.latestNote && (
+                    <div className="flex flex-col gap-0.5 border-l-2 border-zinc-200 pl-3 dark:border-zinc-700">
+                      <p className="text-sm italic text-zinc-600 dark:text-zinc-300">
+                        &ldquo;{bottle.latestNote.note}&rdquo;
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        {formatTastedDate(bottle.latestNote.tastedAt)}
+                        {bottle.noteCount > 1 &&
+                          ` \u00b7 most recent of ${bottle.noteCount}`}
+                      </p>
+                    </div>
+                  )}
+
                   {bottle.favoritedBy?.length > 0 && (
-                    <div className="text-xs text-zinc-400">
+                    <div className="text-xs text-zinc-500">
                       ❤️ Favorited by {bottle.favoritedBy.join(", ")}
                     </div>
                   )}

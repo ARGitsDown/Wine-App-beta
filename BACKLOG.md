@@ -830,7 +830,21 @@ three.
   goes unused: trying a second character means typing the whole request
   again. A "refine this" keeping the text and letting Character change
   would make that control earn its place.
-- **The Tasting notes page shows no tasting notes.** `/consumed` renders
+- **The Tasting notes page showed no tasting notes.** — narrow fix done;
+  the wider question below is still open. An expanded row on `/consumed`
+  now carries the most recent note, its date, and "most recent of 3" when
+  there are more. `getBottles` deliberately strips note text off every row,
+  so this is an opt-in `withLatestNote` rather than a wider select: the
+  reason the text is trimmed everywhere else still holds, and the opt-in
+  runs one bounded query returning a single note per bottle rather than
+  every note filtered down afterwards. Verified against the RSC payload,
+  not just the rendered page - `latestNote` is absent from `/inventory`'s
+  payload entirely, so the guard is that the server never sends it. Whether
+  `distinct` + `orderBy` really returns the *newest* note was the part
+  worth proving rather than assuming: two bottles were seeded where id
+  order and date order disagree in opposite directions, and picking by id
+  either way would fail one of them. Original finding, and the branch
+  question that remains: `/consumed` renders
   the same `FilterableBottleList` as the Cellar with two flags flipped,
   and `BottleList` has no note rendering at all - an expanded row shows
   the photo, variety/region/country, favourites, quantity and a link. So
