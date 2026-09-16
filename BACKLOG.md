@@ -856,14 +856,15 @@ three.
   already Cellar two slots along, a lens over text because a bottle inside
   a 14px lens is mud at 20px, and a fork because a pairing is the only
   thing here that needed something from the table.
-- **A Suggest result is lost on navigation, with no warning.** The result
-  lives in component state. Pairings being ephemeral is a deliberate call
-  and a defensible one, but ephemeral and unannounced are different
-  things. There is also no way to re-run with one thing changed - the
-  request must be retyped - which is probably why the Character control
-  goes unused: trying a second character means typing the whole request
-  again. A "refine this" keeping the text and letting Character change
-  would make that control earn its place.
+- ~~**A Suggest result is lost on navigation, with no warning.**~~ — done
+  in #20. A pairing you want is kept deliberately and survives everything;
+  "Ask again, with changes" reloads a kept one's request and all three
+  settings so the Character control can be changed without retyping. Two
+  claims in the original entry were wrong and are worth recording as
+  corrections: refining never required retyping even before this (the form
+  stays rendered above the result and `request` is never cleared - the
+  friction was scrolling), and the answer was not to warn about the loss
+  but to stop losing the ones you care about.
 - **The Tasting notes page showed no tasting notes.** — narrow fix done;
   the wider question below is still open. An expanded row on `/consumed`
   now carries the most recent note, its date, and "most recent of 3" when
