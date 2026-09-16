@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { researchBottle, dismissResearch } from "@/app/actions";
 import ResearchProposalCard from "@/app/components/ResearchProposalCard";
 import Spinner from "@/app/components/Spinner";
+import { EFFORT_LEVELS, DEFAULT_EFFORT } from "@/lib/effort";
 
 const primaryButtonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
@@ -19,12 +20,13 @@ const secondaryButtonClass =
 // drift apart.
 export default function ResearchPanel({ bottle, proposal, regionOptions }) {
   const [error, setError] = useState(null);
+  const [effort, setEffort] = useState(DEFAULT_EFFORT);
   const [pending, startTransition] = useTransition();
 
   function research() {
     setError(null);
     startTransition(async () => {
-      const result = await researchBottle(bottle.id);
+      const result = await researchBottle(bottle.id, effort);
       if (result?.error) setError(result.error);
     });
   }
@@ -42,7 +44,31 @@ export default function ResearchPanel({ bottle, proposal, regionOptions }) {
                 : "Double-check or fill in details for this bottle with an actual web search."}
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        {/* No shrink-0: with only the two buttons the row always fitted,
+            but a third control needs to be allowed to shrink or it pushes
+            the last button off the edge of the panel at phone width. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* A select rather than the radio row Suggest uses. There is no
+              form here - just two buttons on one line - and three radios
+              wrapping under them would read as a question nobody asked.
+              The label is the word itself, since "Balanced" alone says
+              nothing about what it is balancing. */}
+          <label className="flex items-center gap-1.5 text-sm text-zinc-500">
+            Effort
+            <select
+              value={effort}
+              onChange={(event) => setEffort(event.target.value)}
+              disabled={pending}
+              title={EFFORT_LEVELS.find((level) => level.value === effort)?.hint}
+              className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              {EFFORT_LEVELS.map((level) => (
+                <option key={level.value} value={level.value}>
+                  {level.label}
+                </option>
+              ))}
+            </select>
+          </label>
           {bottle.needsResearch && !proposal && (
             <form action={dismissResearch.bind(null, bottle.id)}>
               <button type="submit" className={secondaryButtonClass}>

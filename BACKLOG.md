@@ -1096,17 +1096,26 @@ with hand-built flights in it, the honest heading is "Saved" rather than
   line names what it will not, and saving opens the wishlist forms for
   exactly those wines.
 
-### Effort, not model
+### ~~Effort, not model~~ — done
 
 The owner's interest is speed and thoroughness, and effort is the lever, not
-model choice. `output_config` is never set anywhere in `app/actions.js`, so
-all five AI calls run at the default. Two reasons to reach for effort first:
-current guidance is to measure the capable model at lower effort before
-building a model cascade, and prompt caches are model-scoped - the Suggest and
-scan prefixes are cached (`actions.js:678`, `:1050`), so routing some calls to
-a cheaper model would forfeit the cache hit and eat the per-token saving. If
-latency specifically is the complaint, fast mode runs the same model faster at
-a price premium, which trades money rather than quality.
+model choice - prompt caches are model-scoped, so routing some calls to a
+cheaper model would forfeit the cache hit and eat the per-token saving.
+
+`output_config` was set nowhere, so all six AI calls (not five) ran at the
+API's default `high`. All six now set it explicitly through `lib/effort.js`,
+and two of them - Suggest and Research, the pair the owner named - take it
+from the person asking: Quick / Standard / Thorough, mapping to `low` / `high`
+/ `xhigh`. Standard is what every call did before, so the default option is
+the status quo and neither of the others is a silent change to it.
+
+`medium` and `max` are deliberately not offered. The useful question is
+"faster, same, or more careful", and a fourth option makes that harder to
+answer; nothing in a wine recommendation has a correctness bar that justifies
+`max`.
+
+If latency specifically is the complaint, fast mode runs the same model faster
+at a price premium, which trades money rather than quality.
 
 ## ~~21. The wine card's three kinds of note, and two of its dates~~ — done
 
@@ -1161,6 +1170,35 @@ Worth deciding when it is built:
 - **Whether History and the guest list follow.** They render the same bottle
   through different components; a change here that stops at Cellar leaves
   three lists that describe a wine three ways.
+
+## 23. Measure before turning the mechanical calls down
+
+Effort is now explicit at every call site, but only the two the owner steers
+actually move. The other four - reading a label, reading a photo, and the two
+drinking-window estimates - are all still at `high`, and that is a deliberate
+hold rather than an oversight: stepping one of them down trades accuracy for
+speed on the owner's behalf, and this session had no API key, so the trade
+could not be measured.
+
+The drinking-window calls are the strongest candidate. The task is bounded
+and schema-constrained, the answer is cached by wine so it runs once per
+distinct bottling, and the result is already labelled "· estimated" on screen
+- so a window that is a year out is visible as a guess rather than passed off
+as fact. The experiment: take ~20 bottles spanning cheap-and-early through
+age-worthy, run each at `low` and at `high`, and compare the windows. If they
+agree within a year, `low` is free.
+
+Reading a label and reading a photo are the weakest candidates and probably
+should not move at all: a producer read wrong is a wrong bottle saved to the
+cellar, and a scan runs unattended across a batch where nobody is watching for
+it.
+
+One free win to take first, before spending anything on effort:
+`RESEARCH_SYSTEM_PROMPT` and `PHOTO_DETAILS_SYSTEM_PROMPT` are sizable and
+have no `cache_control` breakpoint, unlike the scan and Suggest prefixes. The
+bulk research queue runs the same prefix back-to-back, which is exactly the
+shape a cache pays for. Check the prompts clear the model's minimum cacheable
+prefix first - below it, a breakpoint silently does nothing.
 
 ## Lower priority / optional
 

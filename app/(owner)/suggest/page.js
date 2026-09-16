@@ -9,6 +9,7 @@ import {
   SUGGESTION_CHARACTERS,
   DEFAULT_CHARACTER,
 } from "@/lib/suggestion-character";
+import { EFFORT_LEVELS, DEFAULT_EFFORT } from "@/lib/effort";
 
 const buttonClass =
   "self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
@@ -51,6 +52,7 @@ export default function SuggestPage() {
   const [result, setResult] = useState(null);
   const [includeOutside, setIncludeOutside] = useState(false);
   const [character, setCharacter] = useState(DEFAULT_CHARACTER);
+  const [effort, setEffort] = useState(DEFAULT_EFFORT);
   const [savedGapIds, setSavedGapIds] = useState(new Set());
   // Which gap cards have their wishlist form showing. Held here rather than
   // left to the <details> element because saving a flight opens the forms
@@ -73,7 +75,12 @@ export default function SuggestPage() {
     setSavedGapIds(new Set());
     setExpandedGaps(new Set());
 
-    const response = await getSuggestions(request, includeOutside, character);
+    const response = await getSuggestions(
+      request,
+      includeOutside,
+      character,
+      effort
+    );
     if (response.error) {
       setError(response.error);
     } else {
@@ -193,6 +200,33 @@ export default function SuggestPage() {
               explanation competing with the request box above. */}
           <p className="text-xs text-zinc-500">
             {SUGGESTION_CHARACTERS.find((option) => option.value === character)?.hint}
+          </p>
+        </fieldset>
+        {/* Deliberately the same shape as Character above rather than a
+            smaller control: they are two settings you make in the same
+            breath, and one of them looking like an afterthought would
+            suggest it mattered less. Balanced is what every request did
+            before this existed, so leaving it alone changes nothing. */}
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+            Effort
+          </legend>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {EFFORT_LEVELS.map((option) => (
+              <label key={option.value} className="flex items-center gap-1.5 text-sm">
+                <input
+                  type="radio"
+                  name="effort"
+                  value={option.value}
+                  checked={effort === option.value}
+                  onChange={() => setEffort(option.value)}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-zinc-500">
+            {EFFORT_LEVELS.find((option) => option.value === effort)?.hint}
           </p>
         </fieldset>
         <button type="submit" disabled={loading} className={`self-start ${buttonClass}`}>

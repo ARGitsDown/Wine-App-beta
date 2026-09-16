@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL, REASONING_MODEL } from "@/lib/anthropic";
+import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -727,6 +728,10 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         model: EXTRACTION_MODEL,
         max_tokens: 8192,
         thinking: { type: "adaptive" },
+        // Not the owner's choice to make here: a scan runs unattended
+        // across a batch of photos, and a producer read wrong is a wrong
+        // bottle saved to the cellar rather than a slower answer.
+        output_config: outputConfig(DEFAULT_EFFORT),
         system: LABEL_SYSTEM_PROMPT,
         tools: [SEARCH_CELLAR_TOOL, WINES_TOOL],
         messages,
@@ -1058,7 +1063,12 @@ function buildSuggestSystemPrompt(currentYear, includeOutside, character) {
 // wishlist) where nothing owned fits well. Bottle data for owned picks is
 // re-fetched fresh from the database rather than trusting the model's
 // echoed fields, so what's displayed always matches what's actually saved.
-export async function getSuggestions(request, includeOutside = false, character = null) {
+export async function getSuggestions(
+  request,
+  includeOutside = false,
+  character = null,
+  effort = DEFAULT_EFFORT
+) {
   const text = String(request || "").trim();
   if (!text) return { error: "Describe what you're working with first." };
 
@@ -1078,6 +1088,11 @@ export async function getSuggestions(request, includeOutside = false, character 
         model: REASONING_MODEL,
         max_tokens: 8192,
         thinking: { type: "adaptive" },
+        // The owner's dial. Constant for the whole loop, so it never
+        // invalidates the prefix cached below mid-run; across runs each
+        // level keeps its own cached copy of that prefix, which costs one
+        // cache write the first time a level is used.
+        output_config: outputConfig(effort),
         // Tools render before system, so one breakpoint here covers both.
         // The request text and every browse result live in messages, after
         // the prefix, so nothing volatile is inside it. The cache key
@@ -1306,7 +1321,7 @@ function describeBottleForResearch(bottle) {
 // Runs the web-search research call for one bottle and returns the model's
 // answer. Separated from the action that stores it so a single bottle and a
 // bulk pass share exactly one implementation of the expensive part.
-async function runResearch(bottle) {
+async function runResearch(bottle, effort = DEFAULT_EFFORT) {
   const messages = [
     {
       role: "user",
@@ -1324,6 +1339,7 @@ async function runResearch(bottle) {
         model: EXTRACTION_MODEL,
         max_tokens: 8192,
         thinking: { type: "adaptive" },
+        output_config: outputConfig(effort),
         system: RESEARCH_SYSTEM_PROMPT,
         tools: [WEB_SEARCH_TOOL, RESEARCH_TOOL],
         messages,
@@ -1381,11 +1397,15 @@ async function saveResearchProposal(bottleId, { proposed, summary, sources }) {
   revalidatePath(`/bottles/${bottleId}`);
 }
 
-export async function researchBottle(id) {
+// `effort` is the owner's thoroughness dial, offered on the bottle page.
+// The other two callers - the scan card's "look it up" and the research
+// queue - leave it alone: neither is a place where you are weighing one
+// bottle's answer against the wait for it.
+export async function researchBottle(id, effort = DEFAULT_EFFORT) {
   const bottle = await prisma.bottle.findUnique({ where: { id } });
   if (!bottle) return { error: "That bottle no longer exists." };
 
-  const result = await runResearch(bottle);
+  const result = await runResearch(bottle, effort);
   if (result.error) return result;
 
   const { summary, sources, ...proposed } = result.data;
@@ -1726,6 +1746,7 @@ export async function estimateDrinkWindows(bottleIds) {
       model: EXTRACTION_MODEL,
       max_tokens: 8192,
       thinking: { type: "adaptive" },
+      output_config: outputConfig(DEFAULT_EFFORT),
       system: DRINK_WINDOW_SYSTEM_PROMPT,
       tools: [DRINK_WINDOW_ESTIMATE_TOOL],
       messages: [
@@ -1812,6 +1833,7 @@ export async function estimateWindowForBottle(id) {
       model: EXTRACTION_MODEL,
       max_tokens: 2048,
       thinking: { type: "adaptive" },
+      output_config: outputConfig(DEFAULT_EFFORT),
       system: DRINK_WINDOW_SYSTEM_PROMPT,
       tools: [DRINK_WINDOW_ESTIMATE_TOOL],
       messages: [
@@ -1972,6 +1994,7 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
       model: EXTRACTION_MODEL,
       max_tokens: 4096,
       thinking: { type: "adaptive" },
+      output_config: outputConfig(DEFAULT_EFFORT),
       system: PHOTO_DETAILS_SYSTEM_PROMPT,
       tools: [PHOTO_DETAILS_TOOL],
       messages,
