@@ -73,7 +73,9 @@ features like separate cellars per user.
 - **Research** (`/research`) — bottles the scan feature wasn't confident
   about, and what a web search turned up for them. Each can be researched
   in one click from the list, or all at once behind a confirmation that
-  says how many live searches that will run. Results wait in a review
+  says how many bottles that covers - at most that many live searches, and
+  fewer when two rows turn out to be the same wine with the same details on
+  file, since those share one lookup. Results wait in a review
   queue rather than being applied: each shows a field-by-field diff of
   current against proposed, which you can accept in one click, edit first,
   or dismiss. A proposal whose bottle changed after the research ran is

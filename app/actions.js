@@ -1333,6 +1333,17 @@ async function runResearch(bottle) {
 // reviewed. Nothing about the bottle changes here - this is the "Claude
 // proposes, you confirm" trust model the scan and suggest features follow,
 // except the proposal now survives navigating away.
+// Upsert, not create: researching a bottle twice should replace the
+// pending answer rather than fail on the unique bottleId.
+async function saveResearchProposal(bottleId, { proposed, summary, sources }) {
+  await prisma.researchProposal.upsert({
+    where: { bottleId },
+    create: { bottleId, proposed, summary, sources: sources ?? [] },
+    update: { proposed, summary, sources: sources ?? [], createdAt: new Date() },
+  });
+  revalidatePath(`/bottles/${bottleId}`);
+}
+
 export async function researchBottle(id) {
   const bottle = await prisma.bottle.findUnique({ where: { id } });
   if (!bottle) return { error: "That bottle no longer exists." };
@@ -1341,34 +1352,65 @@ export async function researchBottle(id) {
   if (result.error) return result;
 
   const { summary, sources, ...proposed } = result.data;
-
-  // Upsert, not create: researching a bottle twice should replace the
-  // pending answer rather than fail on the unique bottleId.
-  await prisma.researchProposal.upsert({
-    where: { bottleId: id },
-    create: { bottleId: id, proposed, summary, sources: sources ?? [] },
-    update: { proposed, summary, sources: sources ?? [], createdAt: new Date() },
-  });
+  await saveResearchProposal(id, { proposed, summary, sources });
 
   revalidatePath("/research");
-  revalidatePath(`/bottles/${id}`);
   return { data: { changed: researchChanges(bottle, proposed).length } };
 }
 
 // The bulk pass. Chunked by the caller so no single request has to carry
-// the whole queue; each bottle is still one web-search call, which is why
-// the button that reaches this is behind a count and a confirmation.
+// the whole queue. Each distinct wine is one web-search call, which is why
+// the button that reaches this is behind a count and a confirmation - the
+// count is of bottles, so it now overstates the searches rather than
+// understating them.
 export async function researchBottles(ids) {
+  const bottles = await prisma.bottle.findMany({ where: { id: { in: ids } } });
+
+  // Two rows of the same wine - a case split across two entries, or one
+  // re-added after being drunk - ask the web the same question, and a
+  // research pass is by some distance the most expensive call in the app.
+  // Group them so the search runs once.
+  //
+  // The key is the research input itself rather than the wine's identity,
+  // and that distinction is the safety property. A proposal is a diff
+  // against one row's current values, so sharing an answer is only sound
+  // when the question was word-for-word the same. Two rows of the same wine
+  // that differ in anything research reads - a drinking window, whether
+  // that window is the app's own guess or the owner's own judgment,
+  // existing critic notes - describe differently and get their own pass.
+  // Keying on identity alone would save more calls and would hand one row's
+  // window provenance to another, which is the laundering the research
+  // input labelling exists to prevent.
+  const byQuestion = new Map();
+  for (const bottle of bottles) {
+    const key = describeBottleForResearch(bottle);
+    if (!byQuestion.has(key)) byQuestion.set(key, []);
+    byQuestion.get(key).push(bottle);
+  }
+
   let researched = 0;
   let failed = 0;
-  for (const id of ids) {
-    const result = await researchBottle(id);
+  for (const group of byQuestion.values()) {
+    const result = await runResearch(group[0]);
     if (result.error) {
-      failed += 1;
-    } else {
-      researched += 1;
+      // One wine failing shouldn't cost the rest of the queue its
+      // otherwise-good answers.
+      failed += group.length;
+      continue;
+    }
+    const { summary, sources, ...proposed } = result.data;
+    for (const bottle of group) {
+      try {
+        await saveResearchProposal(bottle.id, { proposed, summary, sources });
+        researched += 1;
+      } catch (err) {
+        console.error(`Failed to save research proposal for bottle ${bottle.id}:`, err);
+        failed += 1;
+      }
     }
   }
+
+  revalidatePath("/research");
   return { data: { researched, failed } };
 }
 
