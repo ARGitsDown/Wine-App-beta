@@ -665,7 +665,16 @@ All three verified still open against the current scan code.
 - ~~**Correcting a flagged wine never cleared its flag.**~~ — fixed. The
   card's amber banner now carries a "Looks right — clear the flag" button
   calling the existing `dismissResearch`, deliberately a control rather
-  than a side effect of saving. Original finding: `updateBottle`
+  than a side effect of saving.
+
+  It later gained the other answer too, which the first version was missing:
+  the flag asks a question, and only one reply was offered. "Not right —
+  look it up" runs the same `researchBottle` the bottle page does, files a
+  proposal, and swaps the banner for a link to review it. Both buttons then
+  withdraw, because clearing the flag would delete the proposal the search
+  had just paid a web search for. A search that changes nothing says so and
+  leaves both answers available. The flag itself stays set either way:
+  research proposes, you confirm. Original finding: `updateBottle`
   deliberately does not touch `needsResearch` - right when the bottle page
   was the only place to edit, since a plain edit should not silently
   resolve a research question. But a scan card is now a full editor too,

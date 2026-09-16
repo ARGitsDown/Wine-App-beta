@@ -9,6 +9,7 @@ import {
   removeScannedBottle,
   removeScannedBottles,
   dismissResearch,
+  researchBottle,
 } from "@/app/actions";
 import Link from "next/link";
 import BottleForm from "@/app/components/BottleForm";
@@ -525,6 +526,36 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
     updateEntryBottle(photo.id, entry.localId, { needsResearch: false });
   }
 
+  // The other half of the flag. "Looks right" answers the question one way;
+  // this answers it the other, without making you find the wine again on its
+  // own page to do it. It runs a real web search and files a proposal - the
+  // same one /research and the bottle page review - so the flag stays until
+  // that proposal is accepted or dismissed, which is the point: research
+  // proposes, you confirm.
+  //
+  // Safe to leave: researchBottle saves its proposal as the last thing it
+  // does, server-side, so the answer is durable whether or not this page is
+  // still listening when it finishes.
+  async function researchEntry(photo, entry) {
+    updateEntry(photo.id, entry.localId, {
+      researching: true,
+      flagError: null,
+      researchResult: null,
+    });
+    const result = await researchBottle(entry.bottle.id);
+    if (result?.error) {
+      updateEntry(photo.id, entry.localId, {
+        researching: false,
+        flagError: result.error,
+      });
+      return;
+    }
+    updateEntry(photo.id, entry.localId, {
+      researching: false,
+      researchResult: { changed: result?.data?.changed ?? 0 },
+    });
+  }
+
   async function handleRemove(photo, entry) {
     if (entry.kind === "saved") {
       updateEntry(photo.id, entry.localId, { actionError: null });
@@ -940,13 +971,56 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                             already saved, but please double-check the fields
                             below.
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => clearResearchFlag(photo, entry)}
-                            className="min-h-11 rounded-lg border border-amber-300 px-3 text-xs font-medium text-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-amber-900 dark:text-amber-300"
-                          >
-                            Looks right &mdash; clear the flag
-                          </button>
+                          {/* The flag asks a question, so both answers live
+                              here. Once a proposal exists neither is offered
+                              any more: clearing the flag would delete the
+                              proposal the search just paid for, so the only
+                              move left is to go and review it. */}
+                          {entry.researchResult?.changed > 0 ? (
+                            <Link
+                              href={`/bottles/${entry.bottle.id}`}
+                              className="min-h-11 rounded-lg border border-amber-300 px-3 py-2.5 text-xs font-medium text-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-amber-900 dark:text-amber-300"
+                            >
+                              Review what the search found &rarr;
+                            </Link>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => clearResearchFlag(photo, entry)}
+                                disabled={entry.researching}
+                                className="min-h-11 rounded-lg border border-amber-300 px-3 text-xs font-medium text-amber-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-amber-900 dark:text-amber-300"
+                              >
+                                Looks right &mdash; clear the flag
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => researchEntry(photo, entry)}
+                                disabled={entry.researching}
+                                className="min-h-11 rounded-lg border border-amber-300 px-3 text-xs font-medium text-amber-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-amber-900 dark:text-amber-300"
+                              >
+                                {entry.researching ? (
+                                  <Spinner label="Searching the web…" />
+                                ) : (
+                                  "Not right \u2014 look it up"
+                                )}
+                              </button>
+                            </div>
+                          )}
+
+                          {/* A search that changed nothing is an answer too,
+                              and without saying so the button just looks
+                              like it did nothing. */}
+                          {entry.researchResult?.changed === 0 && (
+                            <p
+                              role="status"
+                              className="text-xs text-amber-700 dark:text-amber-400"
+                            >
+                              The search didn&apos;t turn up anything to
+                              change &mdash; what was read looks right.
+                            </p>
+                          )}
+
                           {entry.flagError && (
                             <p
                               role="alert"
