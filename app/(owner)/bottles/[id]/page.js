@@ -159,28 +159,36 @@ export default async function BottleDetailPage({ params, searchParams }) {
                 bottle.status !== "consumed" && (
                   <EstimateWindowButton bottleId={bottle.id} />
                 )}
+              {/* Here rather than on a line of its own: when a bottle was
+                  bought is occasionally interesting and almost never the
+                  reason you opened this page, so it belongs among the
+                  other small facts about the wine, not under the name of
+                  it. A wishlist bottle isn't owned, so there is nothing to
+                  date. */}
+              {bottle.status !== "wishlist" && (
+                <div className="flex flex-wrap items-center gap-1 py-0.5 text-xs text-zinc-500">
+                  Acquired
+                  <InlineDateEditor
+                    date={bottle.acquiredAt}
+                    action={updateAcquiredDate.bind(null, bottle.id)}
+                    name="acquiredAt"
+                    emptyLabel="date unknown"
+                    title="Set when this entered the cellar"
+                    clearable
+                  />
+                </div>
+              )}
             </div>
-            {/* A wishlist bottle isn't owned, so there's nothing to date.
-                Everywhere else it can be true - including History, where
-                "acquired 2019, emptied 2026" is the interesting pair. */}
-            {bottle.status !== "wishlist" && (
-              <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-zinc-500">
-                <span>Acquired</span>
-                <InlineDateEditor
-                  date={bottle.acquiredAt}
-                  action={updateAcquiredDate.bind(null, bottle.id)}
-                  name="acquiredAt"
-                  emptyLabel="date unknown"
-                  title="Set when this entered the cellar"
-                  clearable
-                />
-              </div>
-            )}
-            {bottle.status === "consumed" && (
+            {/* Emptied and tasted are the same evening, so a drunk bottle
+                with a note already shows that date on the note and does not
+                need it again here. Without a note there is nowhere else for
+                it to appear - or to be corrected - so it stays, under the
+                name the owner uses for it. */}
+            {bottle.status === "consumed" && bottle.tastingNotes.length === 0 && (
               // A div, not a p: the editor renders a <form> once open, and
               // a form can't legally nest inside a paragraph.
               <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-zinc-500">
-                <span>Emptied</span>
+                <span>Tasted</span>
                 <InlineDateEditor
                   date={bottle.emptiedAt}
                   action={updateEmptiedDate.bind(null, bottle.id)}

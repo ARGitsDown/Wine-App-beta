@@ -260,6 +260,11 @@ export async function setBottleStatus(id, status) {
         acquiredAt: acquiredAtForStatus(status, existing.acquiredAt),
       },
     });
+    // A bottle can be noted long before it's marked drunk - the note is
+    // the evening, the status change is the tidying up afterwards - so the
+    // note's date wins over the "now" just stamped above.
+    if (status === "consumed") await syncEmptiedToLatestNote(id);
+
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/inventory");
     revalidatePath("/wishlist");
@@ -274,6 +279,36 @@ export async function setBottleStatus(id, status) {
 // Correcting when a bottle was actually emptied, the same way a tasting
 // note's date can be corrected - the button stamps "now", which is right
 // when you log as you drink and wrong when you're catching up later.
+// Emptied and tasted are the same evening on a bottle that's been drunk,
+// so the newest tasting note's date is the date it was emptied. Keeping
+// the two in step here is what lets the card stop showing both: emptiedAt
+// is what History sorts by, and on its own it keeps whatever "now" was
+// when the status was flipped - which a corrected note date then silently
+// contradicted, leaving History in an order the dates on screen denied.
+//
+// Only for a bottle already in History. A note on a bottle still in the
+// cellar is one of six bottles tasted, not the end of the wine.
+async function syncEmptiedToLatestNote(bottleId) {
+  const bottle = await prisma.bottle.findUnique({
+    where: { id: bottleId },
+    select: { status: true },
+  });
+  if (bottle?.status !== "consumed") return;
+
+  const latest = await prisma.tastingNote.findFirst({
+    where: { bottleId },
+    orderBy: [{ tastedAt: "desc" }, { id: "desc" }],
+    select: { tastedAt: true },
+  });
+  if (!latest) return;
+
+  await prisma.bottle.update({
+    where: { id: bottleId },
+    data: { emptiedAt: latest.tastedAt },
+  });
+  revalidatePath("/consumed");
+}
+
 export async function updateEmptiedDate(id, formData) {
   const emptiedAt = parseTastedDate(formData.get("emptiedAt"));
   if (!emptiedAt) return { error: "That date doesn't look right." };
@@ -431,6 +466,7 @@ export async function addTastingNote(bottleId, formData) {
   const tastedAt = parseTastedDate(formData.get("tastedAt")) ?? undefined;
 
   await prisma.tastingNote.create({ data: { bottleId, note, rating, tastedAt } });
+  await syncEmptiedToLatestNote(bottleId);
   revalidatePath(`/bottles/${bottleId}`);
 }
 
@@ -447,6 +483,7 @@ export async function updateTastingNoteDate(noteId, formData) {
       data: { tastedAt },
       select: { bottleId: true },
     });
+    await syncEmptiedToLatestNote(note.bottleId);
     revalidatePath(`/bottles/${note.bottleId}`);
     return { success: true };
   } catch (err) {

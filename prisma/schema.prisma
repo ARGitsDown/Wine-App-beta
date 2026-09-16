@@ -59,6 +59,12 @@ model Bottle {
   country  String?
   quantity Int     @default(1)
   status   String  @default("wishlist")
+  // The owner's own words about the bottle, as opposed to criticNotes
+  // (someone else's words, written by Research) or a TastingNote (about one
+  // evening). Where the bottle came from lives here - a shop, the winery, a
+  // gift - which is the only fact about a bottle with no field of its own.
+  // Deliberately free text rather than an acquisitionSource column: the
+  // answers are long-tailed and never filtered on.
   notes    String?
   // Alcohol by volume, as printed on the label (e.g. 14.5 for "14.5%").
   // Legally required on nearly every label, so easy to capture during

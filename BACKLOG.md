@@ -1084,16 +1084,17 @@ progress and a link; a pairing row expands fully. Naming is the open wrinkle -
 with hand-built flights in it, the honest heading is "Saved" rather than
 "Suggestions". Costs a nav slot, so it is tangled with the tab bar in #17.
 
-### Two bugs, independent of all of the above
+### ~~Two bugs, independent of all of the above~~ — done
 
-- **`savedGapIds` is keyed by array index and never reset**
-  (`suggest/page.js:33`, `:268`; `handleSubmit` resets four other pieces of
-  state but not this). Save a gap to the wishlist, run a different search, and
-  pick #1 of the new result claims to be on your wishlist already.
-- **"Save this flight" drops the wines you do not own, silently**
-  (`suggest/page.js:56-58`). The exclusion is correct - a flight is a queue of
-  bottles you can open - so the fix is to say what is being left out and offer
-  to wishlist it, not to loosen the column.
+- ~~**`savedGapIds` is keyed by array index and never reset**~~ Reset
+  alongside the result it describes. Save a gap to the wishlist, run a
+  different search, and pick #1 of the new result used to claim it was on
+  your wishlist already, with no way to add it.
+- ~~**"Save this flight" drops the wines you do not own, silently**~~ The
+  exclusion was correct - a flight is a queue of bottles you can open - so
+  the fix was to say it: the button now counts what it will actually save, a
+  line names what it will not, and saving opens the wishlist forms for
+  exactly those wines.
 
 ### Effort, not model
 
@@ -1107,31 +1108,59 @@ a cheaper model would forfeit the cache hit and eat the per-token saving. If
 latency specifically is the complaint, fast mode runs the same model faster at
 a price premium, which trades money rather than quality.
 
-## 21. The wine card's three kinds of note, and two of its dates
+## ~~21. The wine card's three kinds of note, and two of its dates~~ — done
 
-Raised by the owner looking at a bottle page.
+Raised by the owner looking at a bottle page; settled with them and shipped.
 
 - **Two notes boxes, one explanation.** `Bottle.notes`, `Bottle.criticNotes`
   and `TastingNote.note` are a real three-way split - your standing notes
   about the wine, somebody else's published notes, and your dated tasting
-  entries. `criticNotes` is documented thoroughly in the schema and carries a
-  placeholder saying Research fills it. `Bottle.notes` has **no schema comment
-  at all** (`schema.prisma:62`) and is labelled just "Notes" directly above
-  it. The distinction survives in the schema and nowhere on screen. A label
-  and a placeholder fix it; no data change.
-- **The acquired date is already there and hard to see.** It renders for
-  every non-wishlist bottle (`bottles/[id]/page.js:166-178`), reads "date
-  unknown" in small grey when null, and sits among up to three dates on a
-  consumed bottle. Nothing to build; it wants the contrast and prominence
-  treatment the rest of the app has had.
-- **Acquisition source** - where a bottle came from: a shop, direct from the
-  winery, a gift. New nullable field. Worth noting it is exactly what is
-  currently being dumped into the undocumented `notes` box, so the two items
-  above are related: structuring this is part of giving `notes` a clear job.
-  Open question before building: free text with autocomplete over sources
-  already used (the `getRegionOptions` pattern), or a fixed vocabulary like
-  `wineColor`. Sources are open-ended and personal, so the autocomplete
-  shape looks right.
+  entries - but only the second two said so on screen. `Bottle.notes` is now
+  labelled "Your notes", named for whose words it holds, with a line saying
+  what belongs in it and a placeholder showing it. The schema comment it
+  never had is written.
+- **Acquisition source stays free text.** The owner's call: it goes in the
+  notes box rather than getting a column of its own, so the label above had
+  to say so. The alternatives considered were autocomplete over sources
+  already used (the `getRegionOptions` pattern) and a fixed vocabulary like
+  `wineColor`; neither earns its keep for a field never filtered on.
+- **The acquired date was too loud, not too quiet.** It was always rendered -
+  the reason it went unnoticed is that "date unknown" reads as an absence.
+  When a bottle was bought is occasionally interesting and almost never why
+  you opened the page, so it now sits in the meta row with the status and the
+  drinking window, a size smaller, instead of owning a line under the wine's
+  name.
+- **Two dates on a drunk bottle, not three.** "Tasted is synonymous with
+  emptied", so the card no longer shows both: the tasting note carries the
+  date, and the header row appears only for a bottle with no note, where
+  there would otherwise be nowhere to see or correct it. The two values are
+  now kept in step in the data as well (`syncEmptiedToLatestNote`), because
+  `Bottle.emptiedAt` is what History sorts by - leaving them free to diverge
+  would have put History in an order the dates on screen denied.
+
+## 22. Region and country in the Cellar's wine titles
+
+Raised by the owner: a Cellar row names the producer, bottling and vintage,
+and says the type, but not where the wine is from - so scanning the list for
+"something from the Loire" means opening rows or reaching for the filter.
+Proposed as part of the title in a quieter font, which is the right instinct:
+it is the same shape the scan cards already use, where the producer line is
+followed by `variety · region · subRegion · country` in small grey
+(`EntryHeading` in `ScanPanel.js`), so there is a pattern to copy rather than
+a new one to invent.
+
+Worth deciding when it is built:
+
+- **Which fields.** `region` alone is often enough ("Barolo", "Mosel") and
+  `country` is the redundant half of "Barolo, Italy"; but "Sonoma Coast" and
+  "South Australia" want it. Showing both always is the honest default and
+  the scan cards already do.
+- **Where the room comes from.** At 375px the row already carries the colour
+  swatch, the title, the type and the quantity. This is a second line, not
+  more on the first.
+- **Whether History and the guest list follow.** They render the same bottle
+  through different components; a change here that stops at Cellar leaves
+  three lists that describe a wine three ways.
 
 ## Lower priority / optional
 
