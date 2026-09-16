@@ -670,6 +670,12 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         {
           type: "text",
           text: "Read this photo and record every distinct wine in it.",
+          // Caches everything before this point - both tool schemas, the
+          // system prompt, and the photo - so the search_cellar turns that
+          // follow reread it instead of resending it. The loop only ever
+          // pushes onto messages, so messages[0] stays byte-identical
+          // across turns, which is what makes this safe.
+          cache_control: { type: "ephemeral" },
         },
       ],
     },
@@ -1035,7 +1041,14 @@ export async function getSuggestions(request, includeOutside = false, character 
         model: REASONING_MODEL,
         max_tokens: 8192,
         thinking: { type: "adaptive" },
-        system: systemPrompt,
+        // Tools render before system, so one breakpoint here covers both.
+        // The request text and every browse result live in messages, after
+        // the prefix, so nothing volatile is inside it. The cache key
+        // varies by year and by the includeOutside/character steer, which
+        // is correct - a different steer is a different prompt.
+        system: [
+          { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+        ],
         tools: [BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL],
         messages,
       });
