@@ -829,8 +829,28 @@ three.
   destinations under the thumb, the rest behind the home cards - giving
   back most of that space while putting Scan within reach of a hand
   already holding a bottle. It would also give the Research count a real
-  badge rather than a text link in a wrapping row. Worth holding until the
-  Cellar reordering above is settled, since both want the same space.
+  badge rather than a text link in a wrapping row.
+
+  The Cellar reordering it was waiting on is done, so the space question is
+  settled: the first bottle sits at 441px on a 375x800 screen, of which
+  roughly 70px is this nav. What is *not* settled is which destinations earn
+  a slot, and that is an owner decision about how the app is actually used
+  rather than something the code can answer. The two open questions, so they
+  do not have to be re-derived:
+
+  1. **Which four or five tabs.** Home and Scan are not in doubt, and the
+     Cellar is the most-used list. The contested slots are Suggest (an
+     action, used how often?) against Wishlist or Tasting notes (lists,
+     already reachable from Home), and whether Research earns one - it is
+     currently the only page with no route at all when its badge reads
+     zero, and a tab would give its count a real badge.
+  2. **What happens above phone width.** Either the top row returns past
+     ~640px, which costs one media query and keeps a laptop looking like a
+     laptop, or the bottom bar is the only nav everywhere, which is less
+     code and nothing to keep in step.
+
+  Whatever is not in the bar stays a Home card, so nothing becomes
+  unreachable either way.
 - **A Suggest result is lost on navigation, with no warning.** The result
   lives in component state. Pairings being ephemeral is a deliberate call
   and a defensible one, but ephemeral and unannounced are different
