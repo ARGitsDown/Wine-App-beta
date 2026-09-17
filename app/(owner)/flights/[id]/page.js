@@ -1,30 +1,15 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import {
-  markFlightPickConsumed,
-  deleteTastingFlight,
-  removeFlightPick,
-  moveFlightPick,
-} from "@/app/actions";
+import { deleteTastingFlight } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import FlightBottlePicker from "@/app/components/FlightBottlePicker";
+import FlightPicksList from "@/app/components/FlightPicksList";
 import { flightName } from "@/lib/flights";
 
 export const dynamic = "force-dynamic";
 
-const buttonClass =
-  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
 const dangerButtonClass =
   "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
-const reorderButtonClass =
-  "flex h-6 w-6 items-center justify-center rounded border border-zinc-300 leading-none disabled:opacity-30 dark:border-zinc-700";
-
-function bottleHeader(bottle) {
-  return [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage || null]
-    .filter(Boolean)
-    .join(" ");
-}
 
 export default async function FlightDetailPage({ params }) {
   const { id } = await params;
@@ -90,84 +75,7 @@ export default async function FlightDetailPage({ params }) {
         />
       </div>
 
-      <ol className="flex flex-col gap-3">
-        {flight.picks.map((pick, index) => (
-          <li
-            key={pick.id}
-            className={`flex flex-col gap-2 rounded-lg border p-4 ${
-              pick.consumed
-                ? "border-zinc-200 opacity-60 dark:border-zinc-800"
-                : "border-zinc-200 dark:border-zinc-800"
-            }`}
-          >
-            <div className="flex items-baseline justify-between gap-2">
-              <Link
-                href={`/bottles/${pick.bottle.id}`}
-                className="font-medium underline underline-offset-2"
-              >
-                {index + 1}. {bottleHeader(pick.bottle)}
-                {pick.bottle.type ? ` — ${pick.bottle.type}` : ""}
-              </Link>
-              {pick.consumed && (
-                <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
-                  ✓ Tasted
-                </span>
-              )}
-            </div>
-            {/* A pick added by hand has no argument attached to it - only
-                a place in the running order. */}
-            {pick.reason && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">{pick.reason}</p>
-            )}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-              <span>Order:</span>
-              <form action={moveFlightPick.bind(null, pick.id, "up")}>
-                <button
-                  type="submit"
-                  disabled={index === 0}
-                  aria-label={`Move ${bottleHeader(pick.bottle)} earlier`}
-                  className={reorderButtonClass}
-                >
-                  ↑
-                </button>
-              </form>
-              <form action={moveFlightPick.bind(null, pick.id, "down")}>
-                <button
-                  type="submit"
-                  disabled={index === flight.picks.length - 1}
-                  aria-label={`Move ${bottleHeader(pick.bottle)} later`}
-                  className={reorderButtonClass}
-                >
-                  ↓
-                </button>
-              </form>
-              <form action={removeFlightPick.bind(null, pick.id)}>
-                <button type="submit" className="underline underline-offset-2">
-                  Remove from flight
-                </button>
-              </form>
-            </div>
-            {!pick.consumed && (
-              <div className="flex flex-wrap gap-2">
-                <form action={markFlightPickConsumed.bind(null, pick.id)}>
-                  <button type="submit" className={buttonClass}>
-                    Mark as tasted
-                  </button>
-                </form>
-                {/* The id, not the text: the note prefill then renders
-                    whichever of title/summary this flight actually has,
-                    instead of freezing a copy into the URL. */}
-                <Link
-                  href={`/bottles/${pick.bottle.id}?tastingFlight=${flight.id}`}
-                  className="self-center text-sm text-zinc-500 underline underline-offset-2"
-                >
-                  Log a tasting note →
-                </Link>
-              </div>
-            )}
-          </li>
-        ))}
-      </ol>
+      <FlightPicksList flightId={flight.id} picks={flight.picks} />
 
       {flight.picks.length === 0 && (
         <p className="text-sm text-zinc-500">

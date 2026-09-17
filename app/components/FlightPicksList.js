@@ -1,0 +1,135 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { markFlightPickConsumed, removeFlightPick, moveFlightPick } from "@/app/actions";
+
+const buttonClass =
+  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
+const reorderButtonClass =
+  "flex h-6 w-6 items-center justify-center rounded border border-zinc-300 leading-none disabled:opacity-30 dark:border-zinc-700";
+
+function bottleHeader(bottle) {
+  return [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage || null]
+    .filter(Boolean)
+    .join(" ");
+}
+
+// Each pick collapsed to its number and title, expanding on tap to show why
+// it was chosen - the same pattern PairingPicksList uses (BACKLOG #28), only
+// warranted here once a flight runs long enough that a reason per bottle was
+// pushing the next bottle off the screen.
+export default function FlightPicksList({ flightId, picks }) {
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  function toggle(id) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <ol className="flex flex-col gap-3">
+      {picks.map((pick, index) => {
+        const expanded = expandedIds.has(pick.id);
+        return (
+          <li
+            key={pick.id}
+            className={`rounded-lg border ${
+              pick.consumed
+                ? "border-zinc-200 opacity-60 dark:border-zinc-800"
+                : "border-zinc-200 dark:border-zinc-800"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => toggle(pick.id)}
+              aria-expanded={expanded}
+              className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            >
+              <span aria-hidden="true" className="shrink-0 pt-0.5 text-zinc-400">
+                {expanded ? "▾" : "▸"}
+              </span>
+              <span className="min-w-0 flex-1 font-medium">
+                {index + 1}. {bottleHeader(pick.bottle)}
+                {pick.bottle.type ? ` — ${pick.bottle.type}` : ""}
+              </span>
+              {pick.consumed && (
+                <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
+                  ✓ Tasted
+                </span>
+              )}
+            </button>
+
+            {expanded && (
+              <div className="flex flex-col gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                {/* A pick added by hand has no argument attached to it -
+                    only a place in the running order. */}
+                {pick.reason && (
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">{pick.reason}</p>
+                )}
+                <Link
+                  href={`/bottles/${pick.bottle.id}`}
+                  className="self-start text-sm text-zinc-500 underline underline-offset-2"
+                >
+                  View full details →
+                </Link>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200 px-4 py-2 text-xs text-zinc-400 dark:border-zinc-800">
+              <span>Order:</span>
+              <form action={moveFlightPick.bind(null, pick.id, "up")}>
+                <button
+                  type="submit"
+                  disabled={index === 0}
+                  aria-label={`Move ${bottleHeader(pick.bottle)} earlier`}
+                  className={reorderButtonClass}
+                >
+                  ↑
+                </button>
+              </form>
+              <form action={moveFlightPick.bind(null, pick.id, "down")}>
+                <button
+                  type="submit"
+                  disabled={index === picks.length - 1}
+                  aria-label={`Move ${bottleHeader(pick.bottle)} later`}
+                  className={reorderButtonClass}
+                >
+                  ↓
+                </button>
+              </form>
+              <form action={removeFlightPick.bind(null, pick.id)}>
+                <button type="submit" className="underline underline-offset-2">
+                  Remove from flight
+                </button>
+              </form>
+            </div>
+
+            {!pick.consumed && (
+              <div className="flex flex-wrap gap-2 px-4 py-3">
+                <form action={markFlightPickConsumed.bind(null, pick.id)}>
+                  <button type="submit" className={buttonClass}>
+                    Mark as tasted
+                  </button>
+                </form>
+                {/* The id, not the text: the note prefill then renders
+                    whichever of title/summary this flight actually has,
+                    instead of freezing a copy into the URL. */}
+                <Link
+                  href={`/bottles/${pick.bottle.id}?tastingFlight=${flightId}`}
+                  className="self-center text-sm text-zinc-500 underline underline-offset-2"
+                >
+                  Log a tasting note →
+                </Link>
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
