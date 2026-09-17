@@ -4,6 +4,7 @@ import { deleteTastingFlight } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import FlightBottlePicker from "@/app/components/FlightBottlePicker";
 import FlightPicksList from "@/app/components/FlightPicksList";
+import BackButton from "@/app/components/BackButton";
 import { flightName } from "@/lib/flights";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,7 @@ export default async function FlightDetailPage({ params }) {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
+      <BackButton fallbackHref="/flights" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold">{flightName(flight)}</h1>

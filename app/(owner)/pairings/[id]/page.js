@@ -5,6 +5,7 @@ import { deletePairing } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import PairingTitle from "@/app/components/PairingTitle";
 import PairingPicksList from "@/app/components/PairingPicksList";
+import BackButton from "@/app/components/BackButton";
 import { SUGGESTION_CHARACTERS } from "@/lib/suggestion-character";
 import { EFFORT_LEVELS } from "@/lib/effort";
 
@@ -41,6 +42,7 @@ export default async function PairingDetailPage({ params }) {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
+      <BackButton fallbackHref="/pairings" />
       <div className="flex flex-col gap-3">
         <PairingTitle pairing={pairing} />
         {pairing.summary && (

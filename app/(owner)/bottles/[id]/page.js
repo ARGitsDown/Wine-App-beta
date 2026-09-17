@@ -15,6 +15,7 @@ import {
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import AddToFlight from "@/app/components/AddToFlight";
+import BackButton from "@/app/components/BackButton";
 import { flightName as nameOfFlight, isOpenFlight } from "@/lib/flights";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
@@ -29,6 +30,16 @@ const buttonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
 const secondaryButtonClass =
   "rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700";
+
+// Where Back sends you when this tab has no history to go back to (a
+// bottle opened from a fresh link). The list matching its own status,
+// since that's the one place among the half-dozen this page is reached
+// from that's always right.
+const STATUS_FALLBACK_HREF = {
+  inventory: "/inventory",
+  wishlist: "/wishlist",
+  consumed: "/consumed",
+};
 
 // Deleting a bottle cascades to everything hanging off it. Naming what
 // actually goes with it is the point of confirming at all - "are you sure?"
@@ -108,6 +119,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
+      <BackButton fallbackHref={STATUS_FALLBACK_HREF[bottle.status] ?? "/inventory"} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           {bottle.photoUrl && (

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getResearchCount } from "@/lib/bottles";
 import NavLinks from "@/app/components/NavLinks";
 import TabBar from "@/app/components/TabBar";
+import NavigationDepthTracker from "@/app/components/NavigationDepthTracker";
 
 // The badge is the only part of the shell that needs the database, so it
 // renders on its own and streams in: awaiting it in the layout put a DB
@@ -39,6 +40,7 @@ async function ResearchNavLink() {
 export default function OwnerLayout({ children }) {
   return (
     <>
+      <NavigationDepthTracker />
       {/* Two navs, one at a time. The row of text links was a desktop nav
           on a phone-first app: at 375px it wrapped to two lines above every
           screen, permanently, and pushed the first bottle in the cellar to
