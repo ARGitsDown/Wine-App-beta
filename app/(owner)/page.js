@@ -79,18 +79,28 @@ export default async function HomePage() {
       getResearchCount(),
     ]);
 
-  // Actions first: on a phone this is the top of the screen, and scanning a
-  // label or asking what to open is more often why you opened the app than
-  // reading a count is.
-  const cards = [
-    {
-      href: "/scan",
-      label: "Scan",
-      description: "Label or tasting sheet",
-      Icon: ScanIcon,
-      accent:
-        "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
-    },
+  // Two columns, ordered by how often each one is actually reached for
+  // (BACKLOG #25) - authored as two plain arrays, left column first, so the
+  // order below reads the same way it was asked for: top to bottom, one
+  // column, then the other. (The render below concatenates them and lets
+  // grid-auto-flow: column turn that flat, readable order into the two
+  // side-by-side stacks - see the comment there.)
+  //
+  // The heuristic, spelled out because the array order used to be the only
+  // place it lived:
+  //   (a) an action - a thing you *do* (Scan, Suggest) - outranks a
+  //       collection - a thing you *browse* - because doing it is more
+  //       often why the app was opened than checking a count. That holds
+  //       within each column, not just once across the whole screen, which
+  //       is why an action leads both of them.
+  //   (b) within a column, order by how often it's actually reached for -
+  //       the owner's own sense of their use, revisited by asking again if
+  //       it stops matching reality, not by tracking clicks for eight
+  //       cards in a single-user app.
+  //   (c) a pair that feeds into each other stays adjacent when that
+  //       doesn't conflict with (a) or (b) - Suggest produces what
+  //       Pairings holds, so Pairings follows it here.
+  const leftCards = [
     {
       href: "/suggest",
       label: "Suggest",
@@ -99,29 +109,16 @@ export default async function HomePage() {
       accent:
         "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-400",
     },
+    // Reachable from exactly one other place - Suggest itself - before the
+    // tab bar existed. With four tabs, home is the way to everything not
+    // in the bar, so it needs a card here regardless of column order.
     {
-      href: "/inventory",
-      label: "Cellar",
-      count: inventoryCount,
-      description: "Bottles",
-      Icon: CellarIcon,
-      accent: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
-    },
-    {
-      href: "/wishlist",
-      label: "Wishlist",
-      count: wishlistCount,
-      description: "To try or buy",
-      Icon: WishlistIcon,
-      accent: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
-    },
-    {
-      href: "/consumed",
-      label: "Tasting notes",
-      count: tastedCount,
-      description: "Wines tasted",
-      Icon: TastingHistoryIcon,
-      accent: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
+      href: "/pairings",
+      label: "Pairings",
+      count: pairingCount,
+      description: "Kept",
+      Icon: PairingsIcon,
+      accent: "bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-400",
     },
     {
       href: "/flights",
@@ -132,18 +129,27 @@ export default async function HomePage() {
       accent:
         "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400",
     },
-    // Both of these were reachable from exactly one place before the tab
-    // bar: kept pairings only from Suggest, and research only from a nav
-    // badge that vanished when its count hit zero. With four tabs, home is
-    // the way to everything not in the bar, so "everything" has to be here.
     {
-      href: "/pairings",
-      label: "Pairings",
-      count: pairingCount,
-      description: "Kept",
-      Icon: PairingsIcon,
-      accent: "bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-400",
+      href: "/consumed",
+      label: "Tasting notes",
+      count: tastedCount,
+      description: "Wines tasted",
+      Icon: TastingHistoryIcon,
+      accent: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
     },
+  ];
+  const rightCards = [
+    {
+      href: "/scan",
+      label: "Scan",
+      description: "Label or tasting sheet",
+      Icon: ScanIcon,
+      accent:
+        "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
+    },
+    // The other card with nowhere to live before the tab bar - a nav badge
+    // that vanished once its count hit zero, rather than a route of its
+    // own.
     {
       href: "/research",
       label: "Research",
@@ -152,6 +158,22 @@ export default async function HomePage() {
       Icon: ResearchIcon,
       accent:
         "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-400",
+    },
+    {
+      href: "/wishlist",
+      label: "Wishlist",
+      count: wishlistCount,
+      description: "To try or buy",
+      Icon: WishlistIcon,
+      accent: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
+    },
+    {
+      href: "/inventory",
+      label: "Cellar",
+      count: inventoryCount,
+      description: "Bottles",
+      Icon: CellarIcon,
+      accent: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
     },
   ];
 
@@ -162,8 +184,24 @@ export default async function HomePage() {
           page with nothing naming it. */}
       <h1 className="sr-only">Cellarmaster</h1>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        {cards.map((card) => (
+      {/* grid-flow-col fills a column at a time in DOM order rather than
+          grid's default row-major - given the flat left-then-right list
+          below, that reads as exactly the two stacks asked for, and
+          because it's still one real grid (not two independent flex
+          columns), a card whose description wraps to a second line still
+          pulls its whole row - both columns - down with it, the way plain
+          grid-cols-2 always did. Two separate flex-col stacks looked
+          simpler on paper but lost that: the first version of this only
+          matched row heights by coincidence, and drifted a visible 12px by
+          the last row once one column's cards ran taller than the
+          other's - caught by measuring rather than eyeballing it. No
+          lg:grid-cols-3 step-up either: a third column would have to
+          decide where this two-column usage order breaks into three,
+          which nothing here specifies, and the app is phone-first enough
+          that losing it on a wide screen is a minor, reversible trade
+          rather than a guess worth making now. */}
+      <div className="grid grid-cols-2 grid-flow-col grid-rows-4 gap-3">
+        {[...leftCards, ...rightCards].map((card) => (
           <Card key={card.href} card={card} />
         ))}
       </div>

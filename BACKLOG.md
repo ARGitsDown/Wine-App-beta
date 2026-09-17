@@ -1351,7 +1351,7 @@ Standard effort · cellar only") so the values stay legible while closed.
    that the remaining friction is scrolling past picks, not past controls.
    Revisit only if that's still a complaint once item 2 ships.
 
-## 25. Home page: a stated ordering principle, not just this reordering
+## ~~25. Home page: a stated ordering principle, not just this reordering~~ — done
 
 Raised by the owner: they like the home screen, want it ordered by how often
 each destination is actually used, and gave a concrete layout - Suggest,
@@ -1381,7 +1381,7 @@ true two-column, column-major reading order needs either two separate
 and an explicit row count (`grid-rows-4` or similar) - a real structural
 change, not a one-line array reorder.
 
-### Decided, before building
+### Decided, and built
 
 1. **Four items.** Left column, top to bottom: Suggest, Pairings, Flights,
    Tasting notes. Right column: Scan, Research, Wishlist, Cellar. All eight
@@ -1399,14 +1399,24 @@ change, not a one-line array reorder.
    later if it stops matching reality. No `lastVisitedAt` tracking -
    overkill for eight cards in a single-user app, and a five-minute
    conversation is cheaper than building a usage log to justify itself.
-4. **Two independent `flex flex-col` stacks side by side**, not
-   `grid-auto-flow: column` - simpler and more predictable than fighting
-   grid's column-major mode for two columns. This means dropping the
-   `lg:grid-cols-3` step-up: a three-column split has to decide where an
-   eight-card, two-column usage order breaks into three, which nothing here
-   specifies, and the app is phone-first enough that losing a desktop third
-   column is a minor, reversible trade - worth a second pass later if wide
-   screens turn out to matter, not a guess now.
+4. ~~Two independent `flex flex-col` stacks side by side~~ - built that
+   way first, and wrong. A real grid keeps every row's height in sync
+   across both columns automatically; two independent flex-col stacks
+   don't, so a card whose description wraps to a second line in one
+   column (Research, Tasting notes) pulls only its own column down with
+   it. Caught by measuring rather than eyeballing it: rows drifted a real
+   12px apart by the last one. Shipped instead:
+   `grid grid-cols-2 grid-flow-col grid-rows-4` - `grid-auto-flow: column`
+   fills one column completely before moving to the next, in DOM order,
+   so the exact same flat, left-column-then-right-column array reads as
+   the two stacks that were asked for, while staying a true grid where
+   every row's height still matches across both columns, the way plain
+   `grid-cols-2` always did. The `lg:grid-cols-3` step-up is still
+   dropped: a three-column split has to decide where an eight-card,
+   two-column usage order breaks into three, which nothing here
+   specifies, and the app is phone-first enough that losing a desktop
+   third column is a minor, reversible trade - worth a second pass later
+   if wide screens turn out to matter, not a guess now.
 
 ## ~~26. Cellar and Wishlist: Scan and hand-entry on one line~~ — done
 
