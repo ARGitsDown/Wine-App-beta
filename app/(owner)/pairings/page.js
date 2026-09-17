@@ -10,7 +10,12 @@ export const dynamic = "force-dynamic";
 // pairing to run it again.
 export default async function PairingsPage() {
   const pairings = await prisma.savedPairing.findMany({
-    include: { picks: { select: { dish: true } } },
+    include: {
+      picks: {
+        select: { dish: true, wineName: true },
+        orderBy: { order: "asc" },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 

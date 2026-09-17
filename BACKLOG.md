@@ -1540,7 +1540,7 @@ general box" state today, only "collapsed" and "everything open."
    next to the other string helpers it joins (`searchableText`,
    `includesInsensitive`).
 
-## 28. Pairings: tighter summaries, and a "Drink tonight" shortcut
+## 28. Pairings: tighter summaries — done; "Drink tonight" — still deferred
 
 Raised by the owner, looking at both the pairings list and a kept pairing's
 detail page.
@@ -1588,17 +1588,38 @@ things could be meant by "Drink tonight," with different costs:
   about what clears it (all notes logged? a manual dismiss? time-based?) and
   whether it's one pairing at a time or several.
 
-### Decided, before building
+### ~~Decided, before building~~ — decided and built
 
-1. **The list summary names the wines, short form.** Producer only - not
-   the full `wineLabelForBottle` heading (producer + bottling + vintage +
-   type) - so it doesn't crowd out the dish names it sits beside: e.g. "the
-   roast chicken, the halibut · Rochioli, Dr. Loosen".
-2. **The detail page adopts `BottleList`'s collapsed-row pattern.**
-   Collapsed: dish badge (if any) + wine name + the owned/gap/no-longer-
-   owned badge - the same minimum identifying line `BottleList` already
-   uses for variety/region. Expanded: region/gap detail and the full reason
-   text.
+1. ~~**The list summary names the wines, short form.**~~ Producer only -
+   not the full `wineLabelForBottle` heading (producer + bottling + vintage
+   + type) - so it doesn't crowd out the dish names it sits beside: "the
+   roast chicken, the halibut, the lamb · Rochioli, Dr. Loosen, Envinate".
+
+   One thing this needed that wasn't in the plan: there was no clean way to
+   get "producer alone" back out of the stored `wineLabel` snapshot without
+   parsing a formatted string (which quoted segment is a bottling name,
+   which 4-digit number is a vintage and not part of the producer) - the
+   kind of fragile guessing this schema avoids everywhere else. Added
+   `PairingPick.wineName`, written alongside `wineLabel` at save time
+   (`wineNameForBottle`/`wineNameForGap` in `lib/pairings.js`, called from
+   `savePairing`) rather than derived from it. A migration backfills
+   existing rows with their full `wineLabel` as a safe, honest stand-in
+   (longer than ideal, never wrong) until each is refined and re-saved.
+2. ~~**The detail page adopts `BottleList`'s collapsed-row pattern.**~~
+   Collapsed: dish badge (if any) + the full heading (`wineLabel` - this
+   row isn't sharing space with other picks' dish names, so it keeps the
+   fuller one) + the owned/gap/no-longer-owned badge, the same minimum
+   identifying line `BottleList` already uses for variety/region. Expanded:
+   region/gap detail and the full reason text, plus a "View full details →"
+   link when a bottle still exists - moved out of the collapsed row rather
+   than left as a link inside it, since an `<a>` nested inside the row's
+   own toggle `<button>` is invalid HTML and an ambiguous tap target; the
+   same reason `BottleList`'s own version of that link lives in its
+   expanded content, not its collapsed row. A new `PairingPicksList`
+   component, not a reuse of `BottleList` itself - a pick isn't a bottle
+   (it may have none at all, and carries a dish and a reason `BottleList`
+   knows nothing about), so this is the same pattern built again rather
+   than one component stretched to cover both.
 
 ### Still open
 

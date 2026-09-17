@@ -6,7 +6,12 @@ import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL, REASONING_MODEL } from "@/lib/anthropic";
 import { DEFAULT_EFFORT, normalizeEffort, outputConfig } from "@/lib/effort";
 import { normalizeCharacter } from "@/lib/suggestion-character";
-import { wineLabelForBottle, wineLabelForGap } from "@/lib/pairings";
+import {
+  wineLabelForBottle,
+  wineLabelForGap,
+  wineNameForBottle,
+  wineNameForGap,
+} from "@/lib/pairings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -2376,6 +2381,7 @@ export async function savePairing(input) {
       reason: trimmedOrNull(pick.reason, MAX_PAIRING_TEXT) ?? "",
       bottleId: bottle ? bottle.id : null,
       wineLabel: bottle ? wineLabelForBottle(bottle) : wineLabelForGap(gap),
+      wineName: bottle ? wineNameForBottle(bottle) : wineNameForGap(gap),
       gap,
     });
   }

@@ -384,6 +384,15 @@ model PairingPick {
   // reason a bottle renamed since still shows the name it was chosen
   // under.
   wineLabel String
+  // The producer alone - the same snapshot as wineLabel, trimmed to what a
+  // list summary can afford to show beside two or three dish names without
+  // crowding them out. Stored rather than parsed back out of wineLabel at
+  // read time, for the same reason wineLabel itself is a stored snapshot
+  // rather than a live read off the bottle: re-deriving "just the
+  // producer" from a formatted string (which quoted bottling name, which
+  // 4-digit number is a vintage and not part of the name) is exactly the
+  // fragile parsing this schema avoids elsewhere.
+  wineName  String
   // A wine that was not owned, as {producer, type, region, country}. Json
   // for the same reason ResearchProposal.proposed is: it is only ever
   // rendered as a unit, never queried into. It also means keeping a
