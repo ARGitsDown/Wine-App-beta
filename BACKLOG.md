@@ -1317,28 +1317,30 @@ friction there is scrolling past the result to reach the controls, not
 retyping. Whether that in-place case wants its own explicit "refine" action
 (e.g. a button that scrolls back up and/or collapses the result) is open.
 
-### Open questions before building
+### Decided, before building
 
-1. **Naming.** What should "Keep this pairing" and "Log this pairing" be
-   called so the difference between save-the-recommendation and
-   write-a-tasting-note is legible at a glance? (Is "Log" the wrong verb for
-   either action, given it currently logs nothing on its own?)
-2. **Should the search controls (Character, Effort, include-outside)
-   collapse by default**, the way `FilterBar`'s panel already does elsewhere
-   in the app, leaving the request box and submit button as the visible
-   surface? If so, on what signal do they stay open (an active non-default
-   choice, the way `FilterBar` opens when a filter is already set) or does a
-   `<details>` reveal them plainly, with no such memory?
-3. **Should "Kept pairings →" move, become conditional, or stay?** It is
-   the only link back to `/pairings` from inside the Suggest flow now that
-   the nav bar doesn't carry it - removing it outright would need a
-   different way back (a Home card exists, but that's an extra hop from
-   mid-flow). Conditional on what - only when at least one pairing exists?
-   Moved to the bottom, near "Keep this pairing"?
-4. **Is scroll friction on a first, unsaved attempt worth its own control**
-   (something between "nothing" and "a kept pairing's dedicated refine
-   button"), or does that only matter enough to fix once a pairing exists to
-   refine from?
+Scoped with the owner; four questions, four answers.
+
+1. **Naming.** ~~"Keep this pairing" / "Log this pairing"~~ →
+   **"Save this pairing"** (matches Flights' "Save this flight" - one save
+   verb across the app, instead of two that sound alike and aren't) and
+   **"Add a tasting note"** (says exactly what the link does, since it
+   doesn't log anything by itself - see the write-up above).
+2. **Character, Effort and include-outside collapse behind one
+   disclosure**, closed by default - the same rule `FilterBar` already uses
+   (`hasAnyFilter`, `FilterBar.js:41`): open automatically when the loaded
+   state isn't all defaults. That covers both a mid-session non-default
+   choice and a `?from=` refine load - a kept pairing's settings are rarely
+   all-default, so refining opens the panel instead of hiding what was just
+   restored.
+3. **"Kept pairings →" becomes conditional** on at least one pairing
+   existing (one more cheap count alongside what the page already queries),
+   and stays where it is at the top. The empty-state link was the actual
+   clutter - nothing to compare against yet - not its position.
+4. **No dedicated "refine" control for a first, unsaved attempt.**
+   Collapsing the options panel (item 2) already shortens the page enough
+   that the remaining friction is scrolling past picks, not past controls.
+   Revisit only if that's still a complaint once item 2 ships.
 
 ## 25. Home page: a stated ordering principle, not just this reordering
 
@@ -1370,35 +1372,32 @@ true two-column, column-major reading order needs either two separate
 and an explicit row count (`grid-rows-4` or similar) - a real structural
 change, not a one-line array reorder.
 
-### Open questions before building
+### Decided, before building
 
-1. **What does "Pairings and Tastings" mean as two items or one?** Read
-   literally there are four left-column entries (Suggest, Pairings, Flights
-   - "tastings" as in tasting flights - Tasting notes), which lines up 4-and-4
-   with the right column and accounts for every one of the eight existing
-   cards. Read as three (Suggest, Pairings-and-Tasting-notes-together, then
-   restating Tasting notes) something doesn't add up. Confirm which, and in
-   particular whether "Tastings" here means Flights (`/flights`) or is a
-   second mention of Tasting notes (`/consumed`).
-2. **A documented general heuristic, not just this one order.** The owner
-   asked for best practice on organizing a home screen by usage, not only
-   this specific placement. Worth writing down as an explicit, reusable rule
-   (e.g. "actions before collections, then within each group by frequency,
-   revisited if usage actually changes") rather than leaving the array order
-   as the only record of the reasoning - the current comment already does
-   this once; extending it to cover ordering *within* the two groups is what
-   is missing.
-3. **How is frequency established, and does it get revisited?** The
-   proposed order is the owner's own sense of their usage, not measured. Is
-   that sense the standing source of truth (revised by asking again later),
-   or is it worth the small addition of a `lastVisitedAt`-per-route signal
-   to check the assumption against - probably overkill for eight cards, but
-   worth deciding rather than defaulting into.
-4. **Two-column implementation.** Given the row-major/column-major mismatch
-   above, which approach - two independent stacks, or `grid-auto-flow:
-   column` - and does the answer change anything about the `lg:grid-cols-3`
-   step up at wider widths (a third column reshuffles which cards end up
-   adjacent either way)?
+1. **Four items.** Left column, top to bottom: Suggest, Pairings, Flights,
+   Tasting notes. Right column: Scan, Research, Wishlist, Cellar. All eight
+   existing home cards accounted for - "Tastings" means Flights
+   (`/flights`), not a second mention of Tasting notes.
+2. **The heuristic, written down** rather than left implicit in array
+   order: (a) actions before collections - a thing you *do* (Scan, Suggest)
+   outranks a thing you *browse*, because doing it is more often why the app
+   was opened than checking a count; (b) within each group, order by how
+   often it's actually reached for; (c) a pair that feeds into each other
+   (Suggest → Pairings) stays adjacent when that doesn't conflict with (a)
+   or (b). This replaces the current one-clause comment above the `cards`
+   array.
+3. **Frequency source: the owner's own sense**, revisited by asking again
+   later if it stops matching reality. No `lastVisitedAt` tracking -
+   overkill for eight cards in a single-user app, and a five-minute
+   conversation is cheaper than building a usage log to justify itself.
+4. **Two independent `flex flex-col` stacks side by side**, not
+   `grid-auto-flow: column` - simpler and more predictable than fighting
+   grid's column-major mode for two columns. This means dropping the
+   `lg:grid-cols-3` step-up: a three-column split has to decide where an
+   eight-card, two-column usage order breaks into three, which nothing here
+   specifies, and the app is phone-first enough that losing a desktop third
+   column is a minor, reversible trade - worth a second pass later if wide
+   screens turn out to matter, not a guess now.
 
 ## 26. Cellar and Wishlist: Scan and hand-entry on one line
 
@@ -1426,27 +1425,23 @@ comments:
 So the two pages don't currently match each other, and that's on purpose -
 different relationship to how often each list gets added to by hand.
 
-### Open questions before building
+### Decided, before building
 
-1. **Does "one line" mean equal visual weight (two same-size buttons side
-   by side), or Scan-as-primary with a smaller control beside it** (same
-   relative hierarchy as today, just horizontal instead of stacked)? The
-   Cellar page's own comment is an explicit, reasoned decision to
-   de-emphasize hand entry - putting it on an equal-width line next to Scan
-   reverses that call, which is fine if that's the intent but is worth
-   confirming rather than undone as a side effect of "one line."
-2. **Should Cellar and Wishlist end up matching each other**, or keep their
-   current different emphasis while both go from stacked to side-by-side?
-3. **Does the label text still fit.** "Scan a label or shelf" plus icon is
-   already a full-width button's worth of text; halving the available width
-   for two side-by-side controls may need shorter labels (e.g. just "Scan")
-   to avoid wrapping at 375px.
-4. **The expanding form still needs somewhere to go.** "Add a bottle by
-   hand" is a `<details>` - when opened, its form (`BottleForm`, a dozen-plus
-   fields) currently expands directly below the trigger. On a one-line
-   layout, does the form still expand full-width below the row (trigger and
-   content split apart), which is unremarkable but worth stating as the
-   assumption?
+1. **Scan stays primary on both pages.** The bordered button keeps its
+   prominence; "Add a bottle by hand" becomes a smaller link/toggle beside
+   it - same relative hierarchy as today, just horizontal instead of
+   stacked. Cellar's existing call to de-emphasize hand entry survives.
+2. **Cellar and Wishlist end up matching.** With (1) decided, there's no
+   reason left for them to differ: Wishlist's current bordered-box treatment
+   of hand entry becomes the same de-emphasized link Cellar already uses, so
+   both pages read the same way for the first time.
+3. **Labels shorten to fit.** The primary button drops to "Scan" (icon
+   still present) at this narrower width - "Scan a label or shelf" doesn't
+   fit two-up at 375px. Verified in the browser once built, the way every
+   other change this session has been.
+4. **The form expands full-width below the row** when opened - trigger row
+   stays compact, `BottleForm` renders underneath spanning the full
+   container, unchanged from today's behavior.
 
 ## 27. Search: typo tolerance, and a general box that expands to specifics
 
@@ -1483,33 +1478,30 @@ unless a filter is already active (`hasAnyFilter`, seeded once on mount).
 Opening the panel reveals everything at once - there's no separate "just the
 general box" state today, only "collapsed" and "everything open."
 
-### Open questions before building
+### Decided, before building
 
-1. **Diacritic folding vs. true typo tolerance are different fixes with
-   different costs** - worth deciding whether one or both are wanted. Folding
-   accents (`.normalize("NFD")` + stripping combining marks, applied to both
-   the stored text and the typed term before comparing) is a few lines, no
-   dependency, and fixes a real and common case for this data (French,
-   Italian, Spanish, German producer and region names). True typo tolerance
-   (edit-distance matching, e.g. a small hand-rolled Levenshtein/Damerau
-   check with a threshold) is also dependency-free and cheap at this scale -
-   filtering already runs client-side over the whole list on every
-   keystroke - but changes what counts as a match more broadly and needs a
-   threshold chosen (distance 1? scaled to word length?) so it doesn't start
-   matching unrelated words.
-2. **Where would it apply** - the free-text Search box only, or the
-   per-field inputs (Variety, Region, Sub-region, Country) too? The
-   datalists already offer correct spellings for Variety and Region as you
-   type; typo tolerance is more clearly a win for Search, which has no
-   datalist to lean on.
-3. **The two-level disclosure shape.** Pulling the Search box out of the
-   `<details>` so it's always visible, with only Variety/Region/Sub-
-   region/Country/Color/Vintage/Rating behind a second-level "more filters"
-   disclosure, is a restructuring of `FilterBar`, not a copy edit. Does the
-   always-visible Search box replace the current summary line ("Search &
-   filter · N bottles"), sit above it, or below it? And does the "seeded
-   open if a filter is already active" behavior change now that Search
-   itself is never behind the disclosure to seed from?
+1. **Diacritic folding now; true typo tolerance deferred.** Folding
+   (`.normalize("NFD")` + stripping combining marks, applied to both the
+   stored text and the typed term before comparing) ships as part of this -
+   unambiguous, a few lines, no dependency, and it fixes a real, common case
+   for this data (Château, Côtes, Occitanie, a Riesling producer with an
+   umlaut). Edit-distance typo tolerance is a real feature but changes match
+   *behavior*, not just normalization - a short producer name can
+   false-positive against an unrelated one at distance 1-2 - so it's worth
+   living with diacritic folding first and coming back to typo tolerance as
+   its own follow-up if misspellings are still a live complaint once that's
+   shipped.
+2. **Diacritic folding applies everywhere text is compared** - the Search
+   box and the per-field Variety/Region/Sub-region/Country inputs alike. The
+   same "Château" problem exists whichever box it's typed into; no reason to
+   special-case it to Search.
+3. **The Search input moves out of the `<details>`, always visible.** The
+   collapsed panel keeps Variety/Region/Sub-region/Country/Color/Vintage/
+   Rating behind it, and its summary line changes from "Search & filter" to
+   something naming what's actually behind it now (e.g. "More filters").
+   The `hasAnyFilter`-seeded-open behavior narrows to the fields still
+   inside the panel - Search, being always visible, doesn't need to seed
+   anything.
 
 ## 28. Pairings: tighter summaries, and a "Drink tonight" shortcut
 
@@ -1559,32 +1551,36 @@ things could be meant by "Drink tonight," with different costs:
   about what clears it (all notes logged? a manual dismiss? time-based?) and
   whether it's one pairing at a time or several.
 
-### Open questions before building
+### Decided, before building
 
-1. **Tighter list summary**: should `pairingSummaryLine` (or the list
-   rendering) name the wines, not just the dish and the count - and if so,
-   using which heading convention (`wineLabelForBottle`'s full producer +
-   bottling + vintage + type, or something shorter for a line that may
-   already be sharing space with two or three dish names)?
-2. **Collapse-by-default on the detail page**: adopt `BottleList`'s
-   collapsed-row-expands-to-detail pattern for picks, so the reason text and
-   region/gap detail are behind a tap rather than always shown? If so, does
-   the dish badge and wine name stay visible on the collapsed row (as the
-   minimum identifying line) with reason/region behind the expand, matching
-   how `BottleList` treats variety/region today?
-3. **"Drink tonight" - navigation shortcut or new state?** The two shapes
-   above have very different costs (zero schema change vs. new fields and
-   lifecycle rules) and would look different in the end - decide which one
-   is actually wanted before scoping further. If it's the stateful version:
-   does it apply to a whole pairing at once, or can individual wines within
-   a multi-wine pairing be marked/logged independently (a menu where you
-   open two of the four bottles tonight)?
-4. **Where exactly does it surface on Tasting notes** - a section above the
-   existing bottle list on `/consumed`, or something else? `/consumed`
-   currently only lists already-`consumed` bottles (`getBottles("consumed",
-   ...)`); a pairing you're about to drink involves bottles still in
-   `inventory`, so the shortcut's bottles wouldn't be in the list it sits
-   above until logged.
+1. **The list summary names the wines, short form.** Producer only - not
+   the full `wineLabelForBottle` heading (producer + bottling + vintage +
+   type) - so it doesn't crowd out the dish names it sits beside: e.g. "the
+   roast chicken, the halibut · Rochioli, Dr. Loosen".
+2. **The detail page adopts `BottleList`'s collapsed-row pattern.**
+   Collapsed: dish badge (if any) + wine name + the owned/gap/no-longer-
+   owned badge - the same minimum identifying line `BottleList` already
+   uses for variety/region. Expanded: region/gap detail and the full reason
+   text.
+
+### Still open
+
+3. **"Drink tonight" is deferred**, on the owner's call: it needs a look at
+   how tasting notes are actually captured per wine first, before deciding
+   its shape. There's a live alternative worth weighing when that happens,
+   raised by the owner - not a Pairings-specific shortcut at all, but a
+   general tagging mechanism on wines themselves ("drink tonight" as one
+   possible tag among others), which would be different and broader work
+   than anything scoped in this entry, and probably its own BACKLOG entry
+   rather than a subsection of this one. `PairingPick`'s reasoning - a
+   pairing can be a dish with one wine or a menu with several, and any
+   "tonight" marker has to say whether it means the whole pairing or one
+   wine in it - still applies to a tagging approach as much as a dedicated
+   one, so it isn't wasted by the delay. #24's rename of "Log this pairing"
+   to **"Add a tasting note"** is the one piece already built that either
+   shape would build on.
+4. Where it surfaces stays open along with it, contingent on which shape -
+   or whether a wines-wide tagging feature - gets picked up.
 
 ## Lower priority / optional
 
