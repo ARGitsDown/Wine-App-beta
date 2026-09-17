@@ -7,29 +7,36 @@ import {
   ScanIcon,
   CellarIcon,
   SuggestIcon,
+  PairingsIcon,
 } from "@/app/components/icons";
 
-// Four destinations, chosen by the owner from a contact sheet of the
-// alternatives: the two things you do (Scan, Suggest), the one list you
-// live in (Cellar), and the way back to everything else. Wishlist, tasting
-// notes, flights, research and kept pairings are all home cards, so nothing
-// is unreachable - it is one more tap, not a dead end.
+// Five destinations, chosen by the owner from a contact sheet of the
+// alternatives: the two things you do (Suggest, Scan), the one list you
+// live in (Cellar), the one you come back to (Pairings), and the way back
+// to everything else. Wishlist, tasting notes, flights and research are
+// all home cards, so nothing is unreachable - it is one more tap, not a
+// dead end.
 //
 // Phone only. Above 640px the original top row comes back: a bar pinned to
 // the bottom edge of a laptop screen is a long way from the mouse, and the
 // wrapping this replaces only ever happened on a phone.
 const TABS = [
   { href: "/", label: "Home", icon: <HomeIcon className="h-[21px] w-[21px]" /> },
+  {
+    href: "/suggest",
+    label: "Suggest",
+    icon: <SuggestIcon className="h-[21px] w-[21px]" />,
+  },
+  {
+    href: "/pairings",
+    label: "Pairings",
+    icon: <PairingsIcon className="h-[21px] w-[21px]" />,
+  },
   { href: "/scan", label: "Scan", icon: <ScanIcon className="h-[21px] w-[21px]" /> },
   {
     href: "/inventory",
     label: "Cellar",
     icon: <CellarIcon className="h-[21px] w-[21px]" />,
-  },
-  {
-    href: "/suggest",
-    label: "Suggest",
-    icon: <SuggestIcon className="h-[21px] w-[21px]" />,
   },
 ];
 
