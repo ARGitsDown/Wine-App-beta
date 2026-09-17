@@ -14,19 +14,27 @@ export default async function SuggestPage({ searchParams }) {
   const { from } = await searchParams;
   const fromId = Number(from);
 
-  const pairing = Number.isInteger(fromId)
-    ? await prisma.savedPairing.findUnique({
-        where: { id: fromId },
-        select: {
-          id: true,
-          title: true,
-          request: true,
-          character: true,
-          effort: true,
-          includeOutside: true,
-        },
-      })
-    : null;
+  // The pairing count decides whether "Kept pairings" renders at all
+  // (BACKLOG #24) - the link was the only clutter on a first visit, when
+  // there's nothing yet to compare against; once something exists, it's
+  // the one way back to it from inside the Suggest flow now that the tab
+  // bar doesn't carry it (#17).
+  const [pairing, pairingCount] = await Promise.all([
+    Number.isInteger(fromId)
+      ? prisma.savedPairing.findUnique({
+          where: { id: fromId },
+          select: {
+            id: true,
+            title: true,
+            request: true,
+            character: true,
+            effort: true,
+            includeOutside: true,
+          },
+        })
+      : null,
+    prisma.savedPairing.count(),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
@@ -39,12 +47,14 @@ export default async function SuggestPage({ searchParams }) {
             wishlist) and figures out which one you mean.
           </p>
         </div>
-        <Link
-          href="/pairings"
-          className="shrink-0 text-sm underline underline-offset-2"
-        >
-          Kept pairings →
-        </Link>
+        {pairingCount > 0 && (
+          <Link
+            href="/pairings"
+            className="shrink-0 text-sm underline underline-offset-2"
+          >
+            Kept pairings →
+          </Link>
+        )}
       </div>
 
       {/* Says what has been loaded, because a form that fills itself in

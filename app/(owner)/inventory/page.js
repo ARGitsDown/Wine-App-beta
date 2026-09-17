@@ -5,8 +5,8 @@ import { createBottle } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import FilterableBottleList from "@/app/components/FilterableBottleList";
 import GuestLinkButton from "@/app/components/GuestLinkButton";
+import ScanAndAddRow from "@/app/components/ScanAndAddRow";
 import { flightName, isOpenFlight } from "@/lib/flights";
-import { ScanIcon } from "@/app/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export default async function CellarPage({ searchParams }) {
           browsed rarely, a cellar of hundreds is the reverse. Everything
           above the list earns its room - the guest link is a chip in the
           heading row rather than two lines of prose about a feature used a
-          few times a year, and hand entry is a line rather than a box. */}
+          few times a year. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h1 className="text-2xl font-semibold">Cellar</h1>
         <span className="flex items-center gap-2 text-sm text-zinc-500">
@@ -51,36 +51,18 @@ export default async function CellarPage({ searchParams }) {
         </span>
       </div>
 
-      {/* Scanning stays a real button - it is the fast way in, and the one
-          you reach for standing in front of the rack. The intent travels in
-          the link, so the scanner opens pointed at the cellar rather than
-          needing to be corrected. Hand entry sits under it as a line: still
-          one tap, but no longer a boxed block competing with the wine. */}
-      <div className="flex flex-col gap-2">
-        <Link
-          href="/scan?intent=cellar"
-          className="flex items-center justify-center gap-2.5 rounded-lg border border-zinc-300 px-4 py-3 font-medium hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-600"
-        >
-          <ScanIcon className="h-5 w-5" />
-          Scan a label or shelf
-        </Link>
-
-        <details className="group">
-          <summary className="-mx-2 inline-flex cursor-pointer list-none items-center rounded px-2 py-2 text-sm text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100">
-            <span className="mr-1 no-underline group-open:hidden">&#9656;</span>
-            <span className="mr-1 hidden no-underline group-open:inline">
-              &#9662;
-            </span>
-            Add a bottle by hand
-          </summary>
-          <div className="mt-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-            <BottleForm
-              action={createBottle.bind(null, "inventory")}
-              regionOptions={regionOptions}
-            />
-          </div>
-        </details>
-      </div>
+      {/* Scan and hand entry on one line (BACKLOG #26) - Scan is still the
+          fast way in, the one you reach for standing in front of the rack,
+          and stays the primary control; hand entry is the smaller text
+          control beside it. The intent travels in the scan link, so the
+          scanner opens pointed at the cellar rather than needing to be
+          corrected. */}
+      <ScanAndAddRow scanHref="/scan?intent=cellar">
+        <BottleForm
+          action={createBottle.bind(null, "inventory")}
+          regionOptions={regionOptions}
+        />
+      </ScanAndAddRow>
 
       {/* Sits with the list rather than up by the heading: it is a prompt
           about the bottles already in the cellar, not a third way to put

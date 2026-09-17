@@ -66,6 +66,15 @@ export default function SuggestForm({ initial = null }) {
     initial?.character ?? DEFAULT_CHARACTER
   );
   const [effort, setEffort] = useState(initial?.effort ?? DEFAULT_EFFORT);
+  // Seeded once from whether the three settings already differ from their
+  // defaults - the same rule FilterBar's panel uses for itself
+  // (`hasAnyFilter`, seeded once on mount). That covers a refine load from a
+  // kept pairing (`initial` rarely carries all-default settings) as much as
+  // it covers FilterBar's bookmarked-URL case, without resetting every time
+  // a new result comes in - left open once opened, same as FilterBar.
+  const [optionsOpen, setOptionsOpen] = useState(
+    () => character !== DEFAULT_CHARACTER || effort !== DEFAULT_EFFORT || includeOutside
+  );
   const [savedGapIds, setSavedGapIds] = useState(new Set());
   // Which gap cards have their wishlist form showing. Held here rather than
   // left to the <details> element because saving a flight opens the forms
@@ -112,7 +121,7 @@ export default function SuggestForm({ initial = null }) {
   // What is saved is `result.asked`, not what is in the form now: the form
   // stays editable while a result is on screen, so reading it here would
   // file a request that did not produce these wines.
-  async function handleKeepPairing() {
+  async function handleSavePairing() {
     setPairingSave({ status: "saving" });
     const response = await savePairing({
       title: result.title,
@@ -186,83 +195,108 @@ export default function SuggestForm({ initial = null }) {
           placeholder="e.g. grilled salmon with lemon butter, roasted asparagus — or: something exploratory for a rainy Sunday"
           className="rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         />
-        {/* Off by default: the point of the feature is what you can open
-            tonight. Turning it on lets a wine you don't own be recommended
-            on its merits rather than only as an admission that nothing in
-            the cellar fits. */}
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={includeOutside}
-            onChange={(event) => setIncludeOutside(event.target.checked)}
-            className="mt-1"
-          />
-          <span>
-            Include wines not in my cellar
-            <span className="block text-xs text-zinc-500">
-              Suggests bottles you&apos;d have to buy when they&apos;d pair
-              better — each one marked &ldquo;Not in your cellar&rdquo; and
-              addable to your wishlist.
+        {/* Character, Effort and include-outside, collapsed behind one
+            disclosure (BACKLOG #24) - three settings that are usually left
+            on their defaults were the loudest things on the page. Closed
+            unless they already differ from default (see optionsOpen above),
+            and the summary keeps their current values legible even while
+            closed, the way FilterBar's own summary line does. */}
+        <details
+          open={optionsOpen}
+          onToggle={(event) => setOptionsOpen(event.currentTarget.open)}
+          className="rounded-lg border border-zinc-200 dark:border-zinc-800"
+        >
+          <summary className="cursor-pointer px-4 py-2.5 text-sm">
+            <span className="font-medium">Options</span>
+            <span className="ml-2 text-zinc-500">
+              {SUGGESTION_CHARACTERS.find((option) => option.value === character)?.label}
+              {" · "}
+              {EFFORT_LEVELS.find((option) => option.value === effort)?.label} effort
+              {" · "}
+              {includeOutside ? "cellar + outside" : "cellar only"}
             </span>
-          </span>
-        </label>
-        {/* How adventurous the pick should be - a separate question from
-            the request itself, since "something with roast chicken" is
-            equally well answered by a white Burgundy, a Jura Savagnin or
-            a chilled Trousseau, and which one you want depends on the
-            evening. Balanced is the default and adds nothing to the
-            prompt; it's here as a visible name for leaving it alone. */}
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-            Character
-          </legend>
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-            {SUGGESTION_CHARACTERS.map((option) => (
-              <label key={option.value} className="flex items-center gap-1.5 text-sm">
-                <input
-                  type="radio"
-                  name="character"
-                  value={option.value}
-                  checked={character === option.value}
-                  onChange={() => setCharacter(option.value)}
-                />
-                {option.label}
-              </label>
-            ))}
+          </summary>
+
+          <div className="flex flex-col gap-4 border-t border-zinc-200 p-4 dark:border-zinc-800">
+            {/* Off by default: the point of the feature is what you can open
+                tonight. Turning it on lets a wine you don't own be
+                recommended on its merits rather than only as an admission
+                that nothing in the cellar fits. */}
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={includeOutside}
+                onChange={(event) => setIncludeOutside(event.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                Include wines not in my cellar
+                <span className="block text-xs text-zinc-500">
+                  Suggests bottles you&apos;d have to buy when they&apos;d pair
+                  better — each one marked &ldquo;Not in your cellar&rdquo; and
+                  addable to your wishlist.
+                </span>
+              </span>
+            </label>
+            {/* How adventurous the pick should be - a separate question from
+                the request itself, since "something with roast chicken" is
+                equally well answered by a white Burgundy, a Jura Savagnin or
+                a chilled Trousseau, and which one you want depends on the
+                evening. Balanced is the default and adds nothing to the
+                prompt; it's here as a visible name for leaving it alone. */}
+            <fieldset className="flex flex-col gap-1.5">
+              <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                Character
+              </legend>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {SUGGESTION_CHARACTERS.map((option) => (
+                  <label key={option.value} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="radio"
+                      name="character"
+                      value={option.value}
+                      checked={character === option.value}
+                      onChange={() => setCharacter(option.value)}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+              {/* Only the selected option's hint, rather than four lines of
+                  explanation competing with the request box above. */}
+              <p className="text-xs text-zinc-500">
+                {SUGGESTION_CHARACTERS.find((option) => option.value === character)?.hint}
+              </p>
+            </fieldset>
+            {/* Deliberately the same shape as Character above rather than a
+                smaller control: they are two settings you make in the same
+                breath, and one of them looking like an afterthought would
+                suggest it mattered less. Balanced is what every request did
+                before this existed, so leaving it alone changes nothing. */}
+            <fieldset className="flex flex-col gap-1.5">
+              <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                Effort
+              </legend>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {EFFORT_LEVELS.map((option) => (
+                  <label key={option.value} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="radio"
+                      name="effort"
+                      value={option.value}
+                      checked={effort === option.value}
+                      onChange={() => setEffort(option.value)}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-zinc-500">
+                {EFFORT_LEVELS.find((option) => option.value === effort)?.hint}
+              </p>
+            </fieldset>
           </div>
-          {/* Only the selected option's hint, rather than four lines of
-              explanation competing with the request box above. */}
-          <p className="text-xs text-zinc-500">
-            {SUGGESTION_CHARACTERS.find((option) => option.value === character)?.hint}
-          </p>
-        </fieldset>
-        {/* Deliberately the same shape as Character above rather than a
-            smaller control: they are two settings you make in the same
-            breath, and one of them looking like an afterthought would
-            suggest it mattered less. Balanced is what every request did
-            before this existed, so leaving it alone changes nothing. */}
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-            Effort
-          </legend>
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-            {EFFORT_LEVELS.map((option) => (
-              <label key={option.value} className="flex items-center gap-1.5 text-sm">
-                <input
-                  type="radio"
-                  name="effort"
-                  value={option.value}
-                  checked={effort === option.value}
-                  onChange={() => setEffort(option.value)}
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
-          <p className="text-xs text-zinc-500">
-            {EFFORT_LEVELS.find((option) => option.value === effort)?.hint}
-          </p>
-        </fieldset>
+        </details>
         <button type="submit" disabled={loading} className={`self-start ${buttonClass}`}>
           {loading ? <Spinner label="Thinking…" /> : "Get suggestions"}
         </button>
@@ -301,14 +335,14 @@ export default function SuggestForm({ initial = null }) {
               ) : (
                 <button
                   type="button"
-                  onClick={handleKeepPairing}
+                  onClick={handleSavePairing}
                   disabled={pairingSave.status === "saving"}
                   className="shrink-0 rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
                 >
                   {pairingSave.status === "saving" ? (
-                    <Spinner label="Keeping…" />
+                    <Spinner label="Saving…" />
                   ) : (
-                    "Keep this pairing"
+                    "Save this pairing"
                   )}
                 </button>
               ))}
@@ -350,7 +384,7 @@ export default function SuggestForm({ initial = null }) {
               there is nothing left out to explain. */}
           {pairingSave.status === "saved" && (
             <p className="text-sm text-zinc-500">
-              Kept, with the wines you don&apos;t own as well. Rename it on its
+              Saved, with the wines you don&apos;t own as well. Rename it on its
               own page.
             </p>
           )}
@@ -412,7 +446,7 @@ export default function SuggestForm({ initial = null }) {
                         href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.pairingContext)}`}
                         className="text-zinc-500 underline underline-offset-2"
                       >
-                        Log this pairing →
+                        Add a tasting note →
                       </Link>
                     </div>
                   )}

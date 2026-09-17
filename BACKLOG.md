@@ -1243,7 +1243,7 @@ bulk research queue runs the same prefix back-to-back, which is exactly the
 shape a cache pays for. Check the prompts clear the model's minimum cacheable
 prefix first - below it, a breakpoint silently does nothing.
 
-## 24. Suggest: "Keep" vs. "Log", and a page that is doing a lot at once
+## ~~24. Suggest: "Keep" vs. "Log", and a page that is doing a lot at once~~ — done
 
 Raised by the owner using the Suggest screen after pairing persistence
 (#20) and the effort control (#20) both landed on it.
@@ -1317,9 +1317,18 @@ friction there is scrolling past the result to reach the controls, not
 retyping. Whether that in-place case wants its own explicit "refine" action
 (e.g. a button that scrolls back up and/or collapses the result) is open.
 
-### Decided, before building
+### Decided, and built
 
-Scoped with the owner; four questions, four answers.
+Scoped with the owner; four questions, four answers, all shipped as
+described below. "Save this pairing" / "Add a tasting note" replace
+"Keep"/"Log" everywhere on the Suggest screen, including the success
+message ("Saved, with the wines...") and the internal handler name
+(`handleSavePairing`). Character, Effort and the include-outside checkbox
+now live behind one `<details>`, closed unless the loaded settings already
+differ from default (`optionsOpen`, seeded once - same rule as
+`FilterBar`'s `hasAnyFilter`), with a live summary line ("Balanced ·
+Standard effort · cellar only") so the values stay legible while closed.
+"Kept pairings →" is now conditional on `prisma.savedPairing.count() > 0`.
 
 1. **Naming.** ~~"Keep this pairing" / "Log this pairing"~~ →
    **"Save this pairing"** (matches Flights' "Save this flight" - one save
@@ -1399,7 +1408,7 @@ change, not a one-line array reorder.
    column is a minor, reversible trade - worth a second pass later if wide
    screens turn out to matter, not a guess now.
 
-## 26. Cellar and Wishlist: Scan and hand-entry on one line
+## ~~26. Cellar and Wishlist: Scan and hand-entry on one line~~ — done
 
 Raised by the owner: put "Scan" and "Add a bottle..." on one line on both
 the Cellar and the Wishlist page.
@@ -1425,7 +1434,17 @@ comments:
 So the two pages don't currently match each other, and that's on purpose -
 different relationship to how often each list gets added to by hand.
 
-### Decided, before building
+### Decided, and built
+
+A shared `ScanAndAddRow` component now renders the row on both pages,
+matching each other for the first time: Scan stays the flex-1 bordered
+button, "Add by hand" is a small text trigger beside it that opens a
+full-width form panel below the row (not squeezed into its own half - a
+plain button-and-state disclosure, not `<details>`/`<summary>`, since
+`<summary>` only behaves as the toggle when it is a direct child of
+`<details>`, which it can't be while also sitting in a flex row next to
+Scan). Both labels shortened to fit two-up at 375px ("Scan", "Add by
+hand").
 
 1. **Scan stays primary on both pages.** The bordered button keeps its
    prominence; "Add a bottle by hand" becomes a smaller link/toggle beside
