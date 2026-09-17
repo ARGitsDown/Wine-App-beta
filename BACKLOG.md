@@ -1243,6 +1243,349 @@ bulk research queue runs the same prefix back-to-back, which is exactly the
 shape a cache pays for. Check the prompts clear the model's minimum cacheable
 prefix first - below it, a breakpoint silently does nothing.
 
+## 24. Suggest: "Keep" vs. "Log", and a page that is doing a lot at once
+
+Raised by the owner using the Suggest screen after pairing persistence
+(#20) and the effort control (#20) both landed on it.
+
+### "Keep this pairing" vs. "Log this pairing" - what each one actually does
+
+Two different verbs on the same screen, and they are not close to being the
+same action, which is exactly why the wording needs to say so:
+
+- **"Keep this pairing"** (`SuggestForm.js` `handleKeepPairing`) calls
+  `savePairing` - it writes a `SavedPairing` + `PairingPick` row for the
+  *whole* result, owned wines and gap suggestions together. It is a record
+  of the recommendation itself: what was asked, the settings, every pick and
+  its reason. Nothing about any bottle changes - not its status, not its
+  tasting notes.
+- **"Log this pairing"** (`SuggestForm.js:415`, only shown on an *owned*
+  pick that has a `pairingContext`) is a `Link` to
+  `/bottles/{id}?pairedWith={dish}` - the bottle's own page, with its
+  tasting-note textarea pre-filled `Paired with: {dish}` (`bottles/[id]/
+  page.js:349`). It logs nothing by itself. It is one click short of
+  logging: the owner still has to fill in the rest of the note (or just the
+  rating) and press "Add tasting note", which calls `addTastingNote`. That
+  action does **not** touch `Bottle.status` - a bottle stays `inventory`
+  until something else marks it `consumed`. So logging a pairing is not
+  "marking it Tasted" in the status sense; it is writing one tasting note,
+  pre-addressed to the right dish, on a bottle that may or may not ever get
+  marked consumed as a separate act.
+
+So the two verbs are: *keep* = save the suggestion as a record; *log* =
+jump to one wine's own page to write about drinking it. They operate on
+different things (the pairing as a whole vs. one bottle) and neither implies
+the other - keeping a pairing doesn't log anything, and logging a note
+doesn't keep the pairing that led to it. The current names don't carry any
+of that distinction; both read as "save this."
+
+### The page is content-heavy
+
+Per screen, in the order they appear: the request textarea, an
+include-outside checkbox with two lines of explanation, the Character
+fieldset (radios + hint), the Effort fieldset (radios + hint), the submit
+button - and only after all of that, a result with a mode label, a title, a
+"Why these" `<details>` that is easy to miss sitting under a heading with a
+save button beside it, then one card per pick. Two controls
+(`fieldset`s for Character and Effort) are visually the loudest things on
+the page and are usually left on their defaults - the same shape problem
+`characterRule` already reasons about ("Balanced ... is the same answer as
+never touching the control").
+
+The `SuggestPage` server wrapper (`app/(owner)/suggest/page.js`) adds one
+more thing above all of it: a "Kept pairings →" link in the heading row on
+every visit, whether or not a pairing exists yet, and whether or not this is
+a refine-from-a-kept-pairing visit. Why it is there at all: with the tab bar
+landing at four tabs (#17), Suggest has no other way back to `/pairings` -
+Home has a card for it, but the nav bar doesn't. Pulled from the top of
+every visit and put somewhere lower-traffic (or made conditional), that
+navigational need still has to go somewhere.
+
+### Refining already exists, in a different place
+
+The specific ask - "is there a way to iterate/refine suggestions on this
+page" - is partly already answered, from a different starting point than
+"this page": a **kept** pairing's own page offers "Ask again, with changes"
+(`pairings/[id]/page.js:57`), which reloads `/suggest?from={id}` with the
+request and all three settings restored, ready to change one and resubmit.
+That only helps once a pairing has been kept, though - a first attempt you
+don't like yet, and haven't kept, has no such shortcut: `character` and
+`effort` do stay in component state after a search (nothing resets them but
+a fresh submit), so changing Character and pressing "Get suggestions" again
+already re-runs against the same typed request without retyping it - the
+friction there is scrolling past the result to reach the controls, not
+retyping. Whether that in-place case wants its own explicit "refine" action
+(e.g. a button that scrolls back up and/or collapses the result) is open.
+
+### Open questions before building
+
+1. **Naming.** What should "Keep this pairing" and "Log this pairing" be
+   called so the difference between save-the-recommendation and
+   write-a-tasting-note is legible at a glance? (Is "Log" the wrong verb for
+   either action, given it currently logs nothing on its own?)
+2. **Should the search controls (Character, Effort, include-outside)
+   collapse by default**, the way `FilterBar`'s panel already does elsewhere
+   in the app, leaving the request box and submit button as the visible
+   surface? If so, on what signal do they stay open (an active non-default
+   choice, the way `FilterBar` opens when a filter is already set) or does a
+   `<details>` reveal them plainly, with no such memory?
+3. **Should "Kept pairings →" move, become conditional, or stay?** It is
+   the only link back to `/pairings` from inside the Suggest flow now that
+   the nav bar doesn't carry it - removing it outright would need a
+   different way back (a Home card exists, but that's an extra hop from
+   mid-flow). Conditional on what - only when at least one pairing exists?
+   Moved to the bottom, near "Keep this pairing"?
+4. **Is scroll friction on a first, unsaved attempt worth its own control**
+   (something between "nothing" and "a kept pairing's dedicated refine
+   button"), or does that only matter enough to fix once a pairing exists to
+   refine from?
+
+## 25. Home page: a stated ordering principle, not just this reordering
+
+Raised by the owner: they like the home screen, want it ordered by how often
+each destination is actually used, and gave a concrete layout - Suggest,
+then (their words) "Pairings and Tastings," then Tasting notes, filling the
+left column top to bottom; Scan, Research, Wishlist, Cellar filling the
+right column top to bottom.
+
+### What is already true
+
+`app/(owner)/page.js` renders eight cards from a single array into
+`grid grid-cols-2 gap-3 lg:grid-cols-3` (`page.js:165`). The array is already
+ordered by a stated rule - "Actions first: ... scanning a label or asking
+what to open is more often why you opened the app than reading a count is"
+(`page.js:82-84`) - which put Scan and Suggest first, ahead of every list.
+That rule is about action-vs-collection, not about usage frequency within
+each group, and it's one card short of the owner's list: Flights has no
+home in either the owner's left or right column as given.
+
+**The layout mechanic matters here.** `grid-cols-2` fills row-major - item
+0 and item 1 share row 1, item 2 and 3 share row 2, and so on. Simply
+reordering the array to `[Suggest, Pairings, ..., Tasting notes, Scan,
+Research, Wishlist, Cellar]` would *not* produce "Suggest, Pairings, ...
+top-to-bottom on the left" - it would pair Suggest with Pairings in row 1,
+Scan with Research... reading left-to-right, not down-a-column. Getting a
+true two-column, column-major reading order needs either two separate
+`flex-col` stacks side by side, or CSS grid with `grid-auto-flow: column`
+and an explicit row count (`grid-rows-4` or similar) - a real structural
+change, not a one-line array reorder.
+
+### Open questions before building
+
+1. **What does "Pairings and Tastings" mean as two items or one?** Read
+   literally there are four left-column entries (Suggest, Pairings, Flights
+   - "tastings" as in tasting flights - Tasting notes), which lines up 4-and-4
+   with the right column and accounts for every one of the eight existing
+   cards. Read as three (Suggest, Pairings-and-Tasting-notes-together, then
+   restating Tasting notes) something doesn't add up. Confirm which, and in
+   particular whether "Tastings" here means Flights (`/flights`) or is a
+   second mention of Tasting notes (`/consumed`).
+2. **A documented general heuristic, not just this one order.** The owner
+   asked for best practice on organizing a home screen by usage, not only
+   this specific placement. Worth writing down as an explicit, reusable rule
+   (e.g. "actions before collections, then within each group by frequency,
+   revisited if usage actually changes") rather than leaving the array order
+   as the only record of the reasoning - the current comment already does
+   this once; extending it to cover ordering *within* the two groups is what
+   is missing.
+3. **How is frequency established, and does it get revisited?** The
+   proposed order is the owner's own sense of their usage, not measured. Is
+   that sense the standing source of truth (revised by asking again later),
+   or is it worth the small addition of a `lastVisitedAt`-per-route signal
+   to check the assumption against - probably overkill for eight cards, but
+   worth deciding rather than defaulting into.
+4. **Two-column implementation.** Given the row-major/column-major mismatch
+   above, which approach - two independent stacks, or `grid-auto-flow:
+   column` - and does the answer change anything about the `lg:grid-cols-3`
+   step up at wider widths (a third column reshuffles which cards end up
+   adjacent either way)?
+
+## 26. Cellar and Wishlist: Scan and hand-entry on one line
+
+Raised by the owner: put "Scan" and "Add a bottle..." on one line on both
+the Cellar and the Wishlist page.
+
+### What is already true
+
+Both pages already offer exactly these two ways in, stacked vertically in a
+`flex-col` (`inventory/page.js:59`, `wishlist/page.js:30`), and the two
+pages treat them with *different* emphasis on purpose, per their own
+comments:
+
+- **Cellar** (`inventory/page.js:40-45`): "Browsing comes before adding
+  here ... a cellar of hundreds is the reverse [of the wishlist]." Scan is a
+  full bordered button; "Add a bottle by hand" is a plain underlined text
+  line below it, deliberately de-emphasized - "no longer a boxed block
+  competing with the wine" (a comment describing a past change made for
+  that exact reason).
+- **Wishlist** (`wishlist/page.js:24-29`): "Adding comes before browsing:
+  the two ways in sit at the top." Scan is the same bordered button; "Add a
+  bottle to your wishlist" is a bordered box (`<details>` with its own
+  border), closer in visual weight to Scan than Cellar's version is.
+
+So the two pages don't currently match each other, and that's on purpose -
+different relationship to how often each list gets added to by hand.
+
+### Open questions before building
+
+1. **Does "one line" mean equal visual weight (two same-size buttons side
+   by side), or Scan-as-primary with a smaller control beside it** (same
+   relative hierarchy as today, just horizontal instead of stacked)? The
+   Cellar page's own comment is an explicit, reasoned decision to
+   de-emphasize hand entry - putting it on an equal-width line next to Scan
+   reverses that call, which is fine if that's the intent but is worth
+   confirming rather than undone as a side effect of "one line."
+2. **Should Cellar and Wishlist end up matching each other**, or keep their
+   current different emphasis while both go from stacked to side-by-side?
+3. **Does the label text still fit.** "Scan a label or shelf" plus icon is
+   already a full-width button's worth of text; halving the available width
+   for two side-by-side controls may need shorter labels (e.g. just "Scan")
+   to avoid wrapping at 375px.
+4. **The expanding form still needs somewhere to go.** "Add a bottle by
+   hand" is a `<details>` - when opened, its form (`BottleForm`, a dozen-plus
+   fields) currently expands directly below the trigger. On a one-line
+   layout, does the form still expand full-width below the row (trigger and
+   content split apart), which is unremarkable but worth stating as the
+   assumption?
+
+## 27. Search: typo tolerance, and a general box that expands to specifics
+
+Raised by the owner: are search boxes exact-match only today, is low-cost
+typo tolerance possible, and should a search start as one general box that
+expands to the specific filters.
+
+### What is already true
+
+Matching is **substring, not exact** - `filterBottles` (`lib/filter-
+bottles.js:199-229`) uses case-insensitive `.includes()` on a concatenation
+of every bottle field (`searchableText`, same file, line 6) for the free-text
+Search box, and the same `includesInsensitive` per-field for Variety,
+Region, Sub-region and Country. "rochioli" matches "Rochioli", "margaux"
+matches inside "Château Margaux" - so the premise that only exact matches
+are captured isn't quite right, but there genuinely is **no typo
+tolerance**: "Rochiolli" or "Rochioly" would not match "Rochioli", and there
+is no diacritic folding either - a search for "chateau" (no accent) would
+not match "Château" stored with one, since `.includes()` is a literal
+codepoint comparison.
+
+One precedent for fuzzy-ish matching already exists and is worth knowing
+about before reaching for something new: `canonicalizeVarietal`
+(`lib/varietal-match.js`) resolves a searched grape name through a curated
+alias table (~140 entries) so "Grenache" also finds bottles logged as
+"Garnacha" or "Cannonau" - but it's an exact lookup against known aliases,
+not edit-distance/typo tolerance, and it only applies to the Variety field.
+
+On the second half of the ask - the panel's shape - `FilterBar` currently
+puts the free-text Search box and every specific field (Variety, Region,
+Sub-region, Country, Color, Vintage, Rating) **inside the same single
+`<details>`** (`FilterBar.js:56-185`), which is itself collapsed by default
+unless a filter is already active (`hasAnyFilter`, seeded once on mount).
+Opening the panel reveals everything at once - there's no separate "just the
+general box" state today, only "collapsed" and "everything open."
+
+### Open questions before building
+
+1. **Diacritic folding vs. true typo tolerance are different fixes with
+   different costs** - worth deciding whether one or both are wanted. Folding
+   accents (`.normalize("NFD")` + stripping combining marks, applied to both
+   the stored text and the typed term before comparing) is a few lines, no
+   dependency, and fixes a real and common case for this data (French,
+   Italian, Spanish, German producer and region names). True typo tolerance
+   (edit-distance matching, e.g. a small hand-rolled Levenshtein/Damerau
+   check with a threshold) is also dependency-free and cheap at this scale -
+   filtering already runs client-side over the whole list on every
+   keystroke - but changes what counts as a match more broadly and needs a
+   threshold chosen (distance 1? scaled to word length?) so it doesn't start
+   matching unrelated words.
+2. **Where would it apply** - the free-text Search box only, or the
+   per-field inputs (Variety, Region, Sub-region, Country) too? The
+   datalists already offer correct spellings for Variety and Region as you
+   type; typo tolerance is more clearly a win for Search, which has no
+   datalist to lean on.
+3. **The two-level disclosure shape.** Pulling the Search box out of the
+   `<details>` so it's always visible, with only Variety/Region/Sub-
+   region/Country/Color/Vintage/Rating behind a second-level "more filters"
+   disclosure, is a restructuring of `FilterBar`, not a copy edit. Does the
+   always-visible Search box replace the current summary line ("Search &
+   filter · N bottles"), sit above it, or below it? And does the "seeded
+   open if a filter is already active" behavior change now that Search
+   itself is never behind the disclosure to seed from?
+
+## 28. Pairings: tighter summaries, and a "Drink tonight" shortcut
+
+Raised by the owner, looking at both the pairings list and a kept pairing's
+detail page.
+
+### What is already true
+
+The **list** (`app/(owner)/pairings/page.js`) already shows a compact line
+per pairing via `pairingSummaryLine` (`lib/pairings.js:47-52`) - dishes
+first, then a wine count ("the roast chicken, the halibut · 3 wines") - and
+below that, the request text itself, clamped to two lines. It does **not**
+name which wines were picked in that summary line, only how many.
+
+The **detail page** (`pairings/[id]/page.js`) shows every pick fully
+expanded, always - dish badge, wine name (linked if still owned), region/
+gap badge, and the full reason text, all visible at once with no collapse.
+For a pairing with several picks this is the same "everything at once"
+shape as `FilterBar`'s panel before it had a summary line, and it's exactly
+the pattern `BottleList.js` already solves elsewhere in the app: a
+one-line, tappable row (`bottle.producer` + vintage + type, `BottleList.js:
+95-110`) that expands on tap to the fuller detail (region, notes, actions).
+Nothing here currently reuses that pattern.
+
+### "Drink tonight" - what it would need that doesn't exist yet
+
+`SavedPairing`/`PairingPick` (`prisma/schema.prisma`) record what was
+recommended and, per pick, whether a `bottleId` still resolves to an owned
+bottle - nothing about *when* you plan to open it, or whether you have.
+There is no "drinking this tonight" state anywhere in the schema, and
+`Bottle.status` (`inventory`/`wishlist`/`consumed`) is the only lifecycle
+signal that exists, tracked per bottle, not per pairing. Two different
+things could be meant by "Drink tonight," with different costs:
+
+- **A pure navigation shortcut, no new data**: a card at the top of
+  `/consumed` (or its own small section) surfacing kept pairings - most
+  recent, or all of them - each linking straight to its wines' `?pairedWith=`
+  pre-filled note forms, the same links `SuggestForm`'s "Log this pairing"
+  already produces per-pick (#24 above). Zero schema change, but it's a
+  static list, not something you "start" or "finish" - every kept pairing
+  would show there permanently, or by recency, not because you're
+  drinking it tonight specifically.
+- **An actual planned/in-progress state**: marking a specific kept pairing
+  (or one bottle within it) as the one being opened tonight, so it surfaces
+  prominently and clears afterward. This needs new state - at minimum a
+  timestamp or boolean on `SavedPairing` or `PairingPick`, plus a decision
+  about what clears it (all notes logged? a manual dismiss? time-based?) and
+  whether it's one pairing at a time or several.
+
+### Open questions before building
+
+1. **Tighter list summary**: should `pairingSummaryLine` (or the list
+   rendering) name the wines, not just the dish and the count - and if so,
+   using which heading convention (`wineLabelForBottle`'s full producer +
+   bottling + vintage + type, or something shorter for a line that may
+   already be sharing space with two or three dish names)?
+2. **Collapse-by-default on the detail page**: adopt `BottleList`'s
+   collapsed-row-expands-to-detail pattern for picks, so the reason text and
+   region/gap detail are behind a tap rather than always shown? If so, does
+   the dish badge and wine name stay visible on the collapsed row (as the
+   minimum identifying line) with reason/region behind the expand, matching
+   how `BottleList` treats variety/region today?
+3. **"Drink tonight" - navigation shortcut or new state?** The two shapes
+   above have very different costs (zero schema change vs. new fields and
+   lifecycle rules) and would look different in the end - decide which one
+   is actually wanted before scoping further. If it's the stateful version:
+   does it apply to a whole pairing at once, or can individual wines within
+   a multi-wine pairing be marked/logged independently (a menu where you
+   open two of the four bottles tonight)?
+4. **Where exactly does it surface on Tasting notes** - a section above the
+   existing bottle list on `/consumed`, or something else? `/consumed`
+   currently only lists already-`consumed` bottles (`getBottles("consumed",
+   ...)`); a pairing you're about to drink involves bottles still in
+   `inventory`, so the shortcut's bottles wouldn't be in the list it sits
+   above until logged.
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
