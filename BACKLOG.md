@@ -1472,7 +1472,7 @@ hand").
    stays compact, `BottleForm` renders underneath spanning the full
    container, unchanged from today's behavior.
 
-## 27. Search: typo tolerance, and a general box that expands to specifics
+## ~~27. Search: typo tolerance, and a general box that expands to specifics~~ — done
 
 Raised by the owner: are search boxes exact-match only today, is low-cost
 typo tolerance possible, and should a search start as one general box that
@@ -1507,7 +1507,7 @@ unless a filter is already active (`hasAnyFilter`, seeded once on mount).
 Opening the panel reveals everything at once - there's no separate "just the
 general box" state today, only "collapsed" and "everything open."
 
-### Decided, before building
+### Decided, and built
 
 1. **Diacritic folding now; true typo tolerance deferred.** Folding
    (`.normalize("NFD")` + stripping combining marks, applied to both the
@@ -1526,11 +1526,19 @@ general box" state today, only "collapsed" and "everything open."
    special-case it to Search.
 3. **The Search input moves out of the `<details>`, always visible.** The
    collapsed panel keeps Variety/Region/Sub-region/Country/Color/Vintage/
-   Rating behind it, and its summary line changes from "Search & filter" to
-   something naming what's actually behind it now (e.g. "More filters").
-   The `hasAnyFilter`-seeded-open behavior narrows to the fields still
-   inside the panel - Search, being always visible, doesn't need to seed
-   anything.
+   Rating behind it, its summary line reads "More filters" instead of
+   "Search & filter", and the seeded-open check (`hasAnyPanelFilter`, a new
+   export alongside `hasAnyFilter`) now looks only at the fields still
+   inside the panel - Search, being always visible, has nothing there to
+   seed. One thing not explicitly scoped, settled the same way while
+   building it: the panel's own "Clear" button used to sit inside a box
+   that held Search too, so clearing everything from in there read as
+   local. It doesn't anymore - Search lives outside the panel now - so it's
+   relabelled "Clear all" rather than quietly changed to leave Search
+   alone; it's still the one `onClear` the chip row's own "Clear all"
+   already used; `fold()` lives in `lib/filter-bottles.js`, unexported,
+   next to the other string helpers it joins (`searchableText`,
+   `includesInsensitive`).
 
 ## 28. Pairings: tighter summaries, and a "Drink tonight" shortcut
 

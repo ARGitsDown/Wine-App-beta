@@ -4,7 +4,12 @@ import { useState } from "react";
 import { allVarietalNames } from "@/lib/varietal-match";
 import { KNOWN_REGIONS } from "@/lib/regions";
 import { WINE_COLORS } from "@/lib/wine-colors";
-import { activeFilterChips, hasAnyFilter, sortOptionsFor } from "@/lib/filter-bottles";
+import {
+  activeFilterChips,
+  hasAnyFilter,
+  hasAnyPanelFilter,
+  sortOptionsFor,
+} from "@/lib/filter-bottles";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -34,11 +39,13 @@ export default function FilterBar({
     emptied: showEmptied,
     acquired: showAcquired,
   });
-  // Seeded once from whether the page loaded with a filter already applied
-  // (a shared or bookmarked URL), then left to the user. Deriving it from
-  // the current filters instead would snap the panel shut the moment you
-  // cleared the last box - while you were still typing in it.
-  const [open, setOpen] = useState(() => hasAnyFilter(filters));
+  // Seeded once from whether the page loaded with one of the panel's own
+  // fields already set (a shared or bookmarked URL), then left to the
+  // user. Deriving it from the current filters instead would snap the
+  // panel shut the moment you cleared the last box - while you were still
+  // typing in it. Search doesn't factor in here (BACKLOG #27): it's always
+  // visible now, so it has nothing inside the panel to reveal.
+  const [open, setOpen] = useState(() => hasAnyPanelFilter(filters));
 
   function set(key, value) {
     onChange({ ...filters, [key]: value });
@@ -49,6 +56,22 @@ export default function FilterBar({
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Always visible, not behind the disclosure below (BACKLOG #27) -
+          the one field with no datalist to lean on for a correct spelling,
+          so it's the one that most needs to be in view rather than a tap
+          away. */}
+      <label className={labelClass}>
+        Search
+        <input
+          type="search"
+          value={filters.search}
+          onChange={(event) => set("search", event.target.value)}
+          placeholder="Producer, bottling, region, vintage…"
+          className={inputClass}
+          autoComplete="off"
+        />
+      </label>
+
       <div className="flex flex-wrap items-start gap-2">
         {/* Sort sits outside the collapsible panel, below: reordering a list
             is a frequent, one-click thing, and burying it behind a disclosure
@@ -59,10 +82,10 @@ export default function FilterBar({
         className="min-w-64 flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800"
       >
         {/* Collapsed by default so the list itself is what's on screen first,
-            which matters most on a phone - seven always-expanded controls
+            which matters most on a phone - six always-expanded controls
             otherwise push every bottle below the fold. */}
         <summary className="cursor-pointer px-4 py-2.5 text-sm">
-          <span className="font-medium">Search &amp; filter</span>
+          <span className="font-medium">More filters</span>
           <span className="ml-2 text-zinc-500">
             {narrowed
               ? `${resultCount} of ${totalCount} shown`
@@ -81,18 +104,6 @@ export default function FilterBar({
               <option key={name} value={name} />
             ))}
           </datalist>
-
-          <label className={labelClass}>
-            Search
-            <input
-              type="search"
-              value={filters.search}
-              onChange={(event) => set("search", event.target.value)}
-              placeholder="Producer, bottling, region, vintage…"
-              className={inputClass}
-              autoComplete="off"
-            />
-          </label>
 
           <div className="flex flex-wrap items-end gap-3">
             <label className={labelClass}>
@@ -171,13 +182,18 @@ export default function FilterBar({
                 </select>
               </label>
             )}
+            {/* Labelled "all", not "Clear", now that Search lives outside
+                this panel: this still resets it along with everything
+                shown here, the same single onClear the chip row's own
+                "Clear all" already uses, so it should say so rather than
+                read as scoped to just what's visible in this box. */}
             {hasAnyFilter(filters) && (
               <button
                 type="button"
                 onClick={onClear}
                 className="text-sm text-zinc-500 underline underline-offset-2"
               >
-                Clear
+                Clear all
               </button>
             )}
           </div>
