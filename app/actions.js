@@ -15,6 +15,7 @@ import {
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
@@ -1462,12 +1463,52 @@ export async function researchBottle(id, effort = DEFAULT_EFFORT) {
   return { data: { changed: researchChanges(bottle, proposed).length } };
 }
 
-// The bulk pass. Chunked by the caller so no single request has to carry
-// the whole queue. Each distinct wine is one web-search call, which is why
-// the button that reaches this is behind a count and a confirmation - the
-// count is of bottles, so it now overstates the searches rather than
-// understating them.
+// How many distinct research questions one step below takes on - small
+// enough that a single step comfortably fits inside one invocation, the
+// same reasoning the old BATCH_SIZE was chosen under back when the
+// chunking lived in the browser instead of here.
+const RESEARCH_STEP_SIZE = 3;
+
+// The bulk pass. Used to be chunked by the caller - ResearchQueue.js
+// awaited one batch at a time in a browser-side loop - which meant
+// navigating away mid-run silently stopped it after whichever batch was
+// already in flight; every batch after that one was never even requested
+// (BACKLOG #17/#29). Chunking now happens here instead: each step
+// schedules the next one itself via `after()`, which keeps running past
+// the point where the response has already gone back to the client, so
+// the whole queue finishes whether or not the tab that started it is
+// still open. The caller only ever sees this first step's own tally -
+// `remaining` says how much more is already queued behind it.
 export async function researchBottles(ids) {
+  const thisStep = ids.slice(0, RESEARCH_STEP_SIZE);
+  const remaining = ids.slice(RESEARCH_STEP_SIZE);
+
+  let researched = 0;
+  let failed = 0;
+  try {
+    ({ researched, failed } = await researchStep(thisStep));
+  } catch (err) {
+    // A step failing outright (not the per-bottle failures researchStep
+    // already absorbs) still has to hand off to the next one - one bad
+    // step stalling everything behind it would be the same loss this
+    // whole rewrite exists to close.
+    console.error("Bulk research step failed:", err);
+    failed = thisStep.length;
+  } finally {
+    if (remaining.length > 0) {
+      after(() => researchBottles(remaining));
+    }
+  }
+
+  revalidatePath("/research");
+  return { data: { researched, failed, remaining: remaining.length } };
+}
+
+// One step's worth of work: group identical questions, run the search,
+// save what comes back. Split out of researchBottles so a failure in here
+// can't also skip the `after()` scheduling that keeps the rest of the
+// queue moving.
+async function researchStep(ids) {
   const bottles = await prisma.bottle.findMany({ where: { id: { in: ids } } });
 
   // Two rows of the same wine - a case split across two entries, or one
@@ -1514,8 +1555,7 @@ export async function researchBottles(ids) {
     }
   }
 
-  revalidatePath("/research");
-  return { data: { researched, failed } };
+  return { researched, failed };
 }
 
 // Accepts a stored proposal as-is. The common case is that research got it

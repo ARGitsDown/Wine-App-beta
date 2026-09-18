@@ -751,15 +751,45 @@ All three verified still open against the current scan code.
   route to it and no hint it exists. Counting bottles flagged *or*
   carrying a proposal fixes the number; whether `/research` deserves a
   permanent nav entry is the wider question underneath.
-- **"Research all" stops if you navigate away.** One at a time is safe:
-  `researchBottle` upserts its proposal as the last thing it does, so once
-  the server finishes the answer is durable whether or not the browser is
-  listening. The bulk path is not - `ResearchQueue.researchAll` chunks the
-  ids and awaits each batch *in the browser*, so leaving the page stops it
-  after the batch in flight. Thirty flagged bottles gets you three. The
-  chunking is right, and is what keeps one request from hitting a
-  serverless execution limit, so the fix is a resumable server-side job
-  that outlives the client rather than simply moving the loop.
+- ~~**"Research all" stops if you navigate away.**~~ — done (2026-09-18,
+  also BACKLOG #29). One at a time was already safe: `researchBottle`
+  upserts its proposal as the last thing it does, so once the server
+  finishes the answer is durable whether or not the browser is listening.
+  The bulk path wasn't - `ResearchQueue.researchAll` chunked the ids and
+  awaited each batch *in the browser*, so leaving the page stopped it
+  after the batch in flight. Thirty flagged bottles got you three.
+
+  The chunking itself was right - it's what keeps one request from
+  hitting a serverless execution limit - so the fix moved the loop
+  server-side instead of removing it. `researchBottles` in `app/actions.js`
+  now processes one small step (`RESEARCH_STEP_SIZE`, still 3) and, if
+  more ids remain, schedules the next step itself via `after()` (`next/
+  server`, stable since Next 15.1) - which keeps the invocation running
+  past the point where the response has already gone back to the client,
+  so the chain finishes whether or not the tab that started it is still
+  open. A step failing outright still hands off to the next one (a
+  `try/finally` around the scheduling), so one bad step can't stall
+  everything queued behind it.
+
+  `ResearchQueue.js` calls it once now instead of looping - it gets back
+  only the first step's own tally, and the UI says so honestly ("N more
+  are still queued and will keep going even if you leave this page")
+  rather than faking a live counter it no longer has the data to drive.
+
+  Verified against a 7-bottle queue (3 steps: 3+3+1) with a stubbed
+  `lib/anthropic.js`: the first step's result showed in the UI, then the
+  test navigated away immediately - and all 7 proposals were confirmed
+  in the database afterward, sequential and distinct, proving the chain
+  kept running server-side with nothing left connected to it.
+
+  Known, accepted gap: returning to `/research` *while* a chain is still
+  mid-run and clicking "Research all" again on the same still-shrinking
+  list could double-queue whatever the first run hasn't reached yet -
+  wasted search cost, not data loss (a later proposal just overwrites an
+  earlier one for the same bottle). Guarding against that needs a
+  server-side "already queued" marker, which is more than this pass
+  needed for a single-user app where that requires a fairly deliberate
+  double-click of the same button within the same run.
 - **Research has no progress bar, though scanning does.** The text count
   is there ("Researching… 2 of 7") but not the filling bar a photo batch
   gets, which is the part that reads as progress rather than as a stall.

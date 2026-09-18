@@ -5,11 +5,6 @@ import Link from "next/link";
 import { researchBottle, researchBottles, dismissResearch } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
 
-// Small enough that no single request carries the whole queue, which is
-// what keeps a large backlog from hitting a serverless execution limit -
-// the same shape as /estimate-windows.
-const BATCH_SIZE = 3;
-
 const secondaryButtonClass =
   "rounded border border-zinc-300 px-2 py-0.5 text-xs disabled:opacity-50 dark:border-zinc-700";
 
@@ -19,19 +14,14 @@ function bottleHeader(bottle) {
     .join(" ");
 }
 
-function chunk(items, size) {
-  const out = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-}
-
 export default function ResearchQueue({ bottles }) {
   // Which bottle is mid-research, not merely "something is running": one
   // shared flag would disable every row's button while any one of them
   // worked.
   const [busyId, setBusyId] = useState(null);
   const [confirming, setConfirming] = useState(false);
-  const [bulk, setBulk] = useState(null); // { done, total, failed } while running
+  const [starting, setStarting] = useState(false);
+  const [bulk, setBulk] = useState(null); // { total, firstStepDone, firstStepFailed, remaining }
   const [error, setError] = useState(null);
   const [, startTransition] = useTransition();
 
@@ -45,24 +35,29 @@ export default function ResearchQueue({ bottles }) {
     });
   }
 
+  // One call, not a loop of them: chunking and chaining through the whole
+  // queue now happens server-side (see researchBottles in app/actions.js),
+  // scheduling each next step with `after()` so it keeps going even if
+  // this tab closes right after this call returns. What comes back here
+  // is only the first step's own tally - `remaining` says how much more
+  // is already queued behind it.
   async function researchAll() {
     setError(null);
     setConfirming(false);
+    setStarting(true);
     const ids = bottles.map((bottle) => bottle.id);
-    // Frozen at the start: finishing removes rows from the list underneath
-    // this component, so reading the total off the live prop would count
-    // down towards "5 of 0".
-    let done = 0;
-    let failed = 0;
-    setBulk({ done, total: ids.length, failed });
-
-    for (const batch of chunk(ids, BATCH_SIZE)) {
-      const result = await researchBottles(batch);
-      done += batch.length;
-      failed += result?.data?.failed ?? 0;
-      setBulk({ done, total: ids.length, failed });
+    const result = await researchBottles(ids);
+    setStarting(false);
+    if (result?.error) {
+      setError(result.error);
+      return;
     }
-    setBulk({ done, total: ids.length, failed, finished: true });
+    setBulk({
+      total: ids.length,
+      firstStepDone: (result.data.researched ?? 0) + (result.data.failed ?? 0),
+      firstStepFailed: result.data.failed ?? 0,
+      remaining: result.data.remaining ?? 0,
+    });
   }
 
   if (bottles.length === 0) {
@@ -71,16 +66,28 @@ export default function ResearchQueue({ bottles }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {bulk ? (
+      {starting ? (
         <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-          {bulk.finished ? (
-            <p className="font-medium text-green-700 dark:text-green-400">
-              ✓ Researched {bulk.done - bulk.failed} of {bulk.total}
-              {bulk.failed > 0 && ` — ${bulk.failed} failed`}. They&apos;re
-              waiting for review above.
+          <Spinner label={`Starting research for ${bottles.length} bottle${bottles.length === 1 ? "" : "s"}…`} />
+        </div>
+      ) : bulk ? (
+        <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+          <p className="font-medium text-green-700 dark:text-green-400">
+            ✓ Researched {bulk.firstStepDone - bulk.firstStepFailed} of {bulk.total} so far
+            {bulk.firstStepFailed > 0 && ` — ${bulk.firstStepFailed} failed`}.
+          </p>
+          {/* Honest about what actually happens now: the rest keeps
+              running on the server, not in this tab, so there is nothing
+              left here to watch tick upward - closing this page no longer
+              stops it (BACKLOG #17/#29). */}
+          {bulk.remaining > 0 ? (
+            <p className="mt-1 text-zinc-500">
+              {bulk.remaining} more {bulk.remaining === 1 ? "is" : "are"} still
+              queued and will keep going even if you leave this page - check
+              back here to see them land.
             </p>
           ) : (
-            <Spinner label={`Researching… ${bulk.done} of ${bulk.total}`} />
+            <p className="mt-1 text-zinc-500">They&apos;re waiting for review above.</p>
           )}
         </div>
       ) : confirming ? (
@@ -140,7 +147,7 @@ export default function ResearchQueue({ bottles }) {
               <button
                 type="button"
                 onClick={() => researchOne(bottle.id)}
-                disabled={busyId === bottle.id || bulk !== null}
+                disabled={busyId === bottle.id || starting || bulk !== null}
                 className={secondaryButtonClass}
               >
                 {busyId === bottle.id ? "Researching…" : "Research"}
