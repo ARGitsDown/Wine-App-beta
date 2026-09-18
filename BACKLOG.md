@@ -1805,6 +1805,22 @@ built the same day:
   verified against the database directly, not just the screen: quantity
   restored correctly, and the last-bottle case correctly reversed both the
   status flip and the `emptiedAt` stamp.
+
+  Extended past the flight, on the owner's follow-up ask: the bottle
+  page's own Tasted one / Tasted / Tasted all N buttons got the same Undo,
+  reusing `undoOneTasted` directly rather than a second implementation -
+  it decides which reversal applies from the bottle's current status, so
+  the one function already covers all three buttons correctly. Now a
+  `TastedControls` client component instead of plain `<form>` actions,
+  since Undo has to survive the exact moment it exists for: tasting the
+  last bottle (or "Tasted all") moves `status` away from `"inventory"`,
+  which used to be what gated whether the buttons rendered at all - a
+  component gated the same way would have unmounted right as Undo needed
+  to appear, taking its own `useState` flag with it. The page now renders
+  `TastedControls` unconditionally (past the wishlist stage) so the
+  component instance survives that status flip. All three paths -
+  decrementing, the last bottle, and "Tasted all" - verified against the
+  database directly, undoing back to their exact starting state.
 - **Finding 7 (control placement): option C.** Everything below a flight
   pick's collapsed identity line - the reason, the "View full details"
   link, the Order/Remove row, and the Tasted/Log-a-note row - now lives
