@@ -23,6 +23,7 @@ import InlineDateEditor from "@/app/components/InlineDateEditor";
 import EstimateWindowButton from "@/app/components/EstimateWindowButton";
 import { todayInputValue } from "@/lib/tasting-date";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
+import { drinkWindowLabel } from "@/lib/drink-window";
 
 export const dynamic = "force-dynamic";
 
@@ -146,18 +147,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
                   Needs research
                 </span>
               )}
-              {(bottle.drinkFrom || bottle.drinkTo) && (
+              {drinkWindowLabel(bottle) && (
                 <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                  Drink {bottle.drinkFrom ?? "?"}–{bottle.drinkTo ?? "?"}
-                  {(() => {
-                    const year = new Date().getFullYear();
-                    if (bottle.drinkFrom && year < bottle.drinkFrom) return " (too young)";
-                    if (bottle.drinkTo && year > bottle.drinkTo) return " (past peak)";
-                    return " (ready)";
-                  })()}
-                  {bottle.drinkWindowEstimated && (
-                    <span className="italic text-zinc-400 dark:text-zinc-500"> · estimated</span>
-                  )}
+                  {drinkWindowLabel(bottle)}
                 </span>
               )}
               {/* Scanning and Research now always propose a window, so a

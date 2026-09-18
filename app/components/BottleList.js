@@ -6,6 +6,7 @@ import { adjustBottleQuantity } from "@/app/actions";
 import AddToFlight from "@/app/components/AddToFlight";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 import { wineDetailOrNone, wineOrigin } from "@/lib/wine-origin";
+import { drinkWindowLabel } from "@/lib/drink-window";
 import { formatTastedDate } from "@/lib/tasting-date";
 
 const stepperClass =
@@ -76,6 +77,14 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
     <ul className="flex flex-col gap-1.5">
       {bottles.map((bottle) => {
         const expanded = expandedIds.has(bottle.id);
+        // Origin and the drinking window share one quiet line rather than
+        // each getting their own - both are worth scanning by, neither is
+        // worth a whole extra row across a cellar of hundreds (BACKLOG #29
+        // finding 1). Same "say nothing when there's nothing to say" rule
+        // wineOrigin() already follows for a bottle with no region.
+        const detailLine = [wineOrigin(bottle), drinkWindowLabel(bottle)]
+          .filter(Boolean)
+          .join(" · ");
         return (
           <li
             key={bottle.id}
@@ -108,16 +117,18 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
                   {bottle.vintage ? ` ${bottle.vintage}` : ""}
                   {bottle.type ? ` — ${bottle.type}` : ""}
                 </span>
-                {/* Where the wine is from, on the face of the row rather
-                    than one tap inside it: scanning a list for "something
-                    from the Loire" was opening rows one at a time. Quieter
-                    than the name because it is what you scan by, not what
-                    you read. Nothing at all when the bottle has no
-                    origin set - a blank line is not information, and the
+                {/* Where the wine is from, and when to drink it, on the
+                    face of the row rather than a tap inside it: scanning a
+                    list for "something from the Loire" - or for what's
+                    actually near its window, the reason "Drink soon"
+                    sorting exists - was opening rows one at a time.
+                    Quieter than the name because it is what you scan by,
+                    not what you read. Nothing at all when there's nothing
+                    on file - a blank line is not information, and the
                     expanded panel already says so in words. */}
-                {wineOrigin(bottle) && (
+                {detailLine && (
                   <span className="mt-0.5 block text-xs text-zinc-500">
-                    {wineOrigin(bottle)}
+                    {detailLine}
                   </span>
                 )}
               </span>

@@ -225,6 +225,17 @@ export default function BottleForm({
                   placeholder="To"
                 />
               </div>
+              {/* Says what's already true (clearEstimatedFlagIfWindowChanged
+                  in app/actions.js already clears the flag on a real edit)
+                  rather than leaving it to be discovered - the "estimated"
+                  label everywhere else in the app is only trustworthy if
+                  it's clear how a bottle stops carrying it. */}
+              {defaultValues.drinkWindowEstimated && (
+                <p className="mt-1 text-xs text-zinc-500">
+                  These years are an estimate — editing them marks them as
+                  yours.
+                </p>
+              )}
             </div>
           </div>
         </div>
