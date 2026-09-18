@@ -1640,6 +1640,152 @@ things could be meant by "Drink tonight," with different costs:
 4. Where it surfaces stays open along with it, contingent on which shape -
    or whether a wines-wide tagging feature - gets picked up.
 
+## 29. UX critic findings (2026-09-18): drinking window visibility, irreversible research decisions, and more
+
+Raised by the owner: run the read-only `ux-critic` agent
+(`.claude/agents/ux-critic.md`) against the current app and record what it
+found, for later scoping/prioritization - not yet decided or built.
+Session context: this immediately followed the Flights/Pairings collapse
+redesign, the tab bar reorder (Pairings added), and the new
+`BackButton`/`NavigationDepthTracker`; the agent was pointed at those three
+specifically, on top of its own standing judgment of what most needs
+attention.
+
+Three of its more specific claims were spot-checked against the code
+before trusting them, and all three held up exactly as described:
+
+- `adjustBottleQuantity` really does floor at `Math.max(1, ...)`
+  (`app/actions.js:403`) - the quantity stepper can never take a bottle to
+  zero.
+- `app/(owner)/pairings/page.js:7`'s `// Not in the nav, deliberately`
+  comment is still there, and is now stale - Pairings is in the tab bar as
+  of this session's tab-bar reorder.
+- `app/components/NavLinks.js` (the desktop nav) really doesn't match the
+  new phone tab bar's order, and doesn't include Pairings at all.
+
+The last two are worth noting on their own: the agent is read-only and has
+no memory of this session, but it reads the live files each run, so it
+caught a real gap the tab-bar change left behind without needing to be
+told anything happened.
+
+### Breaks the task
+
+1. **The drinking window is invisible everywhere except one bottle's own
+   page**, and hard to read even there. `BottleList.js` shows
+   producer/bottling/vintage/type/region on a cellar row but never the
+   window, even though "Drink soon" is the app's own sort. The one place it
+   appears (`bottles/[id]/page.js:151-164`) draws "estimated" in
+   low-contrast `italic text-zinc-400` on `bg-zinc-100` (worse in dark
+   mode) - the label carrying the most weight on the page is the hardest to
+   read. Flight picks, pairing picks, and Suggest cards all name wines
+   without ever saying when to drink them. Proposed fix: put the window on
+   the collapsed cellar row as one of four short phrases (`Past peak (to
+   2019)` / `Drink by 2027` / `Ready 2028` / `No window`), keep "estimated"
+   the same weight as the rest of the line rather than lighter, and reuse
+   the same string everywhere a wine's name appears.
+   **Open question:** how much cellar-row space this earns next to
+   region/country (#22, already on the row) - may need its own
+   visual-priority pass rather than just appending a fifth fact to an
+   already-busy line.
+2. **Research accept/dismiss is one irreversible tap, unconfirmed**, unlike
+   every other destructive action in the app. `ResearchProposalCard.js:
+   145-172` - "Accept N changes" overwrites fields and deletes the proposal
+   in one transaction (`app/actions.js:1520-1533`); "Keep as is" also
+   deletes the proposal (`app/actions.js:1593`) despite reading like the
+   safe no-op. `ConfirmButton` already exists and is used everywhere else
+   destructive (bottle delete, photo delete, flight delete, scanned-wine
+   delete) except here, the one place a wrong tap silently rewrites several
+   fields and throws away the app's most expensive call.
+   **Open question:** whether Accept should gain a `ConfirmButton` at all
+   (adds a tap to the *common* path, not just the mistake), or just get
+   more separation from "Keep as is" plus a rename of the latter to
+   something honest ("Discard this research").
+3. **The cellar row's quantity stepper isn't what "I drank one" should
+   use, but reads like it.** `Qty: − 3 +` on the expanded row
+   (`BottleList.js:17-50,181-188`) doesn't log a tasting, doesn't stamp an
+   emptied date, and - per the spot-check above - can never reach zero. The
+   control that actually means "I drank one" (`Tasted one - N left`) only
+   exists on the bottle's own page. Proposed fix: add that same button to
+   the expanded cellar row, and relabel the stepper "Correct the count" so
+   the two read as different questions.
+4. **"Mark as tasted" in a flight can't be undone, and the app is unsure
+   what it should even mean.** Marking a `FlightPick` consumed
+   (`app/actions.js:2303`) only flips a boolean - the cellar's own quantity
+   is untouched, so "tasted" means something different here than it does on
+   the bottle page's `Tasted one` button. Once marked, both "Mark as
+   tasted" and "Log a tasting note →" disappear (`FlightPicksList.js:112`)
+   with no way back short of removing the pick entirely.
+   **Open question, flagged by the agent itself as one it wasn't sure
+   about:** should marking a flight pick tasted decrement the bottle's
+   count (matching the bottle page's meaning), or stay a pure checklist
+   tick independent of inventory (defensible for a flight poured from a
+   single already-open bottle)? An owner call, not an engineering one - a
+   flight poured at one dinner and a flight worked through over months
+   probably want different answers.
+
+### Costs the user
+
+5. **The research diff table scrolls sideways at 375px.**
+   `ResearchProposalCard.js:96` - `min-w-[30rem]` (480px) inside
+   `overflow-x-auto`, but the page only has ~311px to give it, so the
+   "Proposed" column - the actual point of the screen - starts off-edge.
+   Proposed fix: stack old/new per field instead of a three-column table on
+   narrow screens; keep the table at `sm:` and up if the density is worth
+   it there.
+6. **A manually-typed Scan card collapses to a bare "✓ Saved" with no
+   name, no link, no way to edit** (`ScanPanel.js:1156-1159`), unlike a
+   normally-scanned card's collapsed state, which keeps the name,
+   destination, research flag, and a Reopen button. Paired with an actual
+   counting bug: `batchProgress` keys off `entry.kind === "saved"`
+   (`ScanPanel.js:67-75`), but the manual-save path only sets `status:
+   "saved"` and leaves `kind: "draft"`, so the batch summary keeps calling
+   a wine you already saved "still to save."
+7. **The Flights collapse (this session's own change) doesn't save as much
+   space as intended, and two controls inside it are worth a second look
+   regardless of the collapse.** A collapsed pick is still ~130px because
+   the Order/Remove strip and the Mark-as-tasted/Log-a-note row both render
+   outside the `expanded &&` block (`FlightPicksList.js:83-129`) - six
+   picks still don't fit on a phone screen. Independent of that: the
+   reorder arrows are 24px (`h-6 w-6`, `FlightPicksList.js:9-10`) against
+   the app's own "thumb-sized or it's decoration" standard
+   (`TabBarLinks.js:44`), and "Remove from flight" is a bare unconfirmed
+   text link 8px from them - the one destructive action among the four
+   flight controls that skips `ConfirmButton`.
+   **This is a direct second opinion on a call made this session** (keeping
+   those controls always-visible below the collapse rather than moving them
+   inside it) - worth weighing deliberately, not just filing.
+8. **The guest heart gives no feedback, and the sign-in copy doesn't say
+   whose cellar this is or that picks are visible to the owner.**
+   `GuestBottleList.js:63-71` - a plain form submit with no
+   pending/optimistic state, ~20px tap target. `app/(guest)/guest/page.js:
+   20-25`'s copy never names the owner or mentions that the owner sees the
+   guest's name next to what they favorite.
+
+### Polish
+
+- Desktop `NavLinks.js`'s order and set no longer match the phone tab bar
+  (see spot-check above) - the stale "Not in the nav, deliberately" comment
+  on `pairings/page.js:7` should go either way this gets resolved.
+- No pending/loading state on the bottle page's `Tasted one`, `Tasted all
+  N`, `Bought it` buttons (`bottles/[id]/page.js:222-249`) - everywhere
+  else in the app uses `Spinner` for this.
+- `/research` queue's per-row buttons are ~20px tall
+  (`ResearchQueue.js:13-14`) with an unconfirmed "Dismiss" beside
+  "Research" - inconsistent with the bulk button's care above them.
+- README/PROJECT.md drift: README's "six cards and nothing else" is now
+  eight-plus-export (`app/(owner)/page.js:103-178`); both README and
+  `PROJECT.md:61-62` still describe pairings as "ephemeral (not saved
+  anywhere)," which hasn't been true since kept pairings shipped (#28,
+  #41).
+
+### Endorsed as-is (from the same review - not findings, don't re-litigate)
+
+The collapsed filter panel on Cellar, saving scan results before review,
+the destination-first Scan flow, `ConfirmButton` as a pattern (just
+under-used in the spots above), and this session's own
+`BackButton`/`NavigationDepthTracker` - called out by name as "the
+deep-link-vs-click-through distinction is subtle and handled correctly."
+
 ## Lower priority / optional
 
 - **Price tracking** — what you paid, or current market value. Useful for
