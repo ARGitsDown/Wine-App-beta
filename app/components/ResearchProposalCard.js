@@ -8,6 +8,7 @@ import {
   dismissResearch,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
+import ConfirmButton from "@/app/components/ConfirmButton";
 import Spinner from "@/app/components/Spinner";
 import { researchChanges, isProposalStale } from "@/lib/research-fields";
 
@@ -15,6 +16,21 @@ const primaryButtonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
 const secondaryButtonClass =
   "rounded border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700";
+const dangerButtonClass =
+  "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
+
+// Named, not "several fields" - accepting overwrites them with no way
+// back (BACKLOG #29 finding 2), so the confirmation has to say exactly
+// what's about to be lost, the same standard describeDeleteLoss holds a
+// bottle delete to.
+function describeAccept(changes) {
+  const labels = changes.map((change) => change.label);
+  const list =
+    labels.length === 1
+      ? labels[0]
+      : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+  return `Replaces ${list}. The current values won't be recoverable.`;
+}
 
 function bottleHeader(bottle) {
   return [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage]
@@ -144,14 +160,13 @@ export default function ResearchProposalCard({ bottle, proposal, regionOptions }
 
       <div className="flex flex-wrap items-center gap-2">
         {changes.length > 0 && (
-          <button
-            type="button"
-            onClick={accept}
-            disabled={pending}
+          <ConfirmButton
+            action={accept}
+            label={`Accept ${changes.length} change${changes.length === 1 ? "" : "s"}`}
+            confirmLabel="Yes, apply"
+            warning={describeAccept(changes)}
             className={primaryButtonClass}
-          >
-            Accept {changes.length} change{changes.length === 1 ? "" : "s"}
-          </button>
+          />
         )}
         {/* Editing is the escape hatch for a proposal that is right about
             four fields and wrong about one - the common shape of a research
@@ -165,9 +180,17 @@ export default function ResearchProposalCard({ bottle, proposal, regionOptions }
         >
           {editing ? "Cancel edit" : "Edit first"}
         </button>
-        <button type="button" onClick={keep} disabled={pending} className={secondaryButtonClass}>
-          Keep as is
-        </button>
+        {/* Not "Keep as is" - that read as the safe no-op when it actually
+            deletes the proposal just as permanently as Accept overwrites
+            the bottle (BACKLOG #29 finding 2). Same confirm step, same
+            reason: researching again costs another search. */}
+        <ConfirmButton
+          action={keep}
+          label="Discard this research"
+          confirmLabel="Yes, discard"
+          warning="Throws away what the search found. Researching again costs another search."
+          className={dangerButtonClass}
+        />
         {pending && <Spinner label="Saving…" />}
       </div>
 
