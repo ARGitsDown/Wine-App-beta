@@ -1778,6 +1778,36 @@ told anything happened.
   anywhere)," which hasn't been true since kept pairings shipped (#28,
   #41).
 
+### Decided, and built (2026-09-18) — findings 4 and 7
+
+Both of the questions this entry left open for the owner were answered and
+built the same day:
+
+- **Finding 4 (what "Mark as tasted" should mean): option B.** A flight
+  pick's "tasted" button now calls the exact same decrement path as the
+  bottle page's own "Tasted one" button (`markOneTasted`, reused directly
+  rather than duplicated) - `markFlightPickConsumed` in `app/actions.js`
+  decrements `Bottle.quantity`, or on the last one flips it to `consumed`
+  with `emptiedAt` stamped, before flipping the pick's own `consumed` flag.
+  Guarded on `pick.consumed` so a resubmitted form (a double-tap before the
+  page revalidates) can't decrement twice. The button's label now matches
+  the bottle page's wording exactly - `Tasted one — N left`, or plain
+  `Tasted` on the last one - since it's doing the same thing. The
+  undo-ability half of finding 4 (an "Undo" beside the ✓) wasn't part of
+  this decision and is still open; it matters more now that a mis-tap moves
+  real inventory rather than just a checklist flag.
+- **Finding 7 (control placement): option C.** Everything below a flight
+  pick's collapsed identity line - the reason, the "View full details"
+  link, the Order/Remove row, and the Tasted/Log-a-note row - now lives
+  inside the expanded panel, matching `PairingPicksList`/`BottleList`'s own
+  row shape exactly. A collapsed pick is one line tall. The two
+  regardless-of-placement fixes the same finding named came along with it:
+  the reorder arrows are 44px (`h-11 w-11`, were `h-6 w-6`), and "Remove
+  from flight" is wrapped in `ConfirmButton` with a warning, rather than a
+  bare unconfirmed text link.
+
+`app/components/FlightPicksList.js`, `app/actions.js:markFlightPickConsumed`.
+
 ### Endorsed as-is (from the same review - not findings, don't re-litigate)
 
 The collapsed filter panel on Cellar, saving scan results before review,

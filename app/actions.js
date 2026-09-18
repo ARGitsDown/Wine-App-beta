@@ -2300,11 +2300,22 @@ export async function moveFlightPick(pickId, direction) {
   revalidatePath(`/flights/${pick.flightId}`);
 }
 
+// Decrements the bottle the same way the bottle page's own "Tasted one"
+// button does (BACKLOG #29) - a flight is normally opened and poured
+// through in one sitting, so "tasted" here should mean the same thing it
+// means everywhere else in the app, not a checklist tick disconnected from
+// what's actually left in the cellar. Guarded on `pick.consumed` so a
+// resubmit (a double-tap before the page revalidates) can't decrement the
+// bottle twice.
 export async function markFlightPickConsumed(pickId) {
-  const pick = await prisma.flightPick.update({
+  const pick = await prisma.flightPick.findUnique({ where: { id: pickId } });
+  if (!pick || pick.consumed) return;
+
+  await prisma.flightPick.update({
     where: { id: pickId },
     data: { consumed: true },
   });
+  await markOneTasted(pick.bottleId);
   revalidatePath(`/flights/${pick.flightId}`);
   revalidatePath("/flights");
 }
