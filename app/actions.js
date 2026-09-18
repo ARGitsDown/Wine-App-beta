@@ -2320,6 +2320,42 @@ export async function markFlightPickConsumed(pickId) {
   revalidatePath("/flights");
 }
 
+// The mirror of markOneTasted, reusing setBottleStatus and
+// adjustBottleQuantity rather than duplicating their logic - a bottle
+// undone this way ends up exactly where either of those would have left
+// it, not a hand-rolled approximation of the same state.
+async function undoOneTasted(id) {
+  const bottle = await prisma.bottle.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!bottle) return;
+
+  if (bottle.status === "consumed") {
+    await setBottleStatus(id, "inventory");
+  } else {
+    await adjustBottleQuantity(id, 1);
+  }
+}
+
+// Undoes markFlightPickConsumed - marking a pick tasted now moves real
+// inventory (BACKLOG #29), not just a checklist flag, so a mis-tap needs a
+// way back the same way every other consequential action in this app
+// does. Guarded the same way its counterpart is, so a resubmit can't
+// double-restore.
+export async function unmarkFlightPickConsumed(pickId) {
+  const pick = await prisma.flightPick.findUnique({ where: { id: pickId } });
+  if (!pick || !pick.consumed) return;
+
+  await prisma.flightPick.update({
+    where: { id: pickId },
+    data: { consumed: false },
+  });
+  await undoOneTasted(pick.bottleId);
+  revalidatePath(`/flights/${pick.flightId}`);
+  revalidatePath("/flights");
+}
+
 export async function deleteTastingFlight(id) {
   await prisma.tastingFlight.delete({ where: { id } });
   revalidatePath("/flights");

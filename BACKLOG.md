@@ -1792,10 +1792,19 @@ built the same day:
   Guarded on `pick.consumed` so a resubmitted form (a double-tap before the
   page revalidates) can't decrement twice. The button's label now matches
   the bottle page's wording exactly - `Tasted one — N left`, or plain
-  `Tasted` on the last one - since it's doing the same thing. The
-  undo-ability half of finding 4 (an "Undo" beside the ✓) wasn't part of
-  this decision and is still open; it matters more now that a mis-tap moves
-  real inventory rather than just a checklist flag.
+  `Tasted` on the last one - since it's doing the same thing.
+
+  The undo-ability half of finding 4 followed once that made a mis-tap
+  consequential: a consumed pick's expanded panel now shows **Undo** where
+  the Tasted button was, calling `unmarkFlightPickConsumed`. It reverses
+  `markFlightPickConsumed` exactly rather than approximating it - restores
+  the quantity it decremented, or (on the last-bottle case) puts the bottle
+  back in `inventory` and clears `emptiedAt` via `setBottleStatus`, the
+  same function "Bought it" already uses for the equivalent forward move.
+  Guarded on `pick.consumed` the same way its counterpart is. Both paths
+  verified against the database directly, not just the screen: quantity
+  restored correctly, and the last-bottle case correctly reversed both the
+  status flip and the `emptiedAt` stamp.
 - **Finding 7 (control placement): option C.** Everything below a flight
   pick's collapsed identity line - the reason, the "View full details"
   link, the Order/Remove row, and the Tasted/Log-a-note row - now lives

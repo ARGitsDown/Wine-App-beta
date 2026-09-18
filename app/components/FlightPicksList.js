@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { markFlightPickConsumed, removeFlightPick, moveFlightPick } from "@/app/actions";
+import {
+  markFlightPickConsumed,
+  unmarkFlightPickConsumed,
+  removeFlightPick,
+  moveFlightPick,
+} from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 
 const buttonClass =
@@ -126,24 +131,39 @@ export default function FlightPicksList({ flightId, picks }) {
                   />
                 </div>
 
-                {!pick.consumed && (
-                  <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {pick.consumed ? (
+                    // Marking a pick tasted now moves real inventory
+                    // (BACKLOG #29), so a mis-tap needs a way back - Undo
+                    // reverses exactly what that tap did (unmarkFlightPickConsumed),
+                    // not a separate hand-rolled correction.
+                    <form action={unmarkFlightPickConsumed.bind(null, pick.id)}>
+                      <button
+                        type="submit"
+                        className="text-sm text-zinc-500 underline underline-offset-2"
+                      >
+                        Undo
+                      </button>
+                    </form>
+                  ) : (
                     <form action={markFlightPickConsumed.bind(null, pick.id)}>
                       <button type="submit" className={buttonClass}>
                         {tastedLabel(pick.bottle)}
                       </button>
                     </form>
-                    {/* The id, not the text: the note prefill then renders
-                        whichever of title/summary this flight actually has,
-                        instead of freezing a copy into the URL. */}
-                    <Link
-                      href={`/bottles/${pick.bottle.id}?tastingFlight=${flightId}`}
-                      className="self-center text-sm text-zinc-500 underline underline-offset-2"
-                    >
-                      Log a tasting note →
-                    </Link>
-                  </div>
-                )}
+                  )}
+                  {/* The id, not the text: the note prefill then renders
+                      whichever of title/summary this flight actually has,
+                      instead of freezing a copy into the URL. Left visible
+                      either way - tasted or not is a separate question from
+                      whether there's a note to write. */}
+                  <Link
+                    href={`/bottles/${pick.bottle.id}?tastingFlight=${flightId}`}
+                    className="self-center text-sm text-zinc-500 underline underline-offset-2"
+                  >
+                    Log a tasting note →
+                  </Link>
+                </div>
               </div>
             )}
           </li>
