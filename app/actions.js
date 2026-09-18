@@ -408,6 +408,29 @@ export async function adjustBottleQuantity(id, delta) {
   revalidatePath(pathForStatus(bottle.status));
 }
 
+// The mirror of markOneTasted (and of "Tasted all N", which is just
+// setBottleStatus straight to "consumed" - undoing it needs the same
+// status flip back regardless of which button got it there). Reuses
+// setBottleStatus and adjustBottleQuantity rather than duplicating their
+// logic, so a bottle undone this way ends up exactly where either of those
+// would have left it, not a hand-rolled approximation. Which branch to
+// take is decided from the bottle's current status, not from which action
+// was last taken - there's nowhere that's recorded, and there doesn't
+// need to be, since status alone already says which reversal applies.
+export async function undoOneTasted(id) {
+  const bottle = await prisma.bottle.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!bottle) return;
+
+  if (bottle.status === "consumed") {
+    await setBottleStatus(id, "inventory");
+  } else {
+    await adjustBottleQuantity(id, 1);
+  }
+}
+
 export async function deleteBottle(id) {
   const bottle = await prisma.bottle.delete({ where: { id } });
   revalidatePath(pathForStatus(bottle.status));
@@ -2318,24 +2341,6 @@ export async function markFlightPickConsumed(pickId) {
   await markOneTasted(pick.bottleId);
   revalidatePath(`/flights/${pick.flightId}`);
   revalidatePath("/flights");
-}
-
-// The mirror of markOneTasted, reusing setBottleStatus and
-// adjustBottleQuantity rather than duplicating their logic - a bottle
-// undone this way ends up exactly where either of those would have left
-// it, not a hand-rolled approximation of the same state.
-async function undoOneTasted(id) {
-  const bottle = await prisma.bottle.findUnique({
-    where: { id },
-    select: { status: true },
-  });
-  if (!bottle) return;
-
-  if (bottle.status === "consumed") {
-    await setBottleStatus(id, "inventory");
-  } else {
-    await adjustBottleQuantity(id, 1);
-  }
 }
 
 // Undoes markFlightPickConsumed - marking a pick tasted now moves real

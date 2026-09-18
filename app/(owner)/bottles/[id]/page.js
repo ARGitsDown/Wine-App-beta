@@ -5,7 +5,6 @@ import {
   updateBottle,
   deleteBottle,
   setBottleStatus,
-  markOneTasted,
   addTastingNote,
   updateTastingNoteDate,
   updateEmptiedDate,
@@ -16,6 +15,7 @@ import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import AddToFlight from "@/app/components/AddToFlight";
 import BackButton from "@/app/components/BackButton";
+import TastedControls from "@/app/components/TastedControls";
 import { flightName as nameOfFlight, isOpenFlight } from "@/lib/flights";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
@@ -28,8 +28,6 @@ export const dynamic = "force-dynamic";
 
 const buttonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
-const secondaryButtonClass =
-  "rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700";
 
 // Where Back sends you when this tab has no history to go back to (a
 // bottle opened from a fresh link). The list matching its own status,
@@ -225,30 +223,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
               </button>
             </form>
           )}
-          {bottle.status === "inventory" && (
-            <>
-              <form action={markOneTasted.bind(null, bottle.id)}>
-                <button className={buttonClass} type="submit">
-                  {bottle.quantity > 1
-                    ? `Tasted one — ${bottle.quantity - 1} left`
-                    : "Tasted"}
-                </button>
-              </form>
-              {/* Still a way to clear the whole lot at once (drank them at a
-                  dinner, gave the case away, fixing a bad count) - the
-                  button above only ever moves the last bottle to History.
-                  "Tasted" rather than "finished" throughout: finished reads
-                  as "done with this task", which is what Research's buttons
-                  mean, and the two sat side by side on this page. */}
-              {bottle.quantity > 1 && (
-                <form action={setBottleStatus.bind(null, bottle.id, "consumed")}>
-                  <button className={secondaryButtonClass} type="submit">
-                    Tasted all {bottle.quantity}
-                  </button>
-                </form>
-              )}
-            </>
-          )}
+          <TastedControls
+            bottleId={bottle.id}
+            status={bottle.status}
+            quantity={bottle.quantity}
+          />
           <ConfirmButton
             action={deleteBottle.bind(null, bottle.id)}
             label="Delete"
