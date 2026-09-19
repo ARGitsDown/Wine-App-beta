@@ -7,7 +7,8 @@
     "build": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "compare-suggest": "node scripts/compare-suggest-models.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
