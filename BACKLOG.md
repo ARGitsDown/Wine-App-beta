@@ -1266,12 +1266,55 @@ should not move at all: a producer read wrong is a wrong bottle saved to the
 cellar, and a scan runs unattended across a batch where nobody is watching for
 it.
 
-One free win to take first, before spending anything on effort:
-`RESEARCH_SYSTEM_PROMPT` and `PHOTO_DETAILS_SYSTEM_PROMPT` are sizable and
-have no `cache_control` breakpoint, unlike the scan and Suggest prefixes. The
-bulk research queue runs the same prefix back-to-back, which is exactly the
-shape a cache pays for. Check the prompts clear the model's minimum cacheable
-prefix first - below it, a breakpoint silently does nothing.
+### ~~The caching win, measured~~ — done 2026-09-20 (one of three)
+
+The free win to take before spending anything on effort was a
+`cache_control` breakpoint on the prompts that lacked one. Measured
+first, as this entry said to, because below a model's minimum cacheable
+prefix a breakpoint silently does nothing - and that check is what
+decided it.
+
+The minimums, worth keeping written down: **Claude Opus 5 caches from 512
+tokens, Claude Sonnet 5 from 1024.** Both mechanical prompts run on
+`EXTRACTION_MODEL` (Sonnet 5), so 1024 is the bar. Tools render before
+system, so a prefix is tools *plus* system, not system alone:
+
+| Call | Prefix | vs 1024 | Outcome |
+|---|---|---|---|
+| Research (`runResearch`) | ~1,580 tok | clears it | **breakpoint added** |
+| Photo details | ~1,055 tok | on the line | left alone - too close to call without `count_tokens` |
+| Drinking windows | ~600 tok | ~40% under | left alone - would cache nothing |
+
+Drinking windows fails twice over: under the minimum, and it's a single
+batched request for every wine at once, so there is barely a repeated
+prefix to reuse in the first place. Photo details is a one-off per photo,
+with no back-to-back pattern even if it did cache.
+
+So only Research got one, and what earns it is the traffic shape rather
+than the prefix size: the loop re-sends the prefix up to four times per
+bottle, and the bulk queue now runs step after step server-side (see
+#17's `after()` rewrite), so one cache entry serves a whole run.
+
+**Honest about the size of the prize:** the money is pennies - roughly
+$0.30 per 30-bottle bulk run. The better argument is throughput. A cache
+read skips reprocessing the prefix, and since that bulk chain now runs
+inside a single invocation's execution budget, faster prefix handling
+means more bottles finish before the ceiling. It also compounds under
+[`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md)'s multi-user plan,
+where several accounts share one cached prefix.
+
+Verified by capturing the actual outgoing request: `system` arrives as a
+single text block carrying `cache_control: {type: "ephemeral"}`, with
+`web_search` and `record_research` ahead of it.
+
+**Still to confirm with a real key:** that the cache is actually being
+hit - `usage.cache_read_input_tokens` should be non-zero on the second
+and later calls of a bulk run, and zero would mean something in the
+prefix is varying. The same check is worth running against the two
+prefixes that were already cached (scan, Suggest), which have never been
+measured. `scripts/compare-suggest-models.mjs` already reports all four
+usage counters and is the readiest place to do it. Photo details needs a
+`count_tokens` measurement before anyone decides about it either way.
 
 ## ~~24. Suggest: "Keep" vs. "Log", and a page that is doing a lot at once~~ — done
 

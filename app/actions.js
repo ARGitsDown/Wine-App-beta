@@ -1388,7 +1388,19 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT) {
         max_tokens: 8192,
         thinking: { type: "adaptive" },
         output_config: outputConfig(effort),
-        system: RESEARCH_SYSTEM_PROMPT,
+        // Tools render before system, so one breakpoint here covers both -
+        // the same placement Suggest uses. Worth it here and nowhere else
+        // among the mechanical calls (BACKLOG #23): this prefix is ~1.6k
+        // tokens against Sonnet's 1024-token minimum, while the drinking-
+        // window prefix is only ~600 and would cache nothing at all. What
+        // pays for it is the shape of the traffic rather than the size of
+        // the prefix - this loop re-sends it up to four times per bottle,
+        // and the bulk queue now runs step after step server-side, so one
+        // entry serves a whole run. Everything volatile (the wine being
+        // described, every search result) is in messages, after the prefix.
+        system: [
+          { type: "text", text: RESEARCH_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+        ],
         tools: [WEB_SEARCH_TOOL, RESEARCH_TOOL],
         messages,
       });
