@@ -5,7 +5,7 @@ import ConfirmButton from "@/app/components/ConfirmButton";
 import FlightBottlePicker from "@/app/components/FlightBottlePicker";
 import FlightPicksList from "@/app/components/FlightPicksList";
 import BackButton from "@/app/components/BackButton";
-import { flightName } from "@/lib/flights";
+import FlightTitle from "@/app/components/FlightTitle";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ export default async function FlightDetailPage({ params }) {
       <BackButton fallbackHref="/flights" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">{flightName(flight)}</h1>
+          <FlightTitle flight={flight} />
           {/* This page is the expansion - you clicked through to it, so the
               theme is spelled out here rather than hidden behind a second
               disclosure. Skipped when the summary IS the heading above, and

@@ -2407,6 +2407,28 @@ export async function deleteTastingFlight(id) {
   redirect("/flights");
 }
 
+// The same allowance a kept pairing already has (renamePairing) - a
+// flight's title is a first guess, either the model's or the one typed in
+// when it was started by hand, and worth being able to overrule later
+// (e.g. naming it after the actual event once you know what it was).
+export async function renameFlight(id, formData) {
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return { error: "Give it a name." };
+
+  try {
+    await prisma.tastingFlight.update({
+      where: { id },
+      data: { title: title.slice(0, 200) },
+    });
+    revalidatePath(`/flights/${id}`);
+    revalidatePath("/flights");
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to rename a flight:", err);
+    return { error: "Couldn't save that name. Please try again." };
+  }
+}
+
 // A pairing is kept only when the owner says so - unlike a flight, which
 // is a queue you build, a pairing is a decision you either want a record
 // of or you don't. Everything below therefore runs on a Suggest result
