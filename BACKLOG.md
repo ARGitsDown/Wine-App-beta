@@ -2029,9 +2029,21 @@ being worth reading. Struck through above, with what landed:
 - **7** - `FlightPicksList`: number and title collapsed, reason and
   controls on expand.
 
-**Still open: 3, 5, 6, 8.** Of those, **6 is a real bug** rather than a
-polish item - a manually-typed Scan card saves but is still counted as
-unsaved, so the flow warns about losing work that is already on disk.
+**Still open: 3, 5, 8** - all polish, none structural.
+
+**6 is done (2026-09-21).** One root cause under both halves:
+`createBottleWithNote` returned `{ success: true }` without the bottle, so
+the card had nothing to become a saved card *with*, and its `onResult` set
+`status: "saved"` while every reader in the file keys off `kind`. Returning
+the bottle and setting `kind: "saved"` fixes the collapsed state and the
+counter together, and deletes the parallel `status === "saved"` state
+rather than leaving two ways to say the same thing.
+
+Reproduced before and after against a production build, using a photo that
+reads but whose save fails - the case the counter actually counts. Before:
+"1 still to save" with a bare "✓ Saved" card. After: the count is gone, the
+card carries the wine's name, destination and a Reopen, and the bottle is
+in the database.
 
 ### Breaks the task
 
@@ -2097,7 +2109,7 @@ unsaved, so the flow warns about losing work that is already on disk.
    Proposed fix: stack old/new per field instead of a three-column table on
    narrow screens; keep the table at `sm:` and up if the density is worth
    it there.
-6. **A manually-typed Scan card collapses to a bare "✓ Saved" with no
+6. ~~**A manually-typed Scan card collapses to a bare "✓ Saved" with no
    name, no link, no way to edit** (`ScanPanel.js:1156-1159`), unlike a
    normally-scanned card's collapsed state, which keeps the name,
    destination, research flag, and a Reopen button. Paired with an actual
@@ -2259,11 +2271,25 @@ not rendered on screen, and the row that reached the database held
 `"Move from brightest to richest."` with the junk removed and the real
 sentence intact.
 
-**Still open.** Only Suggest is guarded. The scan and research paths write
-model prose too (`criticNotes`, a scan's `note`), and nothing cleans those
-yet - the same leak into `criticNotes` would be just as permanent. Worth
-extending `cleanModelText` to those boundaries; it was left out of this
-pass to keep the change to the feature the fault was actually observed in.
+**Closed 2026-09-21.** All four boundaries where a model writes prose this
+app stores are now guarded, via `cleanModelFields` for the tool-result
+cases:
+
+- **Suggest** - title, summary, and each pick's reason and dish.
+- **Research** - `summary` and `criticNotes`, the two longest free-text
+  fields in the app, both persisted (criticNotes onto the bottle itself
+  once a proposal is accepted).
+- **Scan** - each wine's `note` and `criticNotes`, cleaned before the save
+  loop, since a scan writes straight through with no review step.
+- **Photo details** - `criticNotes`. Reading a back label is a lot of text
+  to transcribe, which is the condition a run-on comes out of.
+- **`trimmedOrNull`**, the last gate before a pairing row.
+
+Only prose fields are named, deliberately: a leak is a run-on, so it lands
+in whatever long field the model was writing when it went wrong. Running
+this over a vintage integer would be noise, and over every string would
+eventually trim a producer whose name legitimately contains an angle
+bracket.
 
 ## 31. A client component imported the Anthropic SDK, and Suggest went down
 

@@ -85,7 +85,7 @@ function pendingLoss(photos) {
   for (const photo of photos) {
     for (const entry of photo.entries) {
       if (entry.dirty) edits += 1;
-      else if (entry.kind !== "saved" && entry.status !== "saved" && entry.saveFailed) {
+      else if (entry.kind !== "saved" && entry.saveFailed) {
         drafts += 1;
       }
     }
@@ -1153,10 +1153,6 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                         />
                       </div>
                     </>
-                  ) : entry.status === "saved" ? (
-                    <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                      ✓ Saved
-                    </p>
                   ) : (
                     <>
                       {(entry.extracted.producer || entry.extracted.bottling) && (
@@ -1200,12 +1196,31 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
                           submitLabel="Save bottle"
                           includeTastingNote
                           idPrefix={`scan-entry-${entry.localId}`}
+                          // `kind`, not `status`. A manually-typed card
+                          // used to set status: "saved" and stay kind:
+                          // "draft", and every reader in this file keys off
+                          // `kind` - so the batch summary went on calling a
+                          // wine you had already saved "still to save", and
+                          // the card collapsed to a bare "Saved" with no
+                          // name, no link and no way to reopen it, while a
+                          // scanned card in the same state kept all three.
+                          // Carrying the bottle across makes it the same
+                          // kind of thing it actually is: a saved wine.
                           onResult={(result) => {
-                            if (result.success) {
+                            if (result.success && result.bottle) {
                               updateEntry(photo.id, entry.localId, {
-                                status: "saved",
+                                kind: "saved",
+                                bottle: result.bottle,
                                 dirty: false,
+                                justSaved: true,
                               });
+                              setTimeout(
+                                () =>
+                                  updateEntry(photo.id, entry.localId, {
+                                    justSaved: false,
+                                  }),
+                                4000
+                              );
                             }
                           }}
                         />

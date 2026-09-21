@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
 import { aiErrorMessage } from "@/lib/ai-errors";
-import { cleanModelText } from "@/lib/model-text";
+import { cleanModelText, cleanModelFields } from "@/lib/model-text";
 import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
 import { DEFAULT_DEPTH, normalizeDepth } from "@/lib/suggest-depth";
 import { depthConfig } from "@/lib/suggest-model";
@@ -222,7 +222,12 @@ export async function createBottleWithNote(status, prevState, formData) {
 
   revalidatePath(pathForStatus(status));
   revalidatePath(`/bottles/${bottle.id}`);
-  return { success: true };
+  // The bottle, not just a flag. The scan panel's manual card had no way
+  // to become a proper saved card without it - see the comment on its
+  // onResult - so it fell back to a bare "Saved" line with no name, no
+  // link and no way to reopen, while the batch summary went on counting
+  // the wine as still to save.
+  return { success: true, bottle };
 }
 
 export async function updateBottle(id, prevState, formData) {
@@ -787,6 +792,13 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         if (finalCall.input.wines.length === 0) {
           return { error: "Couldn't find any wines in that photo. Try a clearer, well-lit photo." };
         }
+        // Both prose fields, cleaned before anything is saved - `note`
+        // becomes a TastingNote and `criticNotes` a column on the bottle,
+        // and a scan writes them straight through without review. See
+        // lib/model-text.js and BACKLOG #30.
+        const wines = finalCall.input.wines.map((wine) =>
+          cleanModelFields(wine, ["note", "criticNotes"])
+        );
         // One photo can hold several wines (a tasting sheet) - they all
         // share the same uploaded photo. Never blocks extraction: null
         // (unconfigured storage, a failed upload) just means no photo.
@@ -805,7 +817,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         // saves; that one wine falls back to the same unsaved-draft card
         // used when reading a photo fails outright.
         const results = [];
-        for (const wine of finalCall.input.wines) {
+        for (const wine of wines) {
           // The batch's intent decides where a wine lands. This used to be
           // inferred from whether the source document carried tasting text,
           // which conflated two different things: a shop's tasting sheet
@@ -1463,7 +1475,13 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT) {
         (block) => block.type === "tool_use" && block.name === "record_research"
       );
       if (finalCall) {
-        return { data: finalCall.input };
+        // Research writes the two longest free-text fields in the app, and
+        // both are persisted - criticNotes onto the bottle itself when the
+        // proposal is accepted, summary onto the proposal. See
+        // lib/model-text.js and BACKLOG #30.
+        return {
+          data: cleanModelFields(finalCall.input, ["summary", "criticNotes"]),
+        };
       }
 
       if (response.stop_reason === "pause_turn") {
@@ -2300,7 +2318,11 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
     const finalCall = response.content.find(
       (block) => block.type === "tool_use" && block.name === "record_photo_details"
     );
-    if (finalCall) return { data: finalCall.input };
+    // criticNotes is the one long prose field here, and reading a back
+    // label is exactly where a model has a lot of text to transcribe - the
+    // condition a run-on leak comes out of. Same guard as scan and
+    // research: lib/model-text.js, BACKLOG #30.
+    if (finalCall) return { data: cleanModelFields(finalCall.input, ["criticNotes"]) };
     return { error: "Couldn't read that photo. Please try again." };
   } catch (err) {
     return {
