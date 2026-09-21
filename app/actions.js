@@ -1477,6 +1477,38 @@ export async function researchBottle(id, effort = DEFAULT_EFFORT) {
   return { data: { changed: researchChanges(bottle, proposed).length } };
 }
 
+// What a queued bottle is researched at, as opposed to the dial the owner
+// gets on a single bottle's own page. Lower than everywhere else in the
+// app, and the one place in it where a level was chosen from measurement
+// rather than left at the default - so the reasoning is worth keeping.
+//
+// Measured 2026-09-21, two bottles at each level, real API, Sonnet:
+//
+//   high  59.9s and 160.5s   5 web searches   $0.184/bottle
+//   low   28.6s and  19.9s   2 web searches   $0.073/bottle
+//
+// The cost is the smaller half of it. The latency is the reason this had
+// to change: the step route's maxDuration is 60s, so at `high` a single
+// question does not reliably fit inside the invocation meant to run it.
+// One of those two calls took nearly three minutes. In production that
+// invocation is killed mid-search - the proposal is never written, the
+// handoff to the next step never happens, and the run dies silently
+// partway through. Which is exactly the symptom this feature has been
+// reported with twice, and neither rewrite could have fixed, because the
+// fault was never in the chaining.
+//
+// What `low` gives up appears to be nothing that matters here. Its
+// proposals came back with 4 and 7 attributed sources, blend composition,
+// fermentation and ageing detail, named critic scores, and a correctly
+// labelled estimated drinking window. The setting buys fewer searches and
+// about a quarter of the thinking tokens; it did not buy a worse answer.
+//
+// Deliberately not applied to researchBottle: one bottle you chose to
+// research is a different act from a queue you set running and walked
+// away from, it runs on its own page's 60s with nothing queued behind it,
+// and the owner has a dial there precisely so that trade is theirs.
+const BULK_RESEARCH_EFFORT = "low";
+
 // Starts a bulk pass and returns immediately with the job to watch.
 //
 // This is the third shape this function has had, and the first one with no
@@ -1669,7 +1701,7 @@ async function researchStep(ids, deadline) {
     if (asked > 0 && Date.now() > deadline) break;
     asked += 1;
 
-    const result = await runResearch(group[0]);
+    const result = await runResearch(group[0], BULK_RESEARCH_EFFORT);
     // Consumed either way: a wine whose search failed has had its turn,
     // and leaving it on the queue would mean a step that keeps retrying
     // the same broken question instead of getting to the rest.

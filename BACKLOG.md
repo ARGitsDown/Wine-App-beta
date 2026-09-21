@@ -821,6 +821,20 @@ All three verified still open against the current scan code.
   now finds a running job on load, so returning mid-run shows the run
   rather than an idle button, and the button is hidden while one is live.
 
+  **A third cause, found 2026-09-21 with a real key, and the one that was
+  actually breaking it in production.** Both rewrites above assumed a
+  research question takes 20-40s. Measured, at the effort it was running
+  at, one took **59.9s and another 160.5s**. The step route's `maxDuration`
+  is 60s. So a single question did not fit in the invocation meant to run
+  it: killed mid-search, no proposal written, no handoff, run dead partway
+  through - indistinguishable from the navigate-away bug, and untouched by
+  either rewrite, because the fault was never in the chaining. Fixed by
+  running bulk research at `low` effort (20-29s, and no worse an answer -
+  see #23 for the numbers and the quality check) and setting
+  `STEP_BUDGET_MS` to 0 so a step begins exactly one question and gives it
+  the full 60s. On a hosting plan allowing 300s this would be a different
+  calculation; on a 60s ceiling it is the only one that works.
+
   Verified at 375px against a 10-bottle queue with a stubbed
   `lib/anthropic.js` (8s per call): the test started the run, navigated
   to `/inventory`, waited 45s, and came back to find the bar at 3 of 10 -
@@ -1317,6 +1331,86 @@ of saying nothing was recorded, so `wineDetailOrNone` draws that line
 explicitly.
 
 ## 23. Measure before turning the mechanical calls down
+
+**Measured 2026-09-21** against a real key, on a seeded 69-bottle cellar.
+Everything below the divider was written before those numbers existed and is
+kept because the reasoning still stands for the call sites that remain
+untested.
+
+### What the measurements said
+
+**Research effort — measured, and acted on.** Two bottles at each level,
+real web search, Sonnet:
+
+| effort | latency | searches | output tokens | cost/bottle |
+|---|---|---|---|---|
+| `high` | 59.9s, 160.5s | 5 | 3,634 / 6,511 | **$0.184** |
+| `low` | 28.6s, 19.9s | 2 | 1,687 / 1,474 | **$0.073** |
+
+The cost was the less important half. The latency was a live bug: the step
+route's `maxDuration` is 60s, and at `high` a single question does not
+reliably fit inside the invocation meant to run it - one took nearly three
+minutes. In production that invocation is killed mid-search, the proposal is
+never written, the handoff never happens, and the run dies partway through.
+That is the symptom "Research all" had been reported with twice (see #17),
+and neither rewrite could have fixed it, because the fault was never in the
+chaining. Bulk research now runs at `low` and `STEP_BUDGET_MS` is 0, so a
+step begins exactly one question and gives it the whole 60s.
+
+Quality was checked by reading the output, not assumed: `low` returned 4 and
+7 attributed sources, blend composition, fermentation and ageing detail,
+named critic scores, and a correctly labelled estimated window. It buys
+fewer searches and a quarter of the thinking tokens. It did not buy a worse
+answer.
+
+**Prompt caching — confirmed working.** Suggest, one query, three turns:
+prefix 3,062 tokens, turn 1 writes 2,987, turns 2 and 3 each *read* 2,987
+with zero re-write. The breakpoint placement (tools render before system, so
+one breakpoint covers both) does what #23 assumed it would. Research's
+prefix could not be measured the same way - `count_tokens` rejects server
+tools outright ("Server tools are not supported in the count_tokens
+endpoint") - but its `usage` shows enormous cache traffic regardless
+(168,255 read against 31,967 written on one call), because the API caches
+the accumulating web-search results inside a single call on its own. On a
+web-search call the prefix is a rounding error next to that.
+
+**Opus vs Sonnet on Suggest.** Five queries, one run each,
+`scripts/compare-suggest-models.mjs`:
+
+| | cost/query | avg latency | turns |
+|---|---|---|---|
+| Sonnet 5 | **$0.0315** | 23.7s | 2-3 |
+| Opus 5 | **$0.1911** | 44.4s | 3-5 |
+
+**Opus costs 6.1x and takes 1.9x as long.** It is also consistently better,
+but not uniformly, and where it is better is the useful finding: on direct
+pairings both led with the same correct bottle and the gap was breadth
+(Opus offered a third option and used quantity - "you have two bottles of
+it, so it's easier to justify on a weeknight"). On the open-ended cases the
+gap was real. Asked for Thanksgiving with an `avant-garde` steer, Sonnet
+proposed an orange wine as centrepiece - a good answer. Opus proposed a
+Bandol rosé, oxidative white Rioja, Musar and a Mosel Spätlese, named the
+*risk* of each unconventional choice, and noticed the rosé's window closes
+in 2026 so these are the last bottles to drink. That query cost Opus $0.40
+and 74.6s, against Sonnet's $0.05 and 37.6s.
+
+Sonnet was never *wrong* - every pick was defensible and factually sound.
+The recommendation for multi-user: keep Opus for the owner, route additional
+accounts to Sonnet. Six times the queries per dollar of cap, for an answer
+that is narrower rather than incorrect.
+
+**For the usage ledger (`FUTURE_CAPABILITIES.md`), the unit costs are:**
+Suggest $0.03 (Sonnet) / $0.19 (Opus); research $0.073/bottle at `low`,
+$0.184 at `high`. A "Research all" over 30 bottles is $2.20, and is by some
+distance the most expensive thing a user can tap.
+
+**One cost lever found and not taken.** `browse_cellar` returns at most 40
+bottles, so on a 69-bottle cellar an unfiltered browse comes back truncated
+and the model re-browses - Opus's worst query spent 48,246 input tokens
+across 8 browse calls. On the real ~117-bottle cellar that is worse. Worth
+its own look.
+
+---
 
 Effort is now explicit at every call site, but only the two the owner steers
 actually move. The other four - reading a label, reading a photo, and the two
