@@ -879,7 +879,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
 const BROWSE_CELLAR_TOOL = {
   name: "browse_cellar",
   description:
-    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns `bottles` (at most 40, ordered by producer name), `totalMatching` (how many bottles actually matched your filters), and `truncated`. Each bottle has its id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, average personal rating if any exists, drinkFrom/drinkTo (its drinking window, if known - null fields mean no window is recorded, not that it's unready), and drinkWindowEstimated (true when that window is the app's own guess rather than something read from a source or typed by the owner; only meaningful when a window is actually present). When `truncated` is true you are looking at an alphabetical slice, not the cellar - narrow the filters and call again rather than choosing from what came back.",
+    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. One call with no filters returns the whole cellar, and that is normally what you want: a personal cellar fits comfortably in a single response, and reasoning across all of it at once is both better and cheaper than guessing which filters to try. Filters are for narrowing a cellar you have already seen, not for discovering what is in it - reach for a second call when you want one specific slice, not as a way of exploring. Returns `bottles` (at most 250, ordered by producer name), `totalMatching` (how many bottles actually matched your filters), and `truncated`. Each bottle carries its id (needed to reference it in your final answer), its producer, and whichever of bottling, vintage, type, variety, region, country, quantity, averageRating (the owner's own average score), drinkFrom/drinkTo (its drinking window) and drinkWindowEstimated are actually recorded. A field that is absent is simply not on file - for a drinking window that means no window has been recorded, NOT that the wine is unready. drinkWindowEstimated is true when the window is the app's own guess rather than something read from a source or typed by the owner. When `truncated` is true you are looking at an alphabetical slice rather than the cellar - narrow the filters and call again rather than choosing from what came back.",
   input_schema: {
     type: "object",
     properties: {
@@ -998,6 +998,28 @@ const SUGGESTIONS_TOOL = {
   strict: true,
 };
 
+// How many bottles one browse may return. Was 40, which is smaller than a
+// real cellar - so an unfiltered browse truncated, and the tool description
+// told the model to narrow and call again. That worked, and it was the
+// expensive way to work: every turn of a tool loop re-sends every previous
+// tool result, so eight capped browses cost far more than one whole-cellar
+// browse does. Measured on one Suggest query, 2026-09-21: Opus spent 48,246
+// input tokens across 8 browse calls, where the entire 69-bottle cellar is
+// about 4,000 tokens sent once. See BACKLOG #23.
+//
+// 250 is not a target, it is a guard - high enough that a personal cellar
+// arrives whole (117 bottles is roughly 6,800 tokens) and low enough that
+// an implausibly large one cannot blow up a request. The truncation
+// machinery below stays exactly as it was for the cellar that exceeds it.
+const CELLAR_BROWSE_CAP = 250;
+
+// Sparse rows, sent sparsely. Only ever applied to the browse payload
+// above - a null in the database is meaningful nearly everywhere else in
+// this file, and this is not a general-purpose thing to reach for.
+function withoutNulls(row) {
+  return Object.fromEntries(Object.entries(row).filter(([, value]) => value != null));
+}
+
 async function browseCellar(filters) {
   const bottles = await prisma.bottle.findMany({
     where: { status: "inventory" },
@@ -1038,32 +1060,48 @@ async function browseCellar(filters) {
     return true;
   });
 
-  const capped = matches.slice(0, 40);
+  const capped = matches.slice(0, CELLAR_BROWSE_CAP);
   return {
     // The cap is invisible from the rows alone, and the ordering is
-    // alphabetical by producer - so an unfiltered browse of a large cellar
-    // returns the A's and nothing else, and a model that can't tell would
-    // recommend the best of those as if it were the best of the cellar.
+    // alphabetical by producer - so a browse that truncates returns the A's
+    // and nothing else, and a model that can't tell would recommend the
+    // best of those as if it were the best of the cellar.
     totalMatching: matches.length,
     truncated: matches.length > capped.length,
-    bottles: capped.map((bottle) => ({
-      id: bottle.id,
-      producer: bottle.producer,
-      bottling: bottle.bottling,
-      vintage: bottle.vintage,
-      type: bottle.type,
-      variety: bottle.variety,
-      region: bottle.region,
-      country: bottle.country,
-      quantity: bottle.quantity,
-      averageRating: bottle.averageRating,
-      drinkFrom: bottle.drinkFrom,
-      drinkTo: bottle.drinkTo,
-      // Without this the model reads every window as established fact and
-      // quotes the years back that way, which is the one place this feature
-      // can quietly undo the guess/fact line the rest of the app holds.
-      drinkWindowEstimated: bottle.drinkWindowEstimated,
-    })),
+    // Nulls are dropped rather than sent. A cellar is mostly sparse - no
+    // bottling name, no rating, no window - and `"bottling":null` costs the
+    // same to send as a real one while saying nothing the absence of the key
+    // does not. Measured at 9% of the payload on a 69-bottle cellar, which
+    // is the smaller half of this change but free. The tool description
+    // says what an absent field means, because for a drinking window the
+    // wrong reading ("not ready") is worse than no reading at all.
+    bottles: capped.map((bottle) =>
+      withoutNulls({
+        id: bottle.id,
+        producer: bottle.producer,
+        bottling: bottle.bottling,
+        vintage: bottle.vintage,
+        type: bottle.type,
+        variety: bottle.variety,
+        region: bottle.region,
+        country: bottle.country,
+        quantity: bottle.quantity,
+        averageRating: bottle.averageRating,
+        drinkFrom: bottle.drinkFrom,
+        drinkTo: bottle.drinkTo,
+        // Without this the model reads every window as established fact and
+        // quotes the years back that way, which is the one place this
+        // feature can quietly undo the guess/fact line the rest of the app
+        // holds. Nulled - and so dropped - when there is no window for it
+        // to describe, since the column defaults to false and "this wine
+        // has no drinking window, and that absent window is not an
+        // estimate" is a sentence worth nobody's tokens.
+        drinkWindowEstimated:
+          bottle.drinkFrom != null || bottle.drinkTo != null
+            ? bottle.drinkWindowEstimated
+            : null,
+      })
+    ),
   };
 }
 

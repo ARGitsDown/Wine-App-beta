@@ -1440,11 +1440,45 @@ Suggest $0.03 (Sonnet) / $0.19 (Opus); research $0.073/bottle at `low`,
 $0.184 at `high`. A "Research all" over 30 bottles is $2.20, and is by some
 distance the most expensive thing a user can tap.
 
-**One cost lever found and not taken.** `browse_cellar` returns at most 40
-bottles, so on a 69-bottle cellar an unfiltered browse comes back truncated
-and the model re-browses - Opus's worst query spent 48,246 input tokens
-across 8 browse calls. On the real ~117-bottle cellar that is worse. Worth
-its own look.
+**One cost lever found, and taken the same day.** `browse_cellar` returned
+at most 40 bottles, so on a 69-bottle cellar an unfiltered browse came back
+truncated and the model re-browsed - Opus's worst query spent 48,246 input
+tokens across 8 browse calls.
+
+The cap was the visible half and the smaller one. What makes repeated
+browsing expensive is that **every turn of a tool loop re-sends every
+previous tool result**, so eight capped browses cost far more than the
+whole cellar sent once. Measured: the entire 69-bottle cellar is ~4,200
+tokens in a single result, against 48,246 spent not seeing all of it.
+
+Both halves changed, and the second matters more:
+
+1. `CELLAR_BROWSE_CAP` is 250, not a target but a guard - high enough that
+   a personal cellar arrives whole (117 bottles is ~7,200 tokens), low
+   enough that an implausible one can't blow up a request. Truncation is
+   untouched for anything past it.
+2. **The tool description was the actual cause.** It said "Call this one or
+   more times with different filters to explore what's actually available
+   (e.g. once for reds, once for whites)" - which was correct advice when
+   40 was binding, and is exactly what produced 8 calls. It now says one
+   unfiltered call returns the whole cellar and that filters are for
+   narrowing something already seen, not for discovering it. Raising the
+   cap without this would have changed nothing.
+
+Nulls are also dropped from the payload (9%, free), and
+`drinkWindowEstimated` is only sent where a window exists to describe -
+the column defaults to false, so every windowless bottle was carrying
+"this absent window is not an estimate".
+
+**Verified only as far as it can be without a key.** The payload is
+confirmed: 69 of 69 bottles in one call, `truncated` false, no nulls, the
+flag present on windowed rows and absent on windowless ones. What is *not*
+confirmed is the thing that pays - whether the model now makes one call
+instead of eight - because that is a model decision and no stub can produce
+it. The arithmetic is simple and the direction is not in doubt, but the
+size of the win is an estimate until someone re-runs
+`scripts/compare-suggest-models.mjs` against a real key and compares the
+browse counts to the five queries above.
 
 ---
 
