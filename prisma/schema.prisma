@@ -47,6 +47,95 @@ model User {
   bottles  Bottle[]
   flights  TastingFlight[]
   pairings SavedPairing[]
+
+  // Auth.js's side of this table. Both cascade: deleting a person takes
+  // their sign-in records with them.
+  accounts Account[]
+  sessions Session[]
+}
+
+// Auth.js's own three tables, plus the invite list.
+//
+// Every field name and every unique constraint below is taken from
+// @auth/prisma-adapter's source rather than from memory, because the
+// adapter queries them by name and a near-miss fails at sign-in rather
+// than at build: it looks up `account.findUnique({ where: {
+// provider_providerAccountId } })`, `session.findUnique({ where: {
+// sessionToken } })` and `verificationToken` by `identifier_token`, so
+// those compound keys have to exist with exactly those shapes.
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // snake_case above is not an oversight - those are OAuth's own wire
+  // names, and the adapter writes the provider's response through
+  // unchanged. Renaming them to match the rest of this schema would mean
+  // mapping every one by hand for no gain.
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+// Database sessions rather than JWTs, which is what an adapter gives you
+// by default and the right default here: signing someone out, or removing
+// their invite, takes effect on their next request instead of whenever
+// their token happens to expire. The cost is a query per request, on an
+// indexed unique column, which is nothing next to the page's own reads.
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Unused today - it belongs to the email/"magic link" provider, and this
+// app only offers Google. Created anyway because the adapter is a single
+// object that implements every method, and one that references a missing
+// table fails at the moment someone tries the flow rather than at setup.
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Who is allowed in at all. Invite-only was the decision (see
+// FUTURE_CAPABILITIES.md): no open registration, no email verification to
+// own, and the shared API key stays spent by people who were asked.
+//
+// A table rather than an environment variable so the list can change
+// without a redeploy - which is what makes it worth an admin screen, and
+// what makes it scale past the handful an env var comfortably holds.
+//
+// Email is the join key because it is the only thing known about a person
+// before they have ever signed in. Stored lowercased by every writer, so
+// the unique constraint means what it looks like it means.
+model Invite {
+  id    String  @id @default(cuid())
+  email String  @unique
+  // Whose email this is, in the owner's own words. An invite list of bare
+  // addresses becomes unreadable within about four entries.
+  note  String?
+
+  createdAt DateTime @default(now())
+  // Stamped on the invited person's first successful sign-in, so the list
+  // shows who has actually turned up rather than only who was asked.
+  acceptedAt DateTime?
 }
 
 // A single wine, in one of three states:

@@ -10,14 +10,17 @@
     "postinstall": "prisma generate",
     "compare-suggest": "node scripts/compare-suggest-models.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "verify": "bash scripts/verify.sh"
+    "verify": "node scripts/invite-policy.test.mjs && bash scripts/verify.sh",
+    "test:policy": "node scripts/invite-policy.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
+    "@auth/prisma-adapter": "^2.11.3",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@vercel/blob": "^2.8.0",
     "next": "16.3.5",
+    "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.0",
     "prisma": "^7.10.0",
     "react": "19.2.8",

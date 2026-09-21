@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
+import { redirect } from "next/navigation";
 import Link from "next/link";
+import { auth, isAuthConfigured } from "@/lib/auth";
+import { signOutOfCellar } from "@/app/signin/actions";
 import { getResearchCount } from "@/lib/bottles";
 import NavLinks from "@/app/components/NavLinks";
 import TabBar from "@/app/components/TabBar";
@@ -37,7 +40,24 @@ async function ResearchNavLink() {
 // Everything the cellar's owner sees. A guest never renders this layout, so
 // they never get the owner nav - and the count query above never runs for
 // them either.
-export default function OwnerLayout({ children }) {
+//
+// It is also the front door. Every owner route renders through here and
+// /guest does not, so one check covers the whole private side of the app
+// without a middleware file that has to keep a matcher in sync with the
+// routes by hand. Until this existed there was no door at all: /inventory,
+// /scan and every delete button were reachable by anyone with the URL.
+export default async function OwnerLayout({ children }) {
+  // Only when configured, and the order matters. Reading the session is a
+  // cookie read, which makes every route below dynamic - so while accounts
+  // are switched off this must not run at all, and the app stays exactly
+  // the shape it was. See isAuthConfigured in lib/auth.js.
+  let signedIn = false;
+  if (isAuthConfigured()) {
+    const session = await auth();
+    if (!session?.user?.id) redirect("/signin");
+    signedIn = true;
+  }
+
   return (
     <>
       <NavigationDepthTracker />
@@ -52,6 +72,21 @@ export default function OwnerLayout({ children }) {
           <Suspense fallback={null}>
             <ResearchNavLink />
           </Suspense>
+          {/* Only once there is something to sign out of. An app with no
+              accounts showing a Sign out link would be offering to undo
+              something that never happened. */}
+          {signedIn && (
+            <>
+              <Link href="/invites" className="ml-auto text-zinc-500 hover:underline">
+                Invites
+              </Link>
+              <form action={signOutOfCellar}>
+                <button type="submit" className="text-zinc-500 hover:underline">
+                  Sign out
+                </button>
+              </form>
+            </>
+          )}
         </nav>
       </header>
       {/* The bar is fixed, so it sits over the end of the page unless the

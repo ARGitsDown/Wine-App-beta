@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth, isAuthConfigured } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,23 @@ export const dynamic = "force-dynamic";
 // A new model that holds something the owner typed, curated or reviewed
 // belongs here. One that only memoises an answer does not.
 export async function GET() {
+  // Route handlers do not render layouts, so the front door in
+  // app/(owner)/layout.js does NOT cover this file despite it sitting in
+  // that folder. Found the hard way: with accounts switched on, every page
+  // correctly redirected to /signin while this route happily returned the
+  // entire cellar - every bottle, note and photo URL - to anyone who asked.
+  //
+  // The lesson generalises. A guard placed in a layout protects pages and
+  // nothing else; each route handler needs its own. There are three in this
+  // app: this one, the Auth.js endpoints (public by necessity), and the
+  // research step route (guarded by its job token).
+  if (isAuthConfigured()) {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return Response.json({ error: "Not signed in." }, { status: 401 });
+    }
+  }
+
   const [bottles, guests, flights, pairings, researchProposals] = await Promise.all([
     prisma.bottle.findMany({
       include: { tastingNotes: true, photos: true },
