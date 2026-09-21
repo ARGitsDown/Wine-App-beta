@@ -6,7 +6,8 @@ import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
 import { aiErrorMessage } from "@/lib/ai-errors";
 import { cleanModelText } from "@/lib/model-text";
 import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
-import { DEFAULT_DEPTH, normalizeDepth, depthConfig } from "@/lib/suggest-depth";
+import { DEFAULT_DEPTH, normalizeDepth } from "@/lib/suggest-depth";
+import { depthConfig } from "@/lib/suggest-model";
 import { normalizeCharacter } from "@/lib/suggestion-character";
 import {
   wineLabelForBottle,

@@ -2242,3 +2242,66 @@ model prose too (`criticNotes`, a scan's `note`), and nothing cleans those
 yet - the same leak into `criticNotes` would be just as permanent. Worth
 extending `cleanModelText` to those boundaries; it was left out of this
 pass to keep the change to the feature the fault was actually observed in.
+
+## 31. A client component imported the Anthropic SDK, and Suggest went down
+
+Shipped 2026-09-21 and caught by the owner, not by any check here: the
+whole `/suggest` page rendered its error boundary in production.
+
+`SuggestForm.js` is a client component. It imported `lib/suggest-depth.js`
+for the dial's labels, and that file imported `lib/anthropic.js` for the
+two model ids - which constructs the SDK at module scope. So the SDK was
+bundled into the browser and evaluated there, where it throws outright:
+
+```
+It looks like you're running in a browser-like environment.
+This is disabled by default, as it risks exposing your secret
+API credentials to attackers.
+```
+
+A throw at module evaluation takes the whole client chunk with it, which
+is why the entire page failed rather than just the control.
+
+**Why every local check passed.** `next build` succeeds - the import is
+perfectly legal, it just has a fatal runtime consequence. `next dev` served
+the page fine. Every Playwright run had been against `next dev`, where the
+module graph is assembled differently, so the browser-side throw never
+happened. The gap was never having loaded the app the way Vercel runs it:
+`next build` followed by `next start`.
+
+**Why this file and not the one it replaced.** `lib/effort.js`, which the
+depth dial replaced, has no imports at all - its own header says it lives
+apart from `app/actions.js` precisely so it can be read from anywhere. The
+new file quietly gave up that property to pick up two constants, and
+nothing said so.
+
+### Fixed, and made unrepeatable
+
+1. `lib/suggest-depth.js` is pure again - labels, hints, default,
+   normalizer, no imports. The depth-to-model mapping moved to
+   `lib/suggest-model.js`, which only the server reads. Same split as
+   `research-job.js` / `research-dispatch.js`, for the same reason.
+2. **`import "server-only"` at the top of `lib/anthropic.js` and
+   `lib/prisma.js`.** This is the part that matters. It turns the mistake
+   into a failed build that names the chain:
+   ```
+   ./lib/anthropic.js [Client Component Browser]
+   ./lib/suggest-depth.js [Client Component Browser]
+   ./app/components/SuggestForm.js [Client Component Browser]
+   ```
+   Verified by deliberately reintroducing the bad import: the build exits
+   1 with exactly that message.
+
+### Verified against a production build, not dev
+
+Every page loaded through `next build` + `next start`: all 12 return 200
+with no error boundary and no page errors, the depth control defaults to
+Standard and switches to Master Sommelier, and the Anthropic SDK is gone
+from `.next/static/chunks`. An audit of all 36 client components (treating
+`"use server"` files as the boundary they are) found nothing else reaching
+a server-only module.
+
+**The lasting lesson is about the checks, not the import.** A whole page
+was broken by a change that built cleanly and ran cleanly in dev. Anything
+touching what a client component imports wants a production-build check
+before it ships, and `next dev` alone cannot stand in for one.
