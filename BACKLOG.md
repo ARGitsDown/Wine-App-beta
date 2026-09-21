@@ -1395,9 +1395,45 @@ in 2026 so these are the last bottles to drink. That query cost Opus $0.40
 and 74.6s, against Sonnet's $0.05 and 37.6s.
 
 Sonnet was never *wrong* - every pick was defensible and factually sound.
-The recommendation for multi-user: keep Opus for the owner, route additional
-accounts to Sonnet. Six times the queries per dollar of cap, for an answer
-that is narrower rather than incorrect.
+
+**Acted on the same day: Suggest's dial is now a model choice.** The effort
+dial and a model dial were competing to express one intent - how much do I
+want spent on this answer - and only one of them had ever been measured, so
+the measured one won. `lib/suggest-depth.js` replaces `EFFORT_LEVELS` on
+Suggest with two rungs: **Standard** (Sonnet, the default) and **Master
+Sommelier** (Opus). The labels are the owner's.
+
+Two rungs rather than three, deliberately. The two things measured *are* the
+two models; a third rung would have been the same model with a thinking
+tweak, making the control read as three equal steps when it would really be
+one large step and one small one. `xhigh` is no longer reachable from
+Suggest - a removal, not just a non-addition - on the grounds that the
+hardest query in the set already took Opus 74.6s at default effort, and the
+wait is what the owner actually pays standing in the kitchen. Adding it back
+is one entry in one array if a reason ever appears.
+
+**Sonnet is the default, and that changed behaviour** - Suggest previously
+always ran Opus. Justified by the measurement above: on direct "this dish,
+what wine" pairings the two led with the same bottle every time. The cost is
+that an open-ended request gets the narrower answer unless the owner
+escalates, which is one tap. This also gives the multi-user plan its cost
+control for free: non-owner accounts pinned to Standard is a setting that
+now exists rather than a special case to build.
+
+`SavedPairing.effort` became `SavedPairing.depth`, with every existing row
+set to `sommelier` - all of them ran on Opus, because that was the only
+model Suggest ever used. Mapping by the old *labels* instead (the level
+called "Quick" becoming the rung called "Standard") would have looked
+tidier and recorded a falsehood: that a pairing was answered by Sonnet when
+it was not, so refining it would quietly run a different model than the one
+whose answer is on the page.
+
+One casualty worth noting: `lib/effort.js` used to argue against model
+routing on the grounds that prompt caches are keyed per model, so switching
+would forfeit the hit. True, and measured at $0.019 (Opus) or $0.008
+(Sonnet) per switch against query costs of $0.03-$0.19 - an order of
+magnitude too small to decide anything. That comment is corrected rather
+than left standing.
 
 **For the usage ledger (`FUTURE_CAPABILITIES.md`), the unit costs are:**
 Suggest $0.03 (Sonnet) / $0.19 (Opus); research $0.073/bottle at `low`,

@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 // Runs the same Suggest request against Opus and Sonnet side by side, so
 // you can judge for yourself whether the heavier model is earning its cost
-// on this call - see BACKLOG's model-choice discussion and
-// lib/anthropic.js's own comment on why Suggest is the one call routed to
-// REASONING_MODEL instead of EXTRACTION_MODEL.
+// on this call - see BACKLOG #23 for the run this script produced and what
+// was decided from it.
+//
+// That decision has since landed: Suggest no longer picks a model for you.
+// The owner's dial chooses one (lib/suggest-depth.js - "Standard" is
+// Sonnet and the default, "Master Sommelier" is Opus), so this script now
+// measures the two rungs of a live control rather than arguing about a
+// hardcoded choice. Still worth re-running whenever the system prompt, the
+// tool schemas or the models themselves change, since the whole basis of
+// that control is a measurement that can go stale.
 //
 // This is a standalone script, not part of the running app, because
 // getSuggestions lives in app/actions.js - a "use server" file, where every

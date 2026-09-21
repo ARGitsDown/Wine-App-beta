@@ -7,7 +7,7 @@ import PairingTitle from "@/app/components/PairingTitle";
 import PairingPicksList from "@/app/components/PairingPicksList";
 import BackButton from "@/app/components/BackButton";
 import { SUGGESTION_CHARACTERS } from "@/lib/suggestion-character";
-import { EFFORT_LEVELS } from "@/lib/effort";
+import { DEPTH_LEVELS } from "@/lib/suggest-depth";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +84,7 @@ export default async function PairingDetailPage({ params }) {
         <p className="whitespace-pre-wrap text-sm">{pairing.request}</p>
         <p className="text-xs text-zinc-500">
           {labelFor(SUGGESTION_CHARACTERS, pairing.character)} ·{" "}
-          {labelFor(EFFORT_LEVELS, pairing.effort)} effort ·{" "}
+          {labelFor(DEPTH_LEVELS, pairing.depth)} ·{" "}
           {pairing.includeOutside
             ? "wines outside the cellar allowed"
             : "cellar only"}

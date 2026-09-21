@@ -14,7 +14,7 @@ import {
   SUGGESTION_CHARACTERS,
   DEFAULT_CHARACTER,
 } from "@/lib/suggestion-character";
-import { EFFORT_LEVELS, DEFAULT_EFFORT } from "@/lib/effort";
+import { DEPTH_LEVELS, DEFAULT_DEPTH } from "@/lib/suggest-depth";
 
 const buttonClass =
   "self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
@@ -65,7 +65,7 @@ export default function SuggestForm({ initial = null }) {
   const [character, setCharacter] = useState(
     initial?.character ?? DEFAULT_CHARACTER
   );
-  const [effort, setEffort] = useState(initial?.effort ?? DEFAULT_EFFORT);
+  const [depth, setDepth] = useState(initial?.depth ?? DEFAULT_DEPTH);
   // Seeded once from whether the three settings already differ from their
   // defaults - the same rule FilterBar's panel uses for itself
   // (`hasAnyFilter`, seeded once on mount). That covers a refine load from a
@@ -73,7 +73,7 @@ export default function SuggestForm({ initial = null }) {
   // it covers FilterBar's bookmarked-URL case, without resetting every time
   // a new result comes in - left open once opened, same as FilterBar.
   const [optionsOpen, setOptionsOpen] = useState(
-    () => character !== DEFAULT_CHARACTER || effort !== DEFAULT_EFFORT || includeOutside
+    () => character !== DEFAULT_CHARACTER || depth !== DEFAULT_DEPTH || includeOutside
   );
   const [savedGapIds, setSavedGapIds] = useState(new Set());
   // Which gap cards have their wishlist form showing. Held here rather than
@@ -103,7 +103,7 @@ export default function SuggestForm({ initial = null }) {
       request,
       includeOutside,
       character,
-      effort
+      depth
     );
     if (response.error) {
       setError(response.error);
@@ -211,7 +211,7 @@ export default function SuggestForm({ initial = null }) {
             <span className="ml-2 text-zinc-500">
               {SUGGESTION_CHARACTERS.find((option) => option.value === character)?.label}
               {" · "}
-              {EFFORT_LEVELS.find((option) => option.value === effort)?.label} effort
+              {DEPTH_LEVELS.find((option) => option.value === depth)?.label}
               {" · "}
               {includeOutside ? "cellar + outside" : "cellar only"}
             </span>
@@ -271,28 +271,35 @@ export default function SuggestForm({ initial = null }) {
             {/* Deliberately the same shape as Character above rather than a
                 smaller control: they are two settings you make in the same
                 breath, and one of them looking like an afterthought would
-                suggest it mattered less. Balanced is what every request did
-                before this existed, so leaving it alone changes nothing. */}
+                suggest it mattered less.
+
+                Two options rather than three, and Standard is the default.
+                What this moves is which model answers - measured at 6.1x
+                the cost and 1.9x the wait for the better one (see
+                lib/suggest-depth.js) - so the rungs are genuinely far
+                apart, where a third would have been a small step after a
+                large one. The selected option's hint says the wait out
+                loud, because that is the part actually paid at the time. */}
             <fieldset className="flex flex-col gap-1.5">
               <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-                Effort
+                Depth
               </legend>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {EFFORT_LEVELS.map((option) => (
+                {DEPTH_LEVELS.map((option) => (
                   <label key={option.value} className="flex items-center gap-1.5 text-sm">
                     <input
                       type="radio"
-                      name="effort"
+                      name="depth"
                       value={option.value}
-                      checked={effort === option.value}
-                      onChange={() => setEffort(option.value)}
+                      checked={depth === option.value}
+                      onChange={() => setDepth(option.value)}
                     />
                     {option.label}
                   </label>
                 ))}
               </div>
               <p className="text-xs text-zinc-500">
-                {EFFORT_LEVELS.find((option) => option.value === effort)?.hint}
+                {DEPTH_LEVELS.find((option) => option.value === depth)?.hint}
               </p>
             </fieldset>
           </div>

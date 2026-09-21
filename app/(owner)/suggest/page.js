@@ -28,7 +28,7 @@ export default async function SuggestPage({ searchParams }) {
             title: true,
             request: true,
             character: true,
-            effort: true,
+            depth: true,
             includeOutside: true,
           },
         })

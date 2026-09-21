@@ -398,7 +398,14 @@ model SavedPairing {
   // iterating would be a feature rather than four columns.
   request        String
   character      String
-  effort         String
+  // Which model answered: "standard" (Sonnet) or "sommelier" (Opus). Was
+  // `effort` and held a thinking-budget level, back when Suggest always
+  // ran on Opus and the dial only changed how long it thought. Renamed
+  // rather than reused because the column records what was in force, and
+  // what is in force is now a different fact about the request - leaving
+  // the old name would have meant a column called effort holding a model.
+  // See lib/suggest-depth.js for what the two levels cost and buy.
+  depth          String
   includeOutside Boolean
   // The model's "why these". Nullable because it is the argument, not the
   // identity: a pairing with its picks and their reasons is still whole

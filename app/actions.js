@@ -3,8 +3,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
-import { anthropic, EXTRACTION_MODEL, REASONING_MODEL } from "@/lib/anthropic";
-import { DEFAULT_EFFORT, normalizeEffort, outputConfig } from "@/lib/effort";
+import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
+import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
+import { DEFAULT_DEPTH, normalizeDepth, depthConfig } from "@/lib/suggest-depth";
 import { normalizeCharacter } from "@/lib/suggestion-character";
 import {
   wineLabelForBottle,
@@ -1100,7 +1101,7 @@ export async function getSuggestions(
   request,
   includeOutside = false,
   character = null,
-  effort = DEFAULT_EFFORT
+  depth = DEFAULT_DEPTH
 ) {
   const text = String(request || "").trim();
   if (!text) return { error: "Describe what you're working with first." };
@@ -1108,7 +1109,7 @@ export async function getSuggestions(
   // Normalized once, so the prompt, the API request and the copy handed
   // back for saving all describe the same three settings.
   const steer = normalizeCharacter(character);
-  const level = normalizeEffort(effort);
+  const level = normalizeDepth(depth);
   const outside = Boolean(includeOutside);
 
   const messages = [{ role: "user", content: text }];
@@ -1124,14 +1125,17 @@ export async function getSuggestions(
     // record_suggestions, but this caps it in case the model keeps browsing.
     for (let turn = 0; turn < 6; turn++) {
       const response = await anthropic.messages.create({
-        model: REASONING_MODEL,
+        // The owner's dial, and the only thing it moves. Constant for the
+        // whole loop, so it never invalidates the prefix cached below
+        // mid-run; across runs each model keeps its own cached copy of
+        // that prefix, since caches are keyed per model. Measured, that
+        // costs one cache write the first time a depth is used - $0.019 on
+        // Opus, $0.008 on Sonnet, against query costs of $0.03 to $0.19.
+        // Real, and far too small to keep the cheaper model off the table.
+        ...depthConfig(depth),
         max_tokens: 8192,
         thinking: { type: "adaptive" },
-        // The owner's dial. Constant for the whole loop, so it never
-        // invalidates the prefix cached below mid-run; across runs each
-        // level keeps its own cached copy of that prefix, which costs one
-        // cache write the first time a level is used.
-        output_config: outputConfig(level),
+        output_config: outputConfig(DEFAULT_EFFORT),
         // Tools render before system, so one breakpoint here covers both.
         // The request text and every browse result live in messages, after
         // the prefix, so nothing volatile is inside it. The cache key
@@ -1200,7 +1204,7 @@ export async function getSuggestions(
               request: text,
               character: steer,
               includeOutside: outside,
-              effort: level,
+              depth: level,
             },
           },
         };
@@ -2686,7 +2690,7 @@ export async function savePairing(input) {
         title,
         request: request.slice(0, MAX_PAIRING_TEXT),
         character: normalizeCharacter(input?.character),
-        effort: normalizeEffort(input?.effort),
+        depth: normalizeDepth(input?.depth),
         includeOutside: Boolean(input?.includeOutside),
         summary: trimmedOrNull(input?.summary, MAX_PAIRING_TEXT),
         picks: { create: picks },
