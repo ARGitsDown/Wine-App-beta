@@ -1,9 +1,9 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
+import { aiErrorMessage } from "@/lib/ai-errors";
 import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
 import { DEFAULT_DEPTH, normalizeDepth, depthConfig } from "@/lib/suggest-depth";
 import { normalizeCharacter } from "@/lib/suggestion-character";
@@ -866,17 +866,12 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
     }
     return { error: "Could not read that photo. Try a clearer, well-lit photo." };
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      return { error: "The photo reader isn't configured correctly (invalid API key)." };
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      return { error: "Too many photos at once — wait a moment and try again." };
-    }
-    if (err instanceof Anthropic.APIError) {
-      return { error: `Photo reader error: ${err.message}` };
-    }
     return {
-      error: "Something went wrong reading that photo. Please try again or enter the details manually.",
+      error: aiErrorMessage(err, {
+        busy: "Too many photos at once — wait a moment and try again.",
+        fallback:
+          "Something went wrong reading that photo. Please try again or enter the details manually.",
+      }),
     };
   }
 }
@@ -1231,16 +1226,12 @@ export async function getSuggestions(
     }
     return { error: "Couldn't come up with a recommendation for that. Try again in a moment." };
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      return { error: "The suggestion feature isn't configured correctly (invalid API key)." };
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      return { error: "Too many requests at once — wait a moment and try again." };
-    }
-    if (err instanceof Anthropic.APIError) {
-      return { error: `Suggestion error: ${err.message}` };
-    }
-    return { error: "Something went wrong getting suggestions. Please try again." };
+    return {
+      error: aiErrorMessage(err, {
+        busy: "Too many requests at once — wait a moment and try again.",
+        fallback: "Something went wrong getting suggestions. Please try again.",
+      }),
+    };
   }
 }
 
@@ -1435,16 +1426,12 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT) {
     }
     return { error: "That research is taking too long. Please try again." };
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      return { error: "The research feature isn't configured correctly (invalid API key)." };
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      return { error: "Too many requests at once — wait a moment and try again." };
-    }
-    if (err instanceof Anthropic.APIError) {
-      return { error: `Research error: ${err.message}` };
-    }
-    return { error: "Something went wrong researching that bottle. Please try again." };
+    return {
+      error: aiErrorMessage(err, {
+        busy: "Too many requests at once — wait a moment and try again.",
+        fallback: "Something went wrong researching that bottle. Please try again.",
+      }),
+    };
   }
 }
 
@@ -2045,16 +2032,12 @@ export async function estimateDrinkWindows(bottleIds) {
     revalidatePath("/inventory");
     return { data: { updated, total: bottles.length, fromCache } };
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      return { error: "The estimate feature isn't configured correctly (invalid API key)." };
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      return { error: "Too many requests at once — wait a moment and try again." };
-    }
-    if (err instanceof Anthropic.APIError) {
-      return { error: `Estimate error: ${err.message}` };
-    }
-    return { error: "Something went wrong estimating that batch. Please try again." };
+    return {
+      error: aiErrorMessage(err, {
+        busy: "Too many requests at once — wait a moment and try again.",
+        fallback: "Something went wrong estimating that batch. Please try again.",
+      }),
+    };
   }
 }
 
@@ -2132,16 +2115,12 @@ export async function estimateWindowForBottle(id) {
       data: { drinkFrom: estimate.drinkFrom, drinkTo: estimate.drinkTo, fromCache: false },
     };
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      return { error: "The estimate feature isn't configured correctly (invalid API key)." };
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      return { error: "Too many requests at once — wait a moment and try again." };
-    }
-    if (err instanceof Anthropic.APIError) {
-      return { error: `Estimate error: ${err.message}` };
-    }
-    return { error: "Something went wrong estimating that one. Please try again." };
+    return {
+      error: aiErrorMessage(err, {
+        busy: "Too many requests at once — wait a moment and try again.",
+        fallback: "Something went wrong estimating that one. Please try again.",
+      }),
+    };
   }
 }
 
@@ -2275,16 +2254,12 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
     if (finalCall) return { data: finalCall.input };
     return { error: "Couldn't read that photo. Please try again." };
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      return { error: "The photo reader isn't configured correctly (invalid API key)." };
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      return { error: "Too many requests at once — wait a moment and try again." };
-    }
-    if (err instanceof Anthropic.APIError) {
-      return { error: `Photo reader error: ${err.message}` };
-    }
-    return { error: "Something went wrong reading that photo. Please try again." };
+    return {
+      error: aiErrorMessage(err, {
+        busy: "Too many requests at once — wait a moment and try again.",
+        fallback: "Something went wrong reading that photo. Please try again.",
+      }),
+    };
   }
 }
 
