@@ -2011,9 +2011,31 @@ no memory of this session, but it reads the live files each run, so it
 caught a real gap the tab-bar change left behind without needing to be
 told anything happened.
 
+
+### Status, reconciled 2026-09-21
+
+Findings **1, 2, 4 and 7 were built during the 2026-09-20/21 sessions** and
+this list was never updated to say so - the backlog was claiming open work
+that had shipped, which is the kind of drift that makes a backlog stop
+being worth reading. Struck through above, with what landed:
+
+- **1** - `lib/drink-window.js` puts one short phrase on the cellar row and
+  the bottle page, "estimated" at the same weight as the rest of the line.
+- **2** - `ResearchProposalCard` wraps Accept in `ConfirmButton` naming the
+  fields it will change, and "Keep as is" became "Discard this research"
+  with its own confirm.
+- **4** - `undoOneTasted` / `unmarkFlightPickConsumed`, surfaced through
+  `TastedControls` so the Undo survives the status flip.
+- **7** - `FlightPicksList`: number and title collapsed, reason and
+  controls on expand.
+
+**Still open: 3, 5, 6, 8.** Of those, **6 is a real bug** rather than a
+polish item - a manually-typed Scan card saves but is still counted as
+unsaved, so the flow warns about losing work that is already on disk.
+
 ### Breaks the task
 
-1. **The drinking window is invisible everywhere except one bottle's own
+1. ~~**The drinking window is invisible everywhere except one bottle's own
    page**, and hard to read even there. `BottleList.js` shows
    producer/bottling/vintage/type/region on a cellar row but never the
    window, even though "Drink soon" is the app's own sort. The one place it
@@ -2030,7 +2052,7 @@ told anything happened.
    region/country (#22, already on the row) - may need its own
    visual-priority pass rather than just appending a fifth fact to an
    already-busy line.
-2. **Research accept/dismiss is one irreversible tap, unconfirmed**, unlike
+2. ~~**Research accept/dismiss is one irreversible tap, unconfirmed**, unlike
    every other destructive action in the app. `ResearchProposalCard.js:
    145-172` - "Accept N changes" overwrites fields and deletes the proposal
    in one transaction (`app/actions.js:1520-1533`); "Keep as is" also
@@ -2051,7 +2073,7 @@ told anything happened.
    exists on the bottle's own page. Proposed fix: add that same button to
    the expanded cellar row, and relabel the stepper "Correct the count" so
    the two read as different questions.
-4. **"Mark as tasted" in a flight can't be undone, and the app is unsure
+4. ~~**"Mark as tasted" in a flight can't be undone, and the app is unsure
    what it should even mean.** Marking a `FlightPick` consumed
    (`app/actions.js:2303`) only flips a boolean - the cellar's own quantity
    is untouched, so "tasted" means something different here than it does on
@@ -2083,7 +2105,7 @@ told anything happened.
    (`ScanPanel.js:67-75`), but the manual-save path only sets `status:
    "saved"` and leaves `kind: "draft"`, so the batch summary keeps calling
    a wine you already saved "still to save."
-7. **The Flights collapse (this session's own change) doesn't save as much
+7. ~~**The Flights collapse (this session's own change) doesn't save as much
    space as intended, and two controls inside it are worth a second look
    regardless of the collapse.** A collapsed pick is still ~130px because
    the Order/Remove strip and the Mark-as-tasted/Log-a-note row both render
