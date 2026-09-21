@@ -13,10 +13,15 @@ export SMOKE_BASE_URL="http://localhost:${PORT}"
 # A real key is never needed: the smoke test opens pages, it does not ask
 # Claude anything. A placeholder keeps the SDK constructor happy.
 export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-smoke-test-placeholder}"
-# Tells the smoke test which rules apply. Derived from the same three
-# variables lib/auth.js reads, so the test's idea of "are accounts on"
-# cannot drift from the app's.
-if [ -n "${AUTH_SECRET:-}" ] && [ -n "${AUTH_GOOGLE_ID:-}" ] && [ -n "${AUTH_GOOGLE_SECRET:-}" ]; then
+# Tells the smoke test which rules apply. Mirrors isAuthConfigured() in
+# lib/auth.js field for field - AUTH_SECRET plus either provider's own
+# pair - so the test's idea of "are accounts on" cannot drift from the
+# app's. Two providers exist now (Google, email via Resend) and either one
+# alone is enough to flip this on, same as the app.
+if [ -n "${AUTH_SECRET:-}" ] && {
+     { [ -n "${AUTH_GOOGLE_ID:-}" ] && [ -n "${AUTH_GOOGLE_SECRET:-}" ]; } ||
+     { [ -n "${AUTH_RESEND_KEY:-}" ] && [ -n "${AUTH_RESEND_FROM:-}" ]; }
+   }; then
   export SMOKE_AUTH_CONFIGURED="true"
   # next start runs in production mode without Vercel's own env, where
   # Auth.js refuses an untrusted host. On Vercel this is automatic.

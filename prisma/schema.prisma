@@ -102,10 +102,13 @@ model Session {
   @@index([userId])
 }
 
-// Unused today - it belongs to the email/"magic link" provider, and this
-// app only offers Google. Created anyway because the adapter is a single
-// object that implements every method, and one that references a missing
-// table fails at the moment someone tries the flow rather than at setup.
+// Backs the email/"magic link" sign-in door (lib/auth.js), the second
+// route in alongside Google - one row per link sent, deleted the moment
+// it is used or once it expires. Created in the original Phase 1
+// migration before that second door existed, on the grounds that the
+// adapter is a single object that implements every method and one that
+// references a missing table fails at the moment someone tries the flow
+// rather than at setup; no new migration was needed to put it to use.
 model VerificationToken {
   identifier String
   token      String

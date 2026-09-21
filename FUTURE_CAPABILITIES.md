@@ -25,9 +25,16 @@ for someone who wants their own.
    flights and pairings. No household/shared-bottle concept. Sharing
    stays what it is today: the guest link, for letting someone browse
    yours.
-3. **Google OAuth.** No passwords stored, no reset flow to own, no
+3. **Google OAuth, plus a password-free fallback for anyone without a
+   Google account.** No passwords stored, no reset flow to own, no
    credential breach to worry about. **Library settled: Auth.js
-   (`next-auth@5`) — see "The OAuth question, answered" below.**
+   (`next-auth@5`) — see "The OAuth question, answered" below.** Built
+   2026-09-21 with two independent sign-in doors: Google, and a magic-link
+   email option (Auth.js's Resend provider) for anyone invited who has no
+   Google account or doesn't want to use one. Either can run alone or both
+   together; nothing downstream of "who is this person" - the invite
+   check, the adapter's cellar-adoption logic, ownership - cares which
+   door was used.
 4. **Per-account usage limits** on the AI features (see below).
 
 ### Two corrections to the original sketch
@@ -140,9 +147,12 @@ Staged so nothing is a leap, and each phase is independently shippable:
   email on its own, for good reasons. Get this wrong and the owner signs in
   to a brand-new empty cellar while their real one sits under `seed-owner`,
   which looks exactly like data loss even though nothing was lost.
-- **Phase 1 — accounts and sessions.** Google OAuth, invite-only. Existing
-  data maps to the owner's account. The app stays single-user in practice;
-  it just knows who you are now, and the front door closes.
+- ~~**Phase 1 — accounts and sessions.**~~ **Done 2026-09-21.** Google OAuth
+  and magic-link email, invite-only, dormant until an owner sets the
+  variables for at least one of them. Existing data maps to the owner's
+  account via the adopt-not-create `createUser` override. The app stays
+  single-user in practice; it just knows who you are now, and the front
+  door closes.
 - **Phase 2 — scoping.** The extension goes in, queries filter by owner,
   `/guest` keeps working. This is where the leak risk lives, so it wants a
   deliberate test: a second account proving it cannot see the first's

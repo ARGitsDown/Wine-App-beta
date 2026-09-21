@@ -8,7 +8,7 @@ const initial = { error: null, success: false };
 // Its own client component so the form can report a refused address
 // ("already invited", "that isn't an email") in place, rather than the
 // page having to reload to say so.
-export default function InviteForm() {
+export default function InviteForm({ googleConfigured }) {
   const [state, formAction, pending] = useActionState(inviteSomeone, initial);
 
   return (
@@ -45,17 +45,23 @@ export default function InviteForm() {
       )}
       {state?.success && (
         <p role="status" className="text-sm text-green-700 dark:text-green-400">
-          Invited. They can sign in with that Google address.
+          Invited. They can sign in with that address now.
         </p>
       )}
-      {/* The single most common way this goes wrong, and it is invisible
-          from inside the app: Google refuses accounts that are not test
-          users while the OAuth consent screen is still in Testing. */}
-      <p className="text-xs text-zinc-500">
-        While the Google consent screen is in Testing, this address also has
-        to be added as a Test user in Google Cloud — otherwise Google turns
-        them away before this app ever sees them.
-      </p>
+      {/* Google-specific, so only shown when Google is actually a door
+          someone might use - a caveat about a screen this address will
+          never see is just noise on an email-only setup. The single most
+          common way the Google side goes wrong, and it is invisible from
+          inside this app: Google refuses accounts that are not test users
+          while the OAuth consent screen is still in Testing. */}
+      {googleConfigured && (
+        <p className="text-xs text-zinc-500">
+          If they&apos;ll sign in with Google: while the consent screen is
+          in Testing, this address also has to be added as a Test user in
+          Google Cloud — otherwise Google turns them away before this app
+          ever sees them.
+        </p>
+      )}
     </form>
   );
 }

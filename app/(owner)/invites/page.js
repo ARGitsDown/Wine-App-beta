@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isAuthConfigured } from "@/lib/auth";
+import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
 import { revokeInvite } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
@@ -28,8 +28,8 @@ export default async function InvitesPage() {
         <h1 className="text-2xl font-semibold">Who can sign in</h1>
         <p className="text-sm text-zinc-500">
           This cellar is invite-only. An address has to be on this list
-          before its owner can sign in with Google — there is no open
-          registration and no other way in.
+          before it can sign in, whether with Google or by email link —
+          there is no open registration and no other way in.
         </p>
       </div>
 
@@ -41,15 +41,14 @@ export default async function InvitesPage() {
         <p className="rounded-lg border border-amber-300 p-3 text-sm dark:border-amber-900">
           Accounts aren&apos;t switched on yet, so nobody can sign in at all
           — including the people below. You can build the list now and it
-          will take effect the moment{" "}
-          <code className="text-xs">AUTH_GOOGLE_ID</code> and its companions
-          are set. See <code className="text-xs">.env.example</code>.
+          will take effect the moment a sign-in door is set up — Google or
+          email, see <code className="text-xs">.env.example</code>.
         </p>
       )}
 
       <section className="flex flex-col gap-3">
         <h2 className="font-medium">Invite someone</h2>
-        <InviteForm />
+        <InviteForm googleConfigured={isGoogleConfigured()} />
       </section>
 
       <section className="flex flex-col gap-3">

@@ -56,6 +56,7 @@ const PAGES = [
   // the thing it exists to get you through.
   { path: "/guest" },
   { path: "/signin" },
+  { path: "/signin/check-email" },
   // A route handler, so it is NOT covered by the guard in the owner
   // layout - layouts do not wrap route handlers. It carries its own check,
   // and this asserts it, because the version without one returned the
