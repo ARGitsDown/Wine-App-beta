@@ -316,6 +316,58 @@ model ResearchProposal {
   createdAt DateTime @default(now())
 }
 
+// One run of "Research all", as a row rather than as a closure.
+//
+// The bulk pass has been rewritten twice for the same reason, and this
+// table is the third and last version of the answer. Originally the
+// chunking lived in the browser, so navigating away stopped the run dead.
+// Moving the chunking server-side and chaining with `after()` fixed that
+// but bounded the whole queue to one invocation's timeout, which is a
+// ceiling the browser loop never had - a long enough queue just stopped
+// partway, looking exactly like the bug it replaced.
+//
+// Both versions had the same root flaw: the queue only existed in memory,
+// so its life was tied to something that dies. Here it is a row. Each step
+// reads what is left, does what it can afford inside its own timeout,
+// writes back, and asks for a fresh invocation to continue - so the total
+// run has no ceiling, and the progress the page shows is the real server
+// state rather than a counter in a tab that may not be open.
+model ResearchJob {
+  id Int @id @default(autoincrement())
+  // What each step has to present to be allowed to run, since the step
+  // endpoint is a plain HTTP route and the app has no auth in front of it
+  // yet (see FUTURE_CAPABILITIES.md). A per-job random value rather than a
+  // shared deployment secret: it needs no configuration to be correct, it
+  // is useless once its own job is finished, and it never reaches the
+  // browser - only the server ever reads or sends it.
+  token String @unique
+
+  // The queue as it was requested: the denominator of the progress bar,
+  // and the record of what this run was asked to do.
+  bottleIds  Int[]
+  // What is still owed. Rewritten after each step rather than advanced by
+  // an index, because a step finishes whole *questions* (duplicate wines
+  // are researched once and the answer shared), which do not line up with
+  // contiguous slices of the list.
+  pendingIds Int[]
+
+  researched Int @default(0)
+  failed     Int @default(0)
+
+  // "running" until pendingIds empties, then "done". No "failed" state: a
+  // bottle whose research fails is counted in `failed` and the run carries
+  // on, which is the behaviour the queue has always had.
+  status String @default("running")
+
+  createdAt DateTime @default(now())
+  // Touched by every step, which is what lets a reader tell a run that is
+  // working from one whose chain broke mid-flight (a deploy, a crash)
+  // without a heartbeat column of its own.
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
 // A pairing worth keeping. Its own table rather than a row in
 // TastingFlight, for three reasons that all point the same way.
 //

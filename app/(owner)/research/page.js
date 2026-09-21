@@ -2,27 +2,25 @@ import { prisma } from "@/lib/prisma";
 import { getRegionOptions } from "@/lib/bottles";
 import ResearchProposalCard from "@/app/components/ResearchProposalCard";
 import ResearchQueue from "@/app/components/ResearchQueue";
+import { ResearchRunProvider, ResearchRunProgress } from "@/app/components/ResearchRun";
 
 export const dynamic = "force-dynamic";
 
 // Server Actions inherit their timeout from the page they're called on
 // (Next's own maxDuration reference says to set it at the page level for
-// exactly this), and researchBottles is the longest-running thing in the
-// app by some distance: a live web search per bottle, chained step after
-// step through `after()`. Left unset it ran on the platform default,
-// which is where a bulk run was dying partway through and looking like
-// the navigate-away bug it was supposed to have fixed.
+// exactly this). A bulk run no longer spends that budget - researchBottles
+// writes a job row, hands the first step to /api/research/step and
+// returns, and each step after that gets its own 60s there - but two
+// things on this page still want the room: researching one bottle from a
+// row below, which is a live web search inline, and the fallback path
+// researchBottles takes if a handoff can't be made, which finishes the
+// queue inside this invocation the way the previous version did.
 //
 // 60 rather than the higher value the hosting plan may well allow: a
 // maxDuration above the plan's own ceiling is a deploy-time failure, and
-// a conservative number that ships beats an ambitious one that breaks
-// the build. Raise it if the plan permits - that is a one-line change
-// and worth making, since it multiplies how much of a queue finishes.
-//
-// This raises the ceiling; it does not remove it. The whole chain still
-// lives inside one invocation, so a long enough queue will still run out
-// of room - see BACKLOG #17 for the per-step-invocation rewrite that
-// actually makes the total length unbounded.
+// a conservative number that ships beats an ambitious one that breaks the
+// build. Raising it now only lengthens that fallback, which is the path
+// nothing should be taking.
 export const maxDuration = 60;
 
 export default async function ResearchQueuePage() {
@@ -31,7 +29,7 @@ export default async function ResearchQueuePage() {
   // proposal exists). A proposal can also exist for a bottle nobody
   // flagged - you can research anything from its own page - so the review
   // list is driven by the proposals, not by the flag.
-  const [proposals, toResearch, regionOptions] = await Promise.all([
+  const [proposals, toResearch, regionOptions, activeJob] = await Promise.all([
     prisma.researchProposal.findMany({
       include: { bottle: true },
       orderBy: { createdAt: "desc" },
@@ -41,57 +39,95 @@ export default async function ResearchQueuePage() {
       orderBy: { producer: "asc" },
     }),
     getRegionOptions(),
+    // A bulk run outlives the tab that started it, so the page has to be
+    // able to find one already in flight - otherwise coming back to watch
+    // it would show an idle button while the server was mid-queue, which
+    // is the exact confusion this whole feature exists to end. Newest
+    // first, and only one: two overlapping runs would be a mistake worth
+    // showing as one bar rather than two.
+    prisma.researchJob.findFirst({
+      where: { status: "running" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        bottleIds: true,
+        researched: true,
+        failed: true,
+        status: true,
+        updatedAt: true,
+      },
+    }),
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Research</h1>
-        <p className="text-sm text-zinc-500">
-          Bottles the scan feature wasn&apos;t fully confident about, and
-          what a web search turned up for them. Nothing is saved until you
-          accept it.
-        </p>
+    <ResearchRunProvider
+      activeJob={
+        activeJob && {
+          id: activeJob.id,
+          total: activeJob.bottleIds.length,
+          researched: activeJob.researched,
+          failed: activeJob.failed,
+          status: activeJob.status,
+          updatedAt: activeJob.updatedAt.toISOString(),
+        }
+      }
+    >
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
+        <div className="flex flex-col gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold">Research</h1>
+            <p className="text-sm text-zinc-500">
+              Bottles the scan feature wasn&apos;t fully confident about, and
+              what a web search turned up for them. Nothing is saved until you
+              accept it.
+            </p>
+          </div>
+          {/* Above the results rather than below them: a run fills "Ready
+              to review" as it goes, so a bar living down beside the button
+              that started it would be pushed further off-screen the better
+              it was doing. */}
+          <ResearchRunProgress />
+        </div>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="font-medium">
+            Ready to review
+            {proposals.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-zinc-500">
+                {proposals.length}
+              </span>
+            )}
+          </h2>
+          {proposals.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              Nothing researched and waiting. Run one below.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {proposals.map((proposal) => (
+                <ResearchProposalCard
+                  key={proposal.id}
+                  bottle={proposal.bottle}
+                  proposal={proposal}
+                  regionOptions={regionOptions}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="font-medium">
+            To research
+            {toResearch.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-zinc-500">
+                {toResearch.length}
+              </span>
+            )}
+          </h2>
+          <ResearchQueue bottles={toResearch} />
+        </section>
       </div>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="font-medium">
-          Ready to review
-          {proposals.length > 0 && (
-            <span className="ml-2 text-sm font-normal text-zinc-500">
-              {proposals.length}
-            </span>
-          )}
-        </h2>
-        {proposals.length === 0 ? (
-          <p className="text-sm text-zinc-500">
-            Nothing researched and waiting. Run one below.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {proposals.map((proposal) => (
-              <ResearchProposalCard
-                key={proposal.id}
-                bottle={proposal.bottle}
-                proposal={proposal}
-                regionOptions={regionOptions}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="font-medium">
-          To research
-          {toResearch.length > 0 && (
-            <span className="ml-2 text-sm font-normal text-zinc-500">
-              {toResearch.length}
-            </span>
-          )}
-        </h2>
-        <ResearchQueue bottles={toResearch} />
-      </section>
-    </div>
+    </ResearchRunProvider>
   );
 }

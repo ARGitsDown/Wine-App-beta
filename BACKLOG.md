@@ -782,19 +782,91 @@ All three verified still open against the current scan code.
   in the database afterward, sequential and distinct, proving the chain
   kept running server-side with nothing left connected to it.
 
-  Known, accepted gap: returning to `/research` *while* a chain is still
-  mid-run and clicking "Research all" again on the same still-shrinking
-  list could double-queue whatever the first run hasn't reached yet -
-  wasted search cost, not data loss (a later proposal just overwrites an
-  earlier one for the same bottle). Guarding against that needs a
-  server-side "already queued" marker, which is more than this pass
-  needed for a single-user app where that requires a fairly deliberate
-  double-click of the same button within the same run.
-- **Research has no progress bar, though scanning does.** The text count
-  is there ("Researching… 2 of 7") but not the filling bar a photo batch
-  gets, which is the part that reads as progress rather than as a stall.
-  Scanning and `/estimate-windows` have each grown their own; lifting one
-  into a shared component would settle all three.
+  **Finished properly on 2026-09-21**, because the version above was only
+  two thirds of the answer and the owner could feel the missing third:
+  "multiple bottles can be researched, but I believe navigating away
+  breaks it." It didn't - what broke it was the ceiling that fix had
+  quietly introduced. `after()` runs past the response but still inside
+  the invocation that scheduled it, so the whole chain shared one timeout.
+  The browser loop never had that limit: each batch was its own request
+  and got its own budget. So a long queue now stopped partway, which from
+  the outside looks exactly like the navigate-away bug it replaced.
+
+  The root fault was the same in both versions: the queue only ever
+  existed in memory, tied to something that dies. It's a row now -
+  `ResearchJob` (`bottleIds`, `pendingIds`, `researched`, `failed`,
+  `status`, plus a per-job `token`). Each step reads what's left, does
+  what it can afford, writes back, and POSTs to `/api/research/step` to
+  ask for a *fresh invocation* to run the next one. The route answers 202
+  before doing any work and does the step inside its own `after()`, so
+  steps hand off rather than nest: the total run is bounded by nothing.
+
+  How much a step takes on is decided by the clock, not a count -
+  `STEP_BUDGET_MS` (20s against the route's 60s `maxDuration`), checked
+  *before* each question rather than during one, since a live web search
+  can't usefully be interrupted halfway. The first question always runs,
+  so a step can never consume nothing and chain forever.
+
+  Security, since the step route is plain HTTP and the app still has no
+  auth in front of it (`FUTURE_CAPABILITIES.md`): the guard is the job's
+  own token, generated server-side and never sent to a browser. A
+  per-job random rather than a shared env secret deliberately - a secret
+  has to be *configured* to be correct, and "the research queue silently
+  stopped because a variable wasn't set" is the exact class of failure
+  this whole item is about. If the handoff can't be made at all, the run
+  falls back to finishing inside one invocation the old way: worse, but
+  far better than a button that does nothing.
+
+  The double-queue gap noted above closed as a side effect. `/research`
+  now finds a running job on load, so returning mid-run shows the run
+  rather than an idle button, and the button is hidden while one is live.
+
+  Verified at 375px against a 10-bottle queue with a stubbed
+  `lib/anthropic.js` (8s per call): the test started the run, navigated
+  to `/inventory`, waited 45s, and came back to find the bar at 3 of 10 -
+  work that happened with nothing connected. Final state in the database:
+  `status=done`, 10 researched, 0 failed, `pendingIds` empty, 10
+  proposals. Three separate `POST /api/research/step` invocations, and
+  **72s elapsed** - longer than any single invocation could have run,
+  which is the property the whole rewrite exists for. Seven stub calls
+  for ten bottles, so the duplicate-wine grouping survived the rewrite.
+  The starting Server Action returned in 2.3s of that 72s; handoffs cost
+  7-10ms each.
+- ~~**Research has no progress bar, though scanning does.**~~ — done
+  (2026-09-21), and only possible because of the rewrite above: a bar
+  needs something true to read, and until the job was a row there was
+  nothing to read. It polls `getResearchJob` every 3s, so it shows real
+  server state and survives leaving the page and coming back, which the
+  old browser-side counter never could.
+
+  Three states, because "finished" and "stopped partway" are different
+  news and a bar sitting at 40% tells you neither. A run whose chain
+  broke - a deploy mid-queue, a lost handoff - leaves a row saying
+  "running" forever; nothing distinguishes that from a step mid-search
+  except elapsed time, so after `STALLED_AFTER_MS` (3 min) the panel says
+  so plainly and offers the button back rather than spinning indefinitely.
+
+  One thing this got wrong first and worth remembering: the panel
+  originally lived inside `ResearchQueue`, at the bottom of the page. The
+  further a run got, the further its own bar was pushed down by the
+  proposals it was producing - six bottles in, ~5,000px of results at
+  375px. Watching a run and reading its results are different jobs, so
+  the run's state moved up to page level (`ResearchRun.js`) with the bar
+  under the heading.
+
+  That move surfaced a genuine Next 16 trap, recorded because it cost
+  real time and will recur: a client module a **Server Component**
+  imports becomes a *client entry*, and another client module importing
+  that same path gets the generated reference, not the module - so
+  `createContext` evaluates twice and the provider fills a different
+  context than the reader reads. The symptom is a provider that
+  demonstrably renders beside a child one element deeper insisting there
+  isn't one. The context now lives in `research-run-context.js`, which no
+  Server Component imports.
+
+  Scanning and `/estimate-windows` still have their own bars; lifting one
+  into a shared component would settle all three, and is now the only
+  part of this item left.
 - **Research names destinations in text where the rest of the app uses an
   icon and a colour.** Cellar, Wishlist and Tasted each have an icon and
   an accent pair that the home cards and the scan picker already share.

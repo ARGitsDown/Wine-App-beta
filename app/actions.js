@@ -26,6 +26,8 @@ import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
 import { uploadLabelPhoto } from "@/lib/blob";
+import { STEP_SLICE, STEP_BUDGET_MS } from "@/lib/research-job";
+import { newResearchJobToken, dispatchResearchStep } from "@/lib/research-dispatch";
 
 function parseOptionalInt(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -1475,53 +1477,168 @@ export async function researchBottle(id, effort = DEFAULT_EFFORT) {
   return { data: { changed: researchChanges(bottle, proposed).length } };
 }
 
-// How many distinct research questions one step below takes on - small
-// enough that a single step comfortably fits inside one invocation, the
-// same reasoning the old BATCH_SIZE was chosen under back when the
-// chunking lived in the browser instead of here.
-const RESEARCH_STEP_SIZE = 3;
-
-// The bulk pass. Used to be chunked by the caller - ResearchQueue.js
-// awaited one batch at a time in a browser-side loop - which meant
-// navigating away mid-run silently stopped it after whichever batch was
-// already in flight; every batch after that one was never even requested
-// (BACKLOG #17/#29). Chunking now happens here instead: each step
-// schedules the next one itself via `after()`, which keeps running past
-// the point where the response has already gone back to the client, so
-// the whole queue finishes whether or not the tab that started it is
-// still open. The caller only ever sees this first step's own tally -
-// `remaining` says how much more is already queued behind it.
+// Starts a bulk pass and returns immediately with the job to watch.
+//
+// This is the third shape this function has had, and the first one with no
+// ceiling on it. It began as a browser-side loop in ResearchQueue.js, so
+// navigating away mid-run stopped it dead (BACKLOG #17/#29). Moving the
+// chunking here and chaining steps with `after()` fixed that, and replaced
+// it with a quieter version of the same fault: `after()` runs past the
+// response but still inside the one invocation that scheduled it, so a
+// long queue ran out of timeout partway and stopped - which looked exactly
+// like the navigate-away bug it had just replaced.
+//
+// Both versions kept the queue in memory, tied to something that dies. It
+// is a row now (see ResearchJob in prisma/schema.prisma). Each step reads
+// what is left, does what it can afford, writes back, and asks for a fresh
+// invocation to carry on - so the total run is bounded by nothing, and
+// what the page shows is real server state rather than a tally in a tab.
 export async function researchBottles(ids) {
-  const thisStep = ids.slice(0, RESEARCH_STEP_SIZE);
-  const remaining = ids.slice(RESEARCH_STEP_SIZE);
+  // De-duplicated because the same bottle twice in the queue is the same
+  // question twice, and validated because these become a row.
+  const bottleIds = [...new Set(ids)].filter((id) => Number.isInteger(id));
+  if (bottleIds.length === 0) return { error: "There's nothing waiting to be researched." };
 
-  let researched = 0;
-  let failed = 0;
-  try {
-    ({ researched, failed } = await researchStep(thisStep));
-  } catch (err) {
-    // A step failing outright (not the per-bottle failures researchStep
-    // already absorbs) still has to hand off to the next one - one bad
-    // step stalling everything behind it would be the same loss this
-    // whole rewrite exists to close.
-    console.error("Bulk research step failed:", err);
-    failed = thisStep.length;
-  } finally {
-    if (remaining.length > 0) {
-      after(() => researchBottles(remaining));
-    }
+  const job = await prisma.researchJob.create({
+    data: {
+      token: newResearchJobToken(),
+      bottleIds,
+      pendingIds: bottleIds,
+    },
+  });
+
+  // If the handoff can't be made - no origin to call, the route refused -
+  // the queue has nobody to continue it, so fall back to doing it the way
+  // the previous version did: chained inside this invocation via
+  // `after()`. That reintroduces the timeout ceiling, and gets through a
+  // good part of most queues anyway, which beats a "Research all" button
+  // that quietly does nothing at all. Either way the job row is the record
+  // of how far it got, so a run cut short can be started again.
+  if (!(await dispatchResearchStep(job))) {
+    after(() => runResearchJobInProcess(job.id, job.token));
   }
 
   revalidatePath("/research");
-  return { data: { researched, failed, remaining: remaining.length } };
+  return { data: { jobId: job.id, total: bottleIds.length } };
+}
+
+// One step of a job: take what it can afford off the front of the queue,
+// research it, write the result back, and say whether anything is left.
+//
+// Exported because the step route (app/api/research/step/route.js) has to
+// call it and the research machinery lives in this file - which makes it a
+// Server Action, invocable by anyone who can reach the app. That is safe
+// for exactly one reason: without the job's token it does nothing, and the
+// token is generated server-side, stored in the row, and never sent to a
+// browser. It is deliberately the only guard, since the app has no auth in
+// front of it yet (see FUTURE_CAPABILITIES.md).
+export async function runResearchJobStep(jobId, token) {
+  const job = await prisma.researchJob.findUnique({ where: { id: jobId } });
+  if (!job || job.token !== token) return false;
+  if (job.status !== "running") return false;
+
+  if (job.pendingIds.length === 0) {
+    await prisma.researchJob.update({ where: { id: job.id }, data: { status: "done" } });
+    return false;
+  }
+
+  const slice = job.pendingIds.slice(0, STEP_SLICE);
+
+  let researched = 0;
+  // The default if the step blows up outright rather than in one of the
+  // places researchStep already absorbs failures: the whole slice counts
+  // as attempted and failed. Losing a few bottles' answers is recoverable
+  // - running the queue again re-asks for them - whereas a step that
+  // consumes nothing and hands off would chain forever.
+  let failed = slice.length;
+  let attempted = slice;
+
+  try {
+    ({ researched, failed, attempted } = await researchStep(slice, Date.now() + STEP_BUDGET_MS));
+  } catch (err) {
+    console.error(`Research job ${job.id} step failed:`, err);
+  }
+
+  // Same guarantee from the other direction: whatever researchStep says,
+  // a step always consumes something.
+  const consumed = new Set(attempted.length > 0 ? attempted : slice);
+  const pendingIds = job.pendingIds.filter((id) => !consumed.has(id));
+
+  await prisma.researchJob.update({
+    where: { id: job.id },
+    data: {
+      pendingIds,
+      researched: { increment: researched },
+      failed: { increment: failed },
+      status: pendingIds.length === 0 ? "done" : "running",
+    },
+  });
+
+  return pendingIds.length > 0;
+}
+
+// The fallback path, for when a job can't get a fresh invocation per step
+// and has to finish inside the one it started in. Not exported: it is not
+// something a client should be able to ask for, and the only caller is the
+// `after()` above. Terminates because every step consumes at least one id.
+async function runResearchJobInProcess(jobId, token) {
+  let more = true;
+  while (more) {
+    more = await runResearchJobStep(jobId, token);
+  }
+}
+
+// What the progress bar reads. Deliberately never returns the token - the
+// browser is given a job id to watch and nothing it could use to drive the
+// job with.
+export async function getResearchJob(jobId) {
+  if (!Number.isInteger(jobId)) return { error: "That research run is no longer on file." };
+
+  const job = await prisma.researchJob.findUnique({
+    where: { id: jobId },
+    select: {
+      id: true,
+      bottleIds: true,
+      researched: true,
+      failed: true,
+      status: true,
+      updatedAt: true,
+    },
+  });
+  if (!job) return { error: "That research run is no longer on file." };
+
+  return {
+    data: {
+      id: job.id,
+      total: job.bottleIds.length,
+      researched: job.researched,
+      failed: job.failed,
+      status: job.status,
+      // Serialized here rather than handed over as a Date so the client
+      // gets the same shape whether it polls this or receives the job
+      // from the page's own query.
+      updatedAt: job.updatedAt.toISOString(),
+    },
+  };
 }
 
 // One step's worth of work: group identical questions, run the search,
-// save what comes back. Split out of researchBottles so a failure in here
-// can't also skip the `after()` scheduling that keeps the rest of the
-// queue moving.
-async function researchStep(ids) {
+// save what comes back, and report which ids it got through so the caller
+// can take them off the queue. `deadline` is a timestamp, checked before
+// each question rather than during one - a research pass is a live web
+// search and can't usefully be interrupted halfway, so the contract is
+// "don't start another after this point", not "stop at this point". The
+// first question always runs, whatever the clock says, so that a step can
+// never come back having consumed nothing.
+async function researchStep(ids, deadline) {
   const bottles = await prisma.bottle.findMany({ where: { id: { in: ids } } });
+
+  // A bottle deleted since the queue was built has nothing left to
+  // research, but it still has to leave the queue or the job never ends.
+  // Not counted as a failure: nothing failed, the question stopped
+  // existing.
+  const found = new Set(bottles.map((bottle) => bottle.id));
+  const attempted = ids.filter((id) => !found.has(id));
 
   // Two rows of the same wine - a case split across two entries, or one
   // re-added after being drunk - ask the web the same question, and a
@@ -1547,8 +1664,17 @@ async function researchStep(ids) {
 
   let researched = 0;
   let failed = 0;
+  let asked = 0;
   for (const group of byQuestion.values()) {
+    if (asked > 0 && Date.now() > deadline) break;
+    asked += 1;
+
     const result = await runResearch(group[0]);
+    // Consumed either way: a wine whose search failed has had its turn,
+    // and leaving it on the queue would mean a step that keeps retrying
+    // the same broken question instead of getting to the rest.
+    for (const bottle of group) attempted.push(bottle.id);
+
     if (result.error) {
       // One wine failing shouldn't cost the rest of the queue its
       // otherwise-good answers.
@@ -1567,7 +1693,7 @@ async function researchStep(ids) {
     }
   }
 
-  return { researched, failed };
+  return { researched, failed, attempted };
 }
 
 // Accepts a stored proposal as-is. The common case is that research got it

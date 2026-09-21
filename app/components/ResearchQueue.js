@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { researchBottle, researchBottles, dismissResearch } from "@/app/actions";
+import { researchBottle, dismissResearch } from "@/app/actions";
+import { useResearchRun } from "@/app/components/research-run-context";
 import Spinner from "@/app/components/Spinner";
 
 const secondaryButtonClass =
@@ -21,9 +22,13 @@ export default function ResearchQueue({ bottles }) {
   const [busyId, setBusyId] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [bulk, setBulk] = useState(null); // { total, firstStepDone, firstStepFailed, remaining }
   const [error, setError] = useState(null);
   const [, startTransition] = useTransition();
+
+  // The run itself belongs to the page, not to this list - its progress
+  // bar is rendered up at the top, where it isn't buried under the results
+  // it produces. What this needs from it is only whether one is live.
+  const { running, start } = useResearchRun();
 
   function researchOne(id) {
     setError(null);
@@ -35,29 +40,17 @@ export default function ResearchQueue({ bottles }) {
     });
   }
 
-  // One call, not a loop of them: chunking and chaining through the whole
-  // queue now happens server-side (see researchBottles in app/actions.js),
-  // scheduling each next step with `after()` so it keeps going even if
-  // this tab closes right after this call returns. What comes back here
-  // is only the first step's own tally - `remaining` says how much more
-  // is already queued behind it.
+  // One call, and what comes back is a job to watch rather than a tally:
+  // the queue lives in a row now and each step asks for its own invocation
+  // to run in (see researchBottles in app/actions.js), so there is nothing
+  // for this tab to drive and nothing it can stop by closing.
   async function researchAll() {
     setError(null);
     setConfirming(false);
     setStarting(true);
-    const ids = bottles.map((bottle) => bottle.id);
-    const result = await researchBottles(ids);
+    const message = await start(bottles.map((bottle) => bottle.id));
     setStarting(false);
-    if (result?.error) {
-      setError(result.error);
-      return;
-    }
-    setBulk({
-      total: ids.length,
-      firstStepDone: (result.data.researched ?? 0) + (result.data.failed ?? 0),
-      firstStepFailed: result.data.failed ?? 0,
-      remaining: result.data.remaining ?? 0,
-    });
+    if (message) setError(message);
   }
 
   if (bottles.length === 0) {
@@ -66,67 +59,51 @@ export default function ResearchQueue({ bottles }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {starting ? (
-        <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-          <Spinner label={`Starting research for ${bottles.length} bottle${bottles.length === 1 ? "" : "s"}…`} />
-        </div>
-      ) : bulk ? (
-        <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-          <p className="font-medium text-green-700 dark:text-green-400">
-            ✓ Researched {bulk.firstStepDone - bulk.firstStepFailed} of {bulk.total} so far
-            {bulk.firstStepFailed > 0 && ` — ${bulk.firstStepFailed} failed`}.
-          </p>
-          {/* Honest about what actually happens now: the rest keeps
-              running on the server, not in this tab, so there is nothing
-              left here to watch tick upward - closing this page no longer
-              stops it (BACKLOG #17/#29). */}
-          {bulk.remaining > 0 ? (
-            <p className="mt-1 text-zinc-500">
-              {bulk.remaining} more {bulk.remaining === 1 ? "is" : "are"} still
-              queued and will keep going even if you leave this page - check
-              back here to see them land.
-            </p>
-          ) : (
-            <p className="mt-1 text-zinc-500">They&apos;re waiting for review above.</p>
-          )}
-        </div>
-      ) : confirming ? (
-        /* Named outright, because this is the app's only web-search call and
-           its most expensive by a distance - one tap here is one search per
-           bottle, not one search. */
-        <div className="flex flex-col gap-2 rounded-lg border border-amber-300 p-3 text-sm dark:border-amber-900">
-          <p>
-            This runs a live web search for each of the {bottles.length}{" "}
-            bottle{bottles.length === 1 ? "" : "s"} below — {bottles.length}{" "}
-            search{bottles.length === 1 ? "" : "es"} in total. Results wait
-            for your review; nothing is saved automatically.
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={researchAll}
-              className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              Research all {bottles.length}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-            >
-              Cancel
-            </button>
+      {/* Hidden while a run is live, shown again the moment it isn't - a
+          finished or interrupted run leaves whatever it couldn't get to
+          listed below, and starting again is how those get picked up. */}
+      {!running &&
+        (starting ? (
+          <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+            <Spinner label={`Starting research for ${bottles.length} bottle${bottles.length === 1 ? "" : "s"}…`} />
           </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="self-start rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-        >
-          Research all {bottles.length} →
-        </button>
-      )}
+        ) : confirming ? (
+          /* Named outright, because this is the app's only web-search call and
+             its most expensive by a distance - one tap here is one search per
+             bottle, not one search. */
+          <div className="flex flex-col gap-2 rounded-lg border border-amber-300 p-3 text-sm dark:border-amber-900">
+            <p>
+              This runs a live web search for each of the {bottles.length}{" "}
+              bottle{bottles.length === 1 ? "" : "s"} below — {bottles.length}{" "}
+              search{bottles.length === 1 ? "" : "es"} in total. Results wait
+              for your review; nothing is saved automatically.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={researchAll}
+                className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                Research all {bottles.length}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="self-start rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+          >
+            Research all {bottles.length} →
+          </button>
+        ))}
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
@@ -147,7 +124,7 @@ export default function ResearchQueue({ bottles }) {
               <button
                 type="button"
                 onClick={() => researchOne(bottle.id)}
-                disabled={busyId === bottle.id || starting || bulk !== null}
+                disabled={busyId === bottle.id || starting || running}
                 className={secondaryButtonClass}
               >
                 {busyId === bottle.id ? "Researching…" : "Research"}
