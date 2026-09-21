@@ -1,0 +1,62 @@
+# Runs the production-build smoke test on every push.
+#
+# This exists because a habit nobody is forced to keep is not a habit. The
+# Suggest page shipped broken on 2026-09-21 after a change that passed
+# `next build` and worked perfectly under `next dev` - every check run on
+# it was a dev check. The fix was a one-line import guard; the reason it
+# went unnoticed for a whole session was that nothing ever built the app
+# the way the host builds it and then opened it.
+#
+# No secrets are needed, on purpose. The smoke test opens pages, it does
+# not ask Claude anything, so a placeholder API key is enough - which
+# means this workflow keeps working for anyone who forks or clones without
+# any setup at all.
+name: verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    # An empty database rather than a seeded one, deliberately: every page
+    # has to render with nothing in it, and empty-state bugs are the ones a
+    # developer with a full local cellar never sees.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wine
+          POSTGRES_PASSWORD: wine
+          POSTGRES_DB: wineapp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://wine:wine@localhost:5432/wineapp
+      ANTHROPIC_API_KEY: smoke-test-placeholder
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The browsers the runner does not already have. Only chromium - the
+      # smoke test does not care about cross-browser behaviour.
+      - run: npx playwright install --with-deps chromium
+
+      # npm run build runs `prisma migrate deploy` first, so the schema is
+      # applied as part of this rather than as a separate step.
+      - run: npm run verify
