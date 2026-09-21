@@ -1516,6 +1516,52 @@ Opus's were before.
 
 ---
 
+### The mechanical calls, measured at last — 2026-09-21
+
+The hold below can be lifted, and the answer is to change nothing - but now
+for a reason rather than out of caution. Each call was run twice against a
+real key, at `high` and at `low`, with a wrapper forcing the level so the
+same code path ran both times.
+
+| call | effort | latency | input | output | cost |
+|---|---|---|---|---|---|
+| Scan a label (2 turns) | high | 4.8s | 2 + 151 | 55 + 201 | **$0.015** |
+| Scan a label (2 turns) | low | 4.8s | 2 + 238 | 55 + 201 | **$0.015** |
+| Drink windows, 6 bottles | high | 3.9s | 1,269 | 219 | **$0.005** |
+| Drink windows, 6 bottles | low | 3.0s | 1,269 | 219 | **$0.005** |
+
+**The token counts are byte-identical at both levels.** Not close - the
+same numbers. Latency differs by less than the run-to-run noise, and both
+scans read the label correctly; both window passes produced sensible
+ranges (Lynch-Bages 2015 as 2025-2045).
+
+**Why, and why it is the opposite of research.** These calls are
+schema-constrained extraction with `thinking: adaptive`, which had already
+decided almost no thinking was needed. The effort dial sets a *ceiling* on
+thinking, and these calls were nowhere near it - so lowering the ceiling
+changed nothing. Research is the opposite: open-ended, with a live web
+search, where the model genuinely spends the budget. That is why the same
+dial was worth 2.5x the cost and 4.5x the latency there (see #17) and is
+worth exactly nothing here.
+
+**So: leave all four at `high`.** Not as a deferral - as a finding. There
+is no saving available on this path, and the honest conclusion of "measure
+before turning them down" is that turning them down does nothing.
+
+**Unit costs for the usage ledger** (`FUTURE_CAPABILITIES.md`): a scanned
+photo is **$0.015**, a drinking-window estimate is **$0.0008 per bottle**
+(and cached by wine identity, so a repeat is free). Against Suggest at
+$0.03-$0.19 and research at $0.073 a bottle, these two are rounding errors
+- a cap should be built around Suggest and Research and can essentially
+ignore scanning.
+
+**Caveat worth keeping:** the scan was measured on a clean, synthetic,
+single-wine label. A real photo - bigger, noisier, or a tasting sheet with
+eight wines on it - costs more, mostly in image tokens. The figure is a
+floor, not an average.
+
+---
+
 Effort is now explicit at every call site, but only the two the owner steers
 actually move. The other four - reading a label, reading a photo, and the two
 drinking-window estimates - are all still at `high`, and that is a deliberate
