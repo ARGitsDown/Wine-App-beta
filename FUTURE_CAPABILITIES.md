@@ -26,8 +26,8 @@ for someone who wants their own.
    stays what it is today: the guest link, for letting someone browse
    yours.
 3. **Google OAuth.** No passwords stored, no reset flow to own, no
-   credential breach to worry about. The library's Next 16 compatibility
-   needs verifying before it's committed to.
+   credential breach to worry about. **Library settled: Auth.js
+   (`next-auth@5`) — see "The OAuth question, answered" below.**
 4. **Per-account usage limits** on the AI features (see below).
 
 ### Two corrections to the original sketch
@@ -123,12 +123,62 @@ Staged so nothing is a leap, and each phase is independently shippable:
 
 ### Still open
 
-- Which OAuth library, and whether it's compatible with Next 16 — to be
-  verified, not assumed, before Phase 1 starts.
+- ~~Which OAuth library, and whether it's compatible with Next 16.~~
+  **Verified 2026-09-21 against the live registry, not from memory.**
 - What happens at the usage cap: hard block, or degrade to the
   non-AI features.
 - Whether renamed/hand-built flights and kept pairings need anything
   beyond a plain `ownerId` (they shouldn't — they're roots like `Bottle`).
+
+## The OAuth question, answered — 2026-09-21
+
+Checked against the npm registry and the package's own source, because
+"should be fine" is what this entry existed to avoid.
+
+**Next 16 support is explicit, not inferred.** `next-auth@5.0.0-beta.32`
+declares `next: "^14.0.0-0 || ^15.0.0 || ^16.0.0"`. The stable v4
+(`4.24.15`) declares `^12.2.5 || ^13 || ^14 || ^15 || ^16`, so both lines
+accept this project's Next 16.3.5 and React 19.2.8.
+
+**Take v5 anyway, despite it being a beta.** v4 predates the App Router and
+its session handling is built around the Pages Router; this app is App
+Router throughout, with Server Actions doing the mutations. Adopting v4
+would mean writing against the older shape and migrating later. v5 has been
+in beta a long time (33 betas), which is the honest argument against it —
+but "beta" here means API churn between betas, not instability, and the
+alternative is knowingly starting on the wrong architecture. **Pin the
+exact beta** rather than tracking `@beta`, so an upgrade is a deliberate
+act.
+
+**The real risk was never Next — it was Prisma 7, and it is not a risk.**
+This project runs Prisma 7.10.0 with a driver adapter and a generated
+client at a custom path (`app/generated/prisma`).
+`@auth/prisma-adapter@2.11.3` declares `@prisma/client: ">=2.26.0 || >=3 ||
+>=4 || >=5 || >=6"` - a range written before v7 existed, which npm accepts
+only because `>=6` happens to match. That is permissiveness, not a tested
+claim, so the package itself was read:
+
+- It has **no runtime import of Prisma at all** - it takes a client
+  instance you hand it, so the custom generated path is a non-issue.
+- Its only `@prisma/client` reference is a **type-only import** in
+  `index.d.ts`, which this JavaScript project never evaluates.
+- It uses nothing but plain model CRUD (`create`, `findUnique`,
+  `findFirst`, `findMany`, `update`, `delete`) - no `$transaction`, no
+  `$extends`, no raw queries, no internals. All unchanged in Prisma 7.
+
+**Installs clean.** `npm install --dry-run next-auth@beta
+@auth/prisma-adapter` against this exact project resolves with no peer
+conflicts and no ERESOLVE.
+
+**What is still unverified, and deliberately so:** nobody has run a real
+Google sign-in end to end here. What is established is that the libraries
+are compatible with this stack - which is what Phase 1 needed to know
+before committing. Two things to expect when it starts: the adapter needs
+its own four models (`User`, `Account`, `Session`, `VerificationToken`,
+plus `Authenticator` if WebAuthn is ever wanted), and `AUTH_SECRET` plus
+the Google client id/secret become required environment variables - the
+first env vars this app cannot start without, which is worth remembering
+given how much of its graceful degradation assumes optional ones.
 
 ## Multiple locations within one cellar
 
