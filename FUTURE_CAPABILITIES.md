@@ -106,10 +106,40 @@ limits, built in this order:
 
 Staged so nothing is a leap, and each phase is independently shippable:
 
-- **Phase 0 — ownership, still single-user.** Add `ownerId` to the three
-  root models (nullable → backfill everything to one seeded owner → NOT
-  NULL). No auth, no behaviour change, fully reversible. The migration
-  risk gets its own step, where nothing else can confuse it.
+- ~~**Phase 0 — ownership, still single-user.**~~ **Done 2026-09-21.**
+  `ownerId` is on `Bottle`, `TastingFlight` and `SavedPairing`, NOT NULL,
+  indexed, cascading from a `User` row. Nothing reads it yet.
+
+  Two decisions worth carrying forward:
+
+  **The owner table is Auth.js's `User`, not a throwaway `Owner`.** Phase 1
+  hands this table to `@auth/prisma-adapter`, so shaping it right now means
+  ownership never has to move between tables on live data later. The shape
+  came from the adapter's own source rather than memory: `createUser`
+  destructures the id away and lets the database generate one, so `id`
+  needs a default (`cuid()`); `getUserByEmail` queries `where: { email }`,
+  so email is unique, and nullable because not every provider returns one.
+
+  **`currentOwnerId()` (`lib/owner.js`) is the whole seam.** Every create
+  site calls it - five of them - so Phase 1's "whoever is signed in" is a
+  change to that one function and nothing else. It is deliberately
+  uncached: a module-scope cache becomes a landmine the moment it depends
+  on a session, since a stale value would serve one person's identity into
+  another person's request.
+
+  Verified end to end: 71 existing bottles backfilled with zero orphans,
+  both the NOT NULL and the foreign key confirmed to actually reject bad
+  writes, and a bottle and a flight created through the real UI arriving
+  with ownership attached. All 12 pages clean under `npm run verify`.
+
+  **One thing Phase 1 must not miss.** The seeded owner row has
+  `email = NULL`, because guessing which Google account will sign in would
+  be worse than leaving it blank. Before the first real sign-in, that row's
+  email has to be set to the owner's Google address *and* account linking
+  arranged - Auth.js will not link an OAuth account to an existing user by
+  email on its own, for good reasons. Get this wrong and the owner signs in
+  to a brand-new empty cellar while their real one sits under `seed-owner`,
+  which looks exactly like data loss even though nothing was lost.
 - **Phase 1 — accounts and sessions.** Google OAuth, invite-only. Existing
   data maps to the owner's account. The app stays single-user in practice;
   it just knows who you are now, and the front door closes.

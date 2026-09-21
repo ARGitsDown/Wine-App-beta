@@ -5,6 +5,7 @@ import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
 import { aiErrorMessage } from "@/lib/ai-errors";
 import { cleanModelText, cleanModelFields } from "@/lib/model-text";
+import { currentOwnerId } from "@/lib/owner";
 import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
 import { DEFAULT_DEPTH, normalizeDepth } from "@/lib/suggest-depth";
 import { depthConfig } from "@/lib/suggest-model";
@@ -166,6 +167,10 @@ async function insertBottle(status, formData) {
       // is the same standing guess the tasting note's date makes, and is
       // correctable afterward.
       data: {
+        // Phase 0 of separate cellars: every new row names its owner. One
+        // owner today - see currentOwnerId, which is the only place that
+        // has to change when there is more than one.
+        ownerId: await currentOwnerId(),
         ...data,
         status,
         needsResearch,
@@ -816,6 +821,12 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         // doesn't lose the rest of the batch's otherwise-successful
         // saves; that one wine falls back to the same unsaved-draft card
         // used when reading a photo fails outright.
+        // Resolved once for the batch rather than per wine: a photo's
+        // wines all belong to whoever is scanning it, and looking that up
+        // eight times for a tasting sheet would be eight identical
+        // queries. See currentOwnerId - one owner today.
+        const ownerId = await currentOwnerId();
+
         const results = [];
         for (const wine of wines) {
           // The batch's intent decides where a wine lands. This used to be
@@ -831,6 +842,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
           try {
             const bottle = await prisma.bottle.create({
               data: {
+                ownerId,
                 ...bottleDataFromWine(wine),
                 status,
                 emptiedAt: emptiedAtForStatus(status, null),
@@ -2471,6 +2483,7 @@ export async function saveTastingFlight({ title, summary, picks }) {
 
   const flight = await prisma.tastingFlight.create({
     data: {
+      ownerId: await currentOwnerId(),
       // Null rather than falling back to the summary: a flight with no
       // title of its own should show its summary as the heading because
       // that's all it has, not because a copy was written into the column.
@@ -2498,7 +2511,7 @@ export async function createFlight(prevState, formData) {
   if (!title) return { error: "Give the flight a theme name." };
 
   const flight = await prisma.tastingFlight.create({
-    data: { title, summary: summary || null },
+    data: { title, summary: summary || null, ownerId: await currentOwnerId() },
   });
   revalidatePath("/flights");
   redirect(`/flights/${flight.id}`);
@@ -2740,6 +2753,7 @@ export async function savePairing(input) {
   try {
     const pairing = await prisma.savedPairing.create({
       data: {
+        ownerId: await currentOwnerId(),
         title,
         request: request.slice(0, MAX_PAIRING_TEXT),
         character: normalizeCharacter(input?.character),

@@ -12,6 +12,43 @@ datasource db {
   provider = "postgresql"
 }
 
+// The person a cellar belongs to.
+//
+// Phase 0 of separate cellars per user (FUTURE_CAPABILITIES.md): ownership
+// exists, but nothing reads it yet. There is exactly one row, seeded by the
+// migration, and every bottle, flight and pairing points at it. No auth, no
+// filtering, no behaviour change - the migration risk gets its own step,
+// where nothing else can confuse it.
+//
+// Deliberately shaped as Auth.js's `User` from the outset rather than as a
+// throwaway `Owner`, because Phase 1 adopts @auth/prisma-adapter and that
+// adapter owns this table. Getting the shape right now means Phase 1 adds
+// Account/Session/VerificationToken beside it and wires the adapter - it
+// never has to move ownership from one table to another on live data, which
+// is the one migration in this plan worth being frightened of.
+//
+// The shape is taken from the adapter's own source, not from memory:
+// `createUser` destructures the id away and lets the database generate one
+// (`p.user.create` with the rest), so `id` must have a default; and
+// `getUserByEmail` looks up `where: { email }`, so email must be unique.
+// Nullable because not every provider returns one.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+
+  // The three ownership roots. Everything else in this schema inherits its
+  // owner through one of these by an existing foreign key - a tasting note
+  // belongs to whoever owns its bottle - which is why there are three
+  // columns here and not eleven.
+  bottles  Bottle[]
+  flights  TastingFlight[]
+  pairings SavedPairing[]
+}
+
 // A single wine, in one of three states:
 // - wishlist: something to try or buy, not owned yet
 // - inventory: currently owned/in the cellar
@@ -143,6 +180,11 @@ model Bottle {
   // editable field once research has filled it in.
   criticNotes String?
 
+  // Who this bottle belongs to. See the User model above: one owner today,
+  // seeded by the migration, with nothing yet reading this column.
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -159,6 +201,9 @@ model Bottle {
   // cheap to have in place before the cellar is big enough to notice.
   @@index([status])
   @@index([needsResearch])
+  // Postgres does not index a foreign key automatically, and once Phase 2
+  // scopes queries this is the column every single one of them filters on.
+  @@index([ownerId])
 }
 
 // One additional photo attached to an already-saved bottle - `photoUrl`
@@ -245,8 +290,14 @@ model TastingFlight {
   // of title/summary is always set - guaranteed where flights are written,
   // not by the columns, since neither can be NOT NULL on its own.
   summary   String?
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
   createdAt DateTime     @default(now())
   picks     FlightPick[]
+
+  @@index([ownerId])
 }
 
 // One bottle's place in a saved flight, in tasting order.
@@ -411,8 +462,14 @@ model SavedPairing {
   // identity: a pairing with its picks and their reasons is still whole
   // without it.
   summary        String?
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
   createdAt      DateTime      @default(now())
   picks          PairingPick[]
+
+  @@index([ownerId])
 }
 
 model PairingPick {
