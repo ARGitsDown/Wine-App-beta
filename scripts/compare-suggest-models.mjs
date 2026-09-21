@@ -110,7 +110,7 @@ const DEFAULT_QUERIES = [
 const BROWSE_CELLAR_TOOL = {
   name: "browse_cellar",
   description:
-    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. Call this one or more times with different filters to explore what's actually available (e.g. once for reds, once for whites) rather than assuming what's there. Returns `bottles` (at most 40, ordered by producer name), `totalMatching` (how many bottles actually matched your filters), and `truncated`. Each bottle has its id (needed to reference it in your final answer), producer, bottling, vintage, type, variety, region, country, quantity, average personal rating if any exists, drinkFrom/drinkTo (its drinking window, if known - null fields mean no window is recorded, not that it's unready), and drinkWindowEstimated (true when that window is the app's own guess rather than something read from a source or typed by the owner; only meaningful when a window is actually present). When `truncated` is true you are looking at an alphabetical slice, not the cellar - narrow the filters and call again rather than choosing from what came back.",
+    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. One call with no filters returns the whole cellar, and that is normally what you want: a personal cellar fits comfortably in a single response, and reasoning across all of it at once is both better and cheaper than guessing which filters to try. Filters are for narrowing a cellar you have already seen, not for discovering what is in it - reach for a second call when you want one specific slice, not as a way of exploring. Returns `bottles` (at most 250, ordered by producer name), `totalMatching` (how many bottles actually matched your filters), and `truncated`. Each bottle carries its id (needed to reference it in your final answer), its producer, and whichever of bottling, vintage, type, variety, region, country, quantity, averageRating (the owner's own average score), drinkFrom/drinkTo (its drinking window) and drinkWindowEstimated are actually recorded. A field that is absent is simply not on file - for a drinking window that means no window has been recorded, NOT that the wine is unready. drinkWindowEstimated is true when the window is the app's own guess rather than something read from a source or typed by the owner. When `truncated` is true you are looking at an alphabetical slice rather than the cellar - narrow the filters and call again rather than choosing from what came back.",
   input_schema: {
     type: "object",
     properties: {
@@ -216,25 +216,32 @@ async function browseCellar(pool, filters) {
     return true;
   });
 
-  const capped = matches.slice(0, 40);
+  const capped = matches.slice(0, 250);
   return {
     totalMatching: matches.length,
     truncated: matches.length > capped.length,
-    bottles: capped.map((bottle) => ({
-      id: bottle.id,
-      producer: bottle.producer,
-      bottling: bottle.bottling,
-      vintage: bottle.vintage,
-      type: bottle.type,
-      variety: bottle.variety,
-      region: bottle.region,
-      country: bottle.country,
-      quantity: bottle.quantity,
-      averageRating: bottle.averageRating,
-      drinkFrom: bottle.drinkFrom,
-      drinkTo: bottle.drinkTo,
-      drinkWindowEstimated: bottle.drinkWindowEstimated,
-    })),
+    bottles: capped.map((bottle) =>
+      Object.fromEntries(
+        Object.entries({
+          id: bottle.id,
+          producer: bottle.producer,
+          bottling: bottle.bottling,
+          vintage: bottle.vintage,
+          type: bottle.type,
+          variety: bottle.variety,
+          region: bottle.region,
+          country: bottle.country,
+          quantity: bottle.quantity,
+          averageRating: bottle.averageRating,
+          drinkFrom: bottle.drinkFrom,
+          drinkTo: bottle.drinkTo,
+          drinkWindowEstimated:
+            bottle.drinkFrom != null || bottle.drinkTo != null
+              ? bottle.drinkWindowEstimated
+              : null,
+        }).filter(([, value]) => value != null)
+      )
+    ),
   };
 }
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
 import { aiErrorMessage } from "@/lib/ai-errors";
+import { cleanModelText } from "@/lib/model-text";
 import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
 import { DEFAULT_DEPTH, normalizeDepth, depthConfig } from "@/lib/suggest-depth";
 import { normalizeCharacter } from "@/lib/suggestion-character";
@@ -1211,7 +1212,12 @@ export async function getSuggestions(
                     country: pick.gapCountry,
                   }
                 : null;
-            return { reason: pick.reason, pairingContext: pick.pairingContext, bottle, gap };
+            return {
+              reason: cleanModelText(pick.reason),
+              pairingContext: cleanModelText(pick.pairingContext),
+              bottle,
+              gap,
+            };
           })
           // Drop a pick that resolved to neither a real bottle nor a
           // usable gap suggestion (e.g. a hallucinated bottleId) rather
@@ -1225,8 +1231,12 @@ export async function getSuggestions(
         return {
           data: {
             mode: finalCall.input.mode,
-            title: finalCall.input.title,
-            summary: finalCall.input.summary,
+            // Every free-text field the model wrote, cleaned where it
+            // enters the app rather than where it is displayed - these are
+            // saved to a flight or a pairing as well as rendered, and
+            // stored-and-wrong outlives shown-and-wrong.
+            title: cleanModelText(finalCall.input.title),
+            summary: cleanModelText(finalCall.input.summary),
             picks: resolvedPicks,
             // Handed back rather than re-read from the form when the
             // pairing is kept. The form is still editable while the
@@ -2628,8 +2638,15 @@ export async function renameFlight(id, formData) {
 const MAX_PAIRING_PICKS = 24;
 const MAX_PAIRING_TEXT = 4000;
 
+// Every caller of this is model-written text on its way into a pairing row
+// - a dish, a reason, a title, a summary, a gap suggestion's fields - and
+// none of it is ever typed by the owner (renaming a pairing has its own
+// path). So the leak guard belongs here as well as at the point the model's
+// answer enters the app: getSuggestions already cleans what it returns, but
+// this action takes its input back from the browser, and the boundary that
+// writes to the database is the one that has to be sure.
 function trimmedOrNull(value, max = 500) {
-  const text = String(value ?? "").trim();
+  const text = cleanModelText(String(value ?? "")).trim();
   return text ? text.slice(0, max) : null;
 }
 

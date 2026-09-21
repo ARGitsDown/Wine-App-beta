@@ -1470,15 +1470,49 @@ Nulls are also dropped from the payload (9%, free), and
 the column defaults to false, so every windowless bottle was carrying
 "this absent window is not an estimate".
 
-**Verified only as far as it can be without a key.** The payload is
-confirmed: 69 of 69 bottles in one call, `truncated` false, no nulls, the
-flag present on windowed rows and absent on windowless ones. What is *not*
-confirmed is the thing that pays - whether the model now makes one call
-instead of eight - because that is a model decision and no stub can produce
-it. The arithmetic is simple and the direction is not in doubt, but the
-size of the win is an estimate until someone re-runs
-`scripts/compare-suggest-models.mjs` against a real key and compares the
-browse counts to the five queries above.
+**Re-measured against a real key the same day, same five queries, same
+cellar.** The first thing it caught was that
+`scripts/compare-suggest-models.mjs` keeps its *own hand-synced copy* of
+`BROWSE_CELLAR_TOOL` and `browseCellar` - exactly as its header warns - so
+it was still running the 40-cap and the old description. Measuring before
+syncing it would have reported "no change" and been believed. Synced, then
+run.
+
+**browse_cellar calls across the ten runs: 57 -> 13.** Opus dropped to
+exactly one unfiltered call on all five queries.
+
+| | before | after |
+|---|---|---|
+| Opus, per query | $0.1911 | **$0.1044** (-45%) |
+| Sonnet, per query | $0.0315 | **$0.0380** (+21%) |
+| whole 5-query set | $1.113 | $0.712 |
+
+The worst query - Thanksgiving, avant-garde - went from 8 browse calls,
+48,246 input tokens, 74.6s and $0.40 to **1 call, 8,929 tokens, 57.7s and
+$0.16**. Opus got faster on every single query.
+
+**Sonnet got slightly worse, and that is worth saying plainly** given it is
+now the default. It was already being frugal - guessing narrow filters and
+pulling back a handful of bottles - so replacing four cheap targeted
+browses with one whole-cellar read costs it tokens rather than saving them.
+The absolute number is sub-cent ($0.0065 a query) and n=1 per cell, so this
+is within what a single run can resolve; it is not a reason to undo
+anything, but it is not a win either. Sonnet kept its good instinct where
+it mattered, still filtering to `type=Pinot Noir` for the flight query (6
+matched, the cheapest run in the set) and across sparkling categories for
+the rosé one.
+
+**A correction to the estimate above:** the char/4 heuristic used to size
+the payload was roughly half the real cost. The cellar measures ~123 tokens
+a bottle, not ~58 - so 69 bottles is ~8,500 tokens, not 4,200, and a
+117-bottle cellar is ~14,400, not ~7,200. The direction of the change holds
+and the cap is still sized sensibly, but JSON of this shape tokenizes at
+about 2 characters per token and should be estimated that way in future.
+
+Quality did not suffer and reads better: Opus's ribeye answer now names the
+peppery-Syrah mechanism outright and offers an everyday bottle against a
+splurge, and Sonnet's Thanksgiving picks became risk-aware in the way only
+Opus's were before.
 
 ---
 
@@ -2164,3 +2198,47 @@ Sources consulted:
 [CellarTracker's field model](https://support.cellartracker.com/article/19-adding-new-wines),
 [Wine Spectator's drinking window](https://help.winespectator.com/support/solutions/articles/29642-what-is-a-drink-recommendation-or-drinking-window-),
 [TTB label/ABV labeling rules](https://www.ttb.gov/regulated-commodities/beverage-alcohol/wine/labeling-wine/wine-labeling-alcohol-content).
+
+## 30. Model text can leak tool syntax into a field meant for prose
+
+Found 2026-09-21 while re-measuring #23, in 1 of 20 real Suggest runs.
+Sonnet ended a pairing summary mid-sentence and then wrote, *inside the
+string*:
+
+```
+...to the richest and sweetest.</summary>
+<parameter name="picks">[{"bottleId":51,"pairingContext":...
+```
+
+The tool call itself parsed perfectly - the picks came through, every
+bottle resolved, nothing downstream had any reason to suspect a problem.
+Only the prose was contaminated. That prose is written straight to
+`SavedPairing.summary` and rendered on the pairing page, so a kept pairing
+would have sat in the cellar with a page of raw JSON in the middle of it,
+and no error anywhere to explain why.
+
+Guarded rather than fixed, because it cannot be fixed where it happens: no
+prompt makes a model perfectly incapable of this, and a rare fault that
+corrupts *stored* data is worse than a common one that merely looks wrong
+once. `cleanModelText` (`lib/model-text.js`) cuts at the first marker and
+keeps everything before it - the prose up to that point was real. It is
+applied twice on purpose: in `getSuggestions`, where the model's answer
+enters the app, and inside `trimmedOrNull`, which every model-written
+string passes through on its way into a pairing row. Every caller of that
+helper is model text; owner-typed text (renaming a pairing) has its own
+path and is untouched.
+
+Deliberately narrow: a summary may legitimately contain `<` (a score, "<5%
+ABV"), so `<` alone is not a marker - only a closing tag for one of the
+tool's own field names, or the opening of a parameter block.
+
+Verified by reproducing the exact observed string through the full flow:
+not rendered on screen, and the row that reached the database held
+`"Move from brightest to richest."` with the junk removed and the real
+sentence intact.
+
+**Still open.** Only Suggest is guarded. The scan and research paths write
+model prose too (`criticNotes`, a scan's `note`), and nothing cleans those
+yet - the same leak into `criticNotes` would be just as permanent. Worth
+extending `cleanModelText` to those boundaries; it was left out of this
+pass to keep the change to the feature the fault was actually observed in.
