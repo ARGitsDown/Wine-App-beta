@@ -210,15 +210,22 @@ claim, so the package itself was read:
 @auth/prisma-adapter` against this exact project resolves with no peer
 conflicts and no ERESOLVE.
 
-**What is still unverified, and deliberately so:** nobody has run a real
-Google sign-in end to end here. What is established is that the libraries
-are compatible with this stack - which is what Phase 1 needed to know
-before committing. Two things to expect when it starts: the adapter needs
-its own four models (`User`, `Account`, `Session`, `VerificationToken`,
-plus `Authenticator` if WebAuthn is ever wanted), and `AUTH_SECRET` plus
-the Google client id/secret become required environment variables - the
-first env vars this app cannot start without, which is worth remembering
-given how much of its graceful degradation assumes optional ones.
+**Verified end to end 2026-09-22: a real Google sign-in, in production.**
+Google OAuth client created, credentials set in Vercel, and the owner
+signed in for real. The adopt-not-create adapter override worked exactly
+as designed - the existing 123-bottle cellar was claimed by the sign-in
+rather than a new empty one being created beside it.
+
+One real bug surfaced by that test, not by code review: the very first
+attempt came back `AccessDenied` even though the seeded row was still
+unclaimed and `OWNER_EMAIL` looked right. Google's OAuth profile returned
+`andrewrucker@gmail.com` - no dot - while `OWNER_EMAIL` had been set to
+`andrew.rucker@gmail.com` - with one. Gmail ignores dots for routing mail,
+so both spellings reach the same inbox, but the account has exactly one
+canonical form, and that is what OAuth hands back. Diagnosed by adding a
+temporary log line to `isAllowedToSignIn` (since removed) rather than
+guessing, which printed the exact mismatch on the next attempt. Now
+documented in `.env.example` next to `OWNER_EMAIL`.
 
 ## Multiple locations within one cellar
 
