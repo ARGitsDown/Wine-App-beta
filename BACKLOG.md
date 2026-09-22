@@ -2399,3 +2399,56 @@ a server-only module.
 was broken by a change that built cleanly and ran cleanly in dev. Anything
 touching what a client component imports wants a production-build check
 before it ships, and `next dev` alone cannot stand in for one.
+
+## 32. The owner's first sign-in locked them out of the second
+
+Shipped 2026-09-21 as part of Phase 1, caught 2026-09-22 during the
+owner's actual first real sign-in in production - not by review, and not
+by the test suite, because the test suite only covered the stateless
+half of the decision.
+
+`isAllowedToSignIn` (`lib/auth.js`) grants entry through exactly two
+paths: an `Invite` row for the address, or an unclaimed cellar (the
+bootstrap window `maySignIn` in `lib/invite-policy.js` describes). The
+owner's very first sign-in goes through the second path by design - there
+is no invite to have yet - and correctly claims the seeded cellar. But
+claiming it is exactly what closes the bootstrap path: the cellar is no
+longer unclaimed, and no invite was ever written for that address either.
+The owner's *second* sign-in - later the same evening, after signing out
+to verify the flow - had neither path available and came back
+`AccessDenied`. The bug locks out the one person the whole feature exists
+to let in, on the very next attempt.
+
+Diagnosed live against the actual failure, not guessed: a temporary log
+line in `isAllowedToSignIn` (added, used, then removed) printed
+`hasInvite=false cellarUnclaimed=false allowed=false` for the owner's own
+address on the second attempt, which is what pointed at the missing
+invite rather than at Google, Vercel, or the database.
+
+### Fixed, and made unrepeatable
+
+1. **`isAllowedToSignIn` now writes an accepted `Invite` row every time it
+   lets someone through with no existing invite.** A bootstrap-path pass
+   leaves behind exactly the record an ordinary invited sign-in would
+   already have, so every sign-in after the first behaves identically no
+   matter which path the first one used.
+2. **The already-locked-out account was recovered by hand**: one `INSERT`
+   into `Invite` for the owner's address, run directly against production
+   through the database's own query console, confirmed working before the
+   code fix even deployed - the invite check itself was never broken, only
+   the thing that should have populated it.
+3. `scripts/invite-policy.test.mjs` gained two cases reproducing the
+   sequence: the owner's real second sign-in with no invite recorded
+   (correctly refused - proof the bug lived in *not persisting*, not in
+   the decision function itself), and the same address with the invite
+   `isAllowedToSignIn` must now leave behind (correctly allowed). The
+   pure function was never wrong; nothing here could have caught the bug
+   without also testing the side effect, which is what the fix adds.
+
+**The lasting lesson:** a stateless allow/deny check and a durable record
+of who has been let in are two different responsibilities, and a
+"first time" path that succeeds without writing anything down will look
+correct exactly once. The fix everywhere else in this app has been to
+verify against a real environment rather than review the code and assume
+it holds - this is the same lesson, aimed at an access-control decision
+instead of a bundler mechanism.
