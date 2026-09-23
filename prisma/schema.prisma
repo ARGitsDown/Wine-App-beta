@@ -14,11 +14,15 @@ datasource db {
 
 // The person a cellar belongs to.
 //
-// Phase 0 of separate cellars per user (FUTURE_CAPABILITIES.md): ownership
-// exists, but nothing reads it yet. There is exactly one row, seeded by the
-// migration, and every bottle, flight and pairing points at it. No auth, no
-// filtering, no behaviour change - the migration risk gets its own step,
-// where nothing else can confuse it.
+// Phases 0 through 2 of separate cellars per user (FUTURE_CAPABILITIES.md)
+// are all done: every bottle, flight and pairing has a real owner,
+// lib/scoped-prisma.js filters essentially every read and write by it, and
+// an Auth.js session (or, until accounts are configured, the single seeded
+// row) decides who that is on each request. This comment described Phase 0
+// alone for a while - "ownership exists, but nothing reads it yet" - which
+// stopped being true the moment Phase 1 and 2 shipped; a schema comment
+// that outlives the state it describes is worse than none; that's what
+// this paragraph was caught doing.
 //
 // Deliberately shaped as Auth.js's `User` from the outset rather than as a
 // throwaway `Owner`, because Phase 1 adopts @auth/prisma-adapter and that
@@ -46,9 +50,9 @@ model User {
   // columns here and not eleven. ResearchJob is a fourth ownerId column,
   // but deliberately not a fourth root: it's a transient job row, not a
   // list of anyone's things.
-  bottles  Bottle[]
-  flights  TastingFlight[]
-  pairings SavedPairing[]
+  bottles      Bottle[]
+  flights      TastingFlight[]
+  pairings     SavedPairing[]
   researchJobs ResearchJob[]
 
   // Auth.js's side of this table. Both cascade: deleting a person takes
@@ -138,7 +142,7 @@ model Invite {
   // addresses becomes unreadable within about four entries.
   note  String?
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime  @default(now())
   // Stamped on the invited person's first successful sign-in, so the list
   // shows who has actually turned up rather than only who was asked.
   acceptedAt DateTime?
@@ -149,8 +153,8 @@ model Invite {
 // - inventory: currently owned/in the cellar
 // - consumed: already drunk, kept around so its tasting notes stay attached
 model Bottle {
-  id       Int     @id @default(autoincrement())
-  producer String
+  id                   Int       @id @default(autoincrement())
+  producer             String
   // The specific bottling, when a producer makes more than one wine from
   // the same grape/vintage - a vineyard designation (e.g. "Rochioli
   // Vineyard") or a proprietary/cuvée name (e.g. "Madeleine", "Insignia").
@@ -158,21 +162,21 @@ model Bottle {
   // wine often carries a proprietary-sounding name too), so this is
   // deliberately one flexible field rather than two, the same reasoning as
   // `region` below.
-  bottling String?
-  vintage  Int?
+  bottling             String?
+  vintage              Int?
   // Short, header-friendly style label - usually just the grape variety
   // (e.g. "Zinfandel"), but a concise descriptor for blends or wines with
   // no single named variety (e.g. "Red Bordeaux Blend", "Orange Wine").
   // `variety` below can hold a fuller, more detailed description.
-  type     String?
-  variety  String?
+  type                 String?
+  variety              String?
   // A grape name from lib/varietals.js's canonical list, auto-matched from
   // `type`/`variety` on save (see lib/varietal-match.js) whenever they
   // name exactly one recognized grape - null for a blend or an
   // unrecognized/obscure variety, rather than guess. Lets filtering match
   // synonyms (e.g. "Grenache" also finds a bottle logged as "Garnacha")
   // without changing what's actually printed on the label in `variety`.
-  canonicalVariety String?
+  canonicalVariety     String?
   // The primary sub-country identifier - a US state for domestic wines
   // (e.g. "California"), or a named wine region/appellation for everything
   // else (e.g. "Bordeaux", "Burgundy", "Central Otago"). Deliberately just
@@ -180,29 +184,29 @@ model Bottle {
   // hierarchy, since that hierarchy genuinely differs by country and even
   // by wine - a fuller drill-down (like Bordeaux -> Medoc -> ...) can be
   // layered on top of this later without a schema rework.
-  region   String?
+  region               String?
   // An optional finer-grained locator within `region` (e.g. "Margaux"
   // within region "Bordeaux", or "Gevrey-Chambertin" within "Burgundy") -
   // BACKLOG.md #2's lightweight step: one more flat, optional field rather
   // than a rigid multi-level hierarchy tree, so a country/region/
   // sub-region/appellation drill-down can still be layered on properly
   // later without this being in the way.
-  subRegion String?
-  country  String?
-  quantity Int     @default(1)
-  status   String  @default("wishlist")
+  subRegion            String?
+  country              String?
+  quantity             Int       @default(1)
+  status               String    @default("wishlist")
   // The owner's own words about the bottle, as opposed to criticNotes
   // (someone else's words, written by Research) or a TastingNote (about one
   // evening). Where the bottle came from lives here - a shop, the winery, a
   // gift - which is the only fact about a bottle with no field of its own.
   // Deliberately free text rather than an acquisitionSource column: the
   // answers are long-tailed and never filtered on.
-  notes    String?
+  notes                String?
   // Alcohol by volume, as printed on the label (e.g. 14.5 for "14.5%").
   // Legally required on nearly every label, so easy to capture during
   // scanning, and useful for style/pairing reasoning (a 15.5% Zinfandel
   // behaves very differently at the table than a 12.5% Riesling).
-  abv      Float?
+  abv                  Float?
   // A small fixed vocabulary (Red/White/Rosé/Orange/Sparkling/Dessert/
   // Fortified - see WINE_COLORS in lib/wine-colors.js), distinct from `type`
   // (which names the grape/style, not the color) so "show me all my
@@ -213,14 +217,14 @@ model Bottle {
   // make wines of different colors - a Pinot Noir rosé, for instance - so
   // a text-based guess could confidently mislabel one); the scan feature
   // does infer it, since it can actually see the label/context.
-  wineColor String?
+  wineColor            String?
   // The drinking window: the year range this wine is expected to be at its
   // best (e.g. drinkFrom 2026, drinkTo 2034). Both nullable and independent
   // - a wine can have a known start with no known end, or vice versa. Feeds
   // the Suggest feature's reasoning (don't recommend something not ready
   // yet, or already past peak) - see BACKLOG.md #4.
-  drinkFrom Int?
-  drinkTo   Int?
+  drinkFrom            Int?
+  drinkTo              Int?
   // True when drinkFrom/drinkTo came from an AI guess (scan, Research's
   // fallback, a bulk backfill, or a dedicated estimate action - see
   // BACKLOG.md #7) rather than something stated on the label, found via a
@@ -229,19 +233,19 @@ model Bottle {
   // those estimate-producing actions; a plain edit through updateBottle
   // clears it back to false when the years actually change (the human has
   // now made the call), and leaves it alone otherwise.
-  drinkWindowEstimated Boolean @default(false)
+  drinkWindowEstimated Boolean   @default(false)
   // Set when the scan feature wasn't confident about every field it filled
   // in (see `confident` on the scan tool). Surfaces the bottle in the
   // "Needs research" queue until someone runs (or dismisses) the "Research
   // further" action on its page - never cleared automatically otherwise.
-  needsResearch Boolean @default(false)
+  needsResearch        Boolean   @default(false)
   // The scanned label photo, uploaded to Vercel Blob storage (see
   // lib/blob.js) at scan time - null for a manually-added bottle, or when
   // blob storage isn't configured (the scan feature still works without
   // it, same graceful-degradation spirit as ANTHROPIC_API_KEY being
   // optional). One photo can hold several wines (a shop's tasting sheet),
   // in which case each of those bottles shares the same photoUrl.
-  photoUrl String?
+  photoUrl             String?
   // When the last bottle of this wine actually left the cellar. Nullable
   // and only meaningful for a `consumed` row: set on whichever action moved
   // it there, cleared if it ever moves back out, so a bottle returned to
@@ -250,7 +254,7 @@ model Bottle {
   // "emptied, date unknown" rather than as a wrong date - see BACKLOG.md
   // #10. Stored like TastingNote.tastedAt, anchored at noon UTC: see
   // lib/tasting-date.js for why a date-only value needs that.
-  emptiedAt DateTime?
+  emptiedAt            DateTime?
   // When this wine entered the cellar, as opposed to createdAt's "when the
   // row was typed in" - the two are only the same for a bottle you log the
   // day you buy it. Nullable, and deliberately left null rather than
@@ -264,7 +268,7 @@ model Bottle {
   // null, which reads as "date unknown" rather than as a wrong date - see
   // BACKLOG.md #10. Anchored at noon UTC like every other date-only value:
   // see lib/tasting-date.js.
-  acquiredAt DateTime?
+  acquiredAt           DateTime?
   // Existing winemaking/tasting notes found *about* this wine by the
   // Research feature - the winery's own description, critic write-ups
   // (Wine Advocate, Wine Spectator, Halliday, Jancis Robinson, etc.), or
@@ -273,7 +277,7 @@ model Bottle {
   // entries). Only ever populated by applying a research result; never set
   // by scanning or by a plain manual edit, though it's an ordinary
   // editable field once research has filled it in.
-  criticNotes String?
+  criticNotes          String?
 
   // Who this bottle belongs to. See the User model above: one owner today,
   // seeded by the migration, with nothing yet reading this column.
@@ -283,11 +287,11 @@ model Bottle {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tastingNotes TastingNote[]
-  favorites    Favorite[]
-  flightPicks  FlightPick[]
-  pairingPicks PairingPick[]
-  photos       BottlePhoto[]
+  tastingNotes     TastingNote[]
+  favorites        Favorite[]
+  flightPicks      FlightPick[]
+  pairingPicks     PairingPick[]
+  photos           BottlePhoto[]
   researchProposal ResearchProposal?
 
   // Every list page filters on `status`, and the nav badge counts
@@ -372,19 +376,19 @@ model Favorite {
 // suggestion mixed into the same result isn't part of "what to pull from
 // the cellar" and can already be added to the wishlist independently.
 model TastingFlight {
-  id Int @id @default(autoincrement())
+  id      Int     @id @default(autoincrement())
   // A short evocative name for the flight ("The Many Faces of Pinot") -
   // the heading, and what the flights list links on. Nullable because
   // flights saved before this existed have only a summary, which they
   // keep showing as their heading rather than getting a guessed title.
-  title     String?
+  title   String?
   // The fuller explanation of the theme and its ordering. Before `title`
   // it was doing both jobs, which made for a three-sentence link.
   // Nullable since flights can be built by hand: a flight you assembled
   // yourself has a theme name and often nothing else to say. At least one
   // of title/summary is always set - guaranteed where flights are written,
   // not by the columns, since neither can be NOT NULL on its own.
-  summary   String?
+  summary String?
 
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -453,8 +457,8 @@ model ResearchProposal {
 
   // What the model says it found, and where. Kept beside the proposal
   // because both are part of judging it, not part of the bottle.
-  summary  String
-  sources  String[]
+  summary String
+  sources String[]
 
   // Compared against the bottle's updatedAt to spot a proposal computed
   // from values that have since changed. Flagged in the review rather than
@@ -479,7 +483,7 @@ model ResearchProposal {
 // run has no ceiling, and the progress the page shows is the real server
 // state rather than a counter in a tab that may not be open.
 model ResearchJob {
-  id Int @id @default(autoincrement())
+  id    Int    @id @default(autoincrement())
   // What each step has to present to be allowed to run, since the step
   // endpoint is a plain HTTP route rather than a signed-in page - see
   // ownerId below for why that matters here specifically. A per-job random
@@ -546,7 +550,7 @@ model ResearchJob {
 // column as "null means unknown" - the distinction the rest of this
 // schema works to keep.
 model SavedPairing {
-  id             Int           @id @default(autoincrement())
+  id             Int     @id @default(autoincrement())
   // The model's own title, which the owner can rename. NOT NULL unlike
   // TastingFlight.title: every pairing is born from a Suggest result,
   // where the title is a required tool field, so there is no such thing
@@ -576,8 +580,8 @@ model SavedPairing {
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  createdAt      DateTime      @default(now())
-  picks          PairingPick[]
+  createdAt DateTime      @default(now())
+  picks     PairingPick[]
 
   @@index([ownerId])
 }
