@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentGuest } from "@/lib/guest";
+import { guestOwnerId } from "@/lib/owner";
 import { getRegionOptions } from "@/lib/bottles";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { enterAsGuest, switchGuest } from "@/app/actions";
@@ -36,13 +37,19 @@ export default async function GuestPage({ searchParams }) {
     );
   }
 
+  // /guest has no session for lib/scoped-prisma.js's extension to read -
+  // there's no signed-in owner here at all, just a name in a cookie. This
+  // is the one cellar guest browsing shows, not per-invitee (see
+  // guestOwnerId in lib/owner.js for what that means and what Phase 4
+  // would need to change about it).
+  const ownerId = await guestOwnerId();
   const [rows, regionOptions, filters] = await Promise.all([
     prisma.bottle.findMany({
-      where: { status: "inventory" },
+      where: { status: "inventory", ownerId },
       include: { favorites: { where: { guestId: guest.id }, select: { id: true } } },
       orderBy: { producer: "asc" },
     }),
-    getRegionOptions(),
+    getRegionOptions(ownerId),
     searchParams,
   ]);
 

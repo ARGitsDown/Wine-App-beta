@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
+import { currentOwnerId } from "@/lib/owner";
 import { auth, isAuthConfigured } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -43,26 +45,37 @@ export async function GET() {
     }
   }
 
+  const ownerId = await currentOwnerId();
+
   const [bottles, guests, flights, pairings, researchProposals] = await Promise.all([
-    prisma.bottle.findMany({
+    db.bottle.findMany({
       include: { tastingNotes: true, photos: true },
       orderBy: { id: "asc" },
     }),
+    // Guest isn't owner-scoped by lib/scoped-prisma.js's extension (see
+    // that file) - it's shared browsing-identity state, not cellar data.
+    // But favorites point at bottles, and a favorite on someone else's
+    // bottle isn't this owner's to export. Filtered here explicitly:
+    // favorites narrowed to this owner's bottles, and only guests who
+    // have at least one such favorite - a guest who has only ever
+    // favorited another owner's cellar has nothing to say about this
+    // one.
     prisma.guest.findMany({
-      include: { favorites: true },
+      where: { favorites: { some: { bottle: { ownerId } } } },
+      include: { favorites: { where: { bottle: { ownerId } } } },
       orderBy: { id: "asc" },
     }),
-    prisma.tastingFlight.findMany({
+    db.tastingFlight.findMany({
       // Picks in tasting order, so the file reads the way the flight does.
       include: { picks: { orderBy: { order: "asc" } } },
       orderBy: { id: "asc" },
     }),
-    prisma.savedPairing.findMany({
+    db.savedPairing.findMany({
       // Same reason as a flight's picks: in the order the pairing reads.
       include: { picks: { orderBy: { order: "asc" } } },
       orderBy: { id: "asc" },
     }),
-    prisma.researchProposal.findMany({ orderBy: { id: "asc" } }),
+    db.researchProposal.findMany({ orderBy: { id: "asc" } }),
   ]);
 
   const payload = {

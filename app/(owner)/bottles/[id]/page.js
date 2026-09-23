@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
+import { currentOwnerId } from "@/lib/owner";
 import { getRegionOptions } from "@/lib/bottles";
 import {
   updateBottle,
@@ -72,7 +73,7 @@ async function flightNameFor(param) {
   if (!value) return null;
   if (!/^\d+$/.test(value)) return value;
 
-  const flight = await prisma.tastingFlight.findUnique({
+  const flight = await db.tastingFlight.findUnique({
     where: { id: Number(value) },
     select: { title: true, summary: true },
   });
@@ -82,9 +83,10 @@ async function flightNameFor(param) {
 export default async function BottleDetailPage({ params, searchParams }) {
   const { id } = await params;
   const { pairedWith, tastingFlight } = await searchParams;
+  const ownerId = await currentOwnerId();
   const [flightName, allFlights] = await Promise.all([
     flightNameFor(tastingFlight),
-    prisma.tastingFlight.findMany({
+    db.tastingFlight.findMany({
       select: { id: true, title: true, summary: true, picks: { select: { consumed: true } } },
       orderBy: { createdAt: "desc" },
     }),
@@ -96,9 +98,15 @@ export default async function BottleDetailPage({ params, searchParams }) {
 
   // Both together: the region list doesn't depend on the bottle, so
   // awaiting it afterward just added a second round-trip to every view.
+  //
+  // The bottle fetch going through db (rather than prisma) is not
+  // optional here the way it might look elsewhere: this page is reached
+  // by a bare id in the URL, so a foreign id has to read exactly like a
+  // deleted one - notFound() below - rather than rendering someone else's
+  // bottle.
   const [bottle, regionOptions] = await Promise.all([
     Number.isInteger(bottleId)
-      ? prisma.bottle.findUnique({
+      ? db.bottle.findUnique({
           where: { id: bottleId },
           include: {
             tastingNotes: { orderBy: [{ tastedAt: "desc" }, { id: "desc" }] },
@@ -111,7 +119,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
           },
         })
       : null,
-    getRegionOptions(),
+    getRegionOptions(ownerId),
   ]);
 
   if (!bottle) notFound();

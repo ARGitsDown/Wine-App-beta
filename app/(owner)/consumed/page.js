@@ -1,15 +1,17 @@
 import { getBottles, getRegionOptions } from "@/lib/bottles";
+import { currentOwnerId } from "@/lib/owner";
 import FilterableBottleList from "@/app/components/FilterableBottleList";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConsumedPage({ searchParams }) {
   const filters = await searchParams;
+  const ownerId = await currentOwnerId();
   const [bottles, regionOptions] = await Promise.all([
     // The one page that renders note text - see getBottles for why this is
     // opt-in rather than the default.
     getBottles("consumed", { withLatestNote: true }),
-    getRegionOptions(),
+    getRegionOptions(ownerId),
   ]);
 
   return (

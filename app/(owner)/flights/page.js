@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
 import { flightName } from "@/lib/flights";
 import NewFlightForm from "@/app/components/NewFlightForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function FlightsPage() {
-  const flights = await prisma.tastingFlight.findMany({
+  const flights = await db.tastingFlight.findMany({
     include: { picks: true },
     orderBy: { createdAt: "desc" },
   });

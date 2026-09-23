@@ -1,4 +1,5 @@
 import { getBottles, getRegionOptions } from "@/lib/bottles";
+import { currentOwnerId } from "@/lib/owner";
 import { createBottle } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import FilterableBottleList from "@/app/components/FilterableBottleList";
@@ -8,9 +9,10 @@ export const dynamic = "force-dynamic";
 
 export default async function WishlistPage({ searchParams }) {
   const filters = await searchParams;
+  const ownerId = await currentOwnerId();
   const [bottles, regionOptions] = await Promise.all([
     getBottles("wishlist"),
-    getRegionOptions(),
+    getRegionOptions(ownerId),
   ]);
 
   return (

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
 import {
   ScanIcon,
   SuggestIcon,
@@ -63,19 +63,19 @@ export default async function HomePage() {
     pairingCount,
     researchCount,
   ] = await Promise.all([
-      prisma.bottle.count({ where: { status: "inventory" } }),
-      prisma.bottle.count({ where: { status: "wishlist" } }),
+      db.bottle.count({ where: { status: "inventory" } }),
+      db.bottle.count({ where: { status: "wishlist" } }),
       // Wines tasted, not notes written. A bottle you finished without
       // writing anything down still counts - knowing you have had a wine
       // before is the useful fact, and it does not depend on having had
       // something to say about it. Counted per bottle row, which is a wine
       // rather than an individual bottle, so three of the same Rochioli is
       // one wine tasted.
-      prisma.bottle.count({
+      db.bottle.count({
         where: { OR: [{ status: "consumed" }, { tastingNotes: { some: {} } }] },
       }),
-      prisma.tastingFlight.count(),
-      prisma.savedPairing.count(),
+      db.tastingFlight.count(),
+      db.savedPairing.count(),
       getResearchCount(),
     ]);
 

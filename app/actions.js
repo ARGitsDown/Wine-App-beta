@@ -1,11 +1,12 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
 import { aiErrorMessage } from "@/lib/ai-errors";
 import { cleanModelText, cleanModelFields } from "@/lib/model-text";
-import { currentOwnerId } from "@/lib/owner";
+import { currentOwnerId, guestOwnerId } from "@/lib/owner";
 import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
 import { DEFAULT_DEPTH, normalizeDepth } from "@/lib/suggest-depth";
 import { depthConfig } from "@/lib/suggest-model";
@@ -162,7 +163,7 @@ async function insertBottle(status, formData) {
   // creation time, never touched by a later manual edit.
   const photoUrl = String(formData.get("photoUrl") || "").trim() || null;
   try {
-    const created = await prisma.bottle.create({
+    const created = await db.bottle.create({
       // A wine logged straight into History was drunk at some point; "now"
       // is the same standing guess the tasting note's date makes, and is
       // correctable afterward.
@@ -216,7 +217,7 @@ export async function createBottleWithNote(status, prevState, formData) {
   if (note) {
     const rating = parseOptionalRating(formData.get("rating"));
     try {
-      await prisma.tastingNote.create({ data: { bottleId: bottle.id, note, rating } });
+      await db.tastingNote.create({ data: { bottleId: bottle.id, note, rating } });
     } catch (err) {
       // Same reasoning as insertBottle's catch: don't let one card's DB
       // hiccup take down the rest of the batch. The bottle itself is
@@ -240,11 +241,11 @@ export async function updateBottle(id, prevState, formData) {
   if (!data.producer) return { error: "Producer is required." };
 
   try {
-    const existing = await prisma.bottle.findUnique({
+    const existing = await db.bottle.findUnique({
       where: { id },
       select: { drinkFrom: true, drinkTo: true },
     });
-    const bottle = await prisma.bottle.update({
+    const bottle = await db.bottle.update({
       where: { id },
       data: clearEstimatedFlagIfWindowChanged(data, existing),
     });
@@ -268,7 +269,7 @@ export async function updateBottle(id, prevState, formData) {
 // screen disagreeing. The caller puts the radio back on { error }.
 export async function setBottleStatus(id, status) {
   try {
-    const existing = await prisma.bottle.findUnique({
+    const existing = await db.bottle.findUnique({
       where: { id },
       select: { emptiedAt: true, acquiredAt: true },
     });
@@ -276,7 +277,7 @@ export async function setBottleStatus(id, status) {
       return { error: "That wine is no longer in your cellar." };
     }
 
-    await prisma.bottle.update({
+    await db.bottle.update({
       where: { id },
       data: {
         status,
@@ -313,20 +314,20 @@ export async function setBottleStatus(id, status) {
 // Only for a bottle already in History. A note on a bottle still in the
 // cellar is one of six bottles tasted, not the end of the wine.
 async function syncEmptiedToLatestNote(bottleId) {
-  const bottle = await prisma.bottle.findUnique({
+  const bottle = await db.bottle.findUnique({
     where: { id: bottleId },
     select: { status: true },
   });
   if (bottle?.status !== "consumed") return;
 
-  const latest = await prisma.tastingNote.findFirst({
+  const latest = await db.tastingNote.findFirst({
     where: { bottleId },
     orderBy: [{ tastedAt: "desc" }, { id: "desc" }],
     select: { tastedAt: true },
   });
   if (!latest) return;
 
-  await prisma.bottle.update({
+  await db.bottle.update({
     where: { id: bottleId },
     data: { emptiedAt: latest.tastedAt },
   });
@@ -338,7 +339,7 @@ export async function updateEmptiedDate(id, formData) {
   if (!emptiedAt) return { error: "That date doesn't look right." };
 
   try {
-    await prisma.bottle.update({ where: { id }, data: { emptiedAt } });
+    await db.bottle.update({ where: { id }, data: { emptiedAt } });
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/consumed");
     return { success: true };
@@ -362,7 +363,7 @@ export async function updateAcquiredDate(id, formData) {
   if (raw !== "" && !acquiredAt) return { error: "That date doesn't look right." };
 
   try {
-    await prisma.bottle.update({ where: { id }, data: { acquiredAt } });
+    await db.bottle.update({ where: { id }, data: { acquiredAt } });
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/inventory");
     revalidatePath("/consumed");
@@ -383,7 +384,7 @@ export async function updateAcquiredDate(id, formData) {
 // *when* each bottle was drunk lives in that wine's tasting notes, which
 // carry their own dates and stay attached either way.
 export async function markOneTasted(id) {
-  const bottle = await prisma.bottle.findUnique({
+  const bottle = await db.bottle.findUnique({
     where: { id },
     select: { quantity: true, emptiedAt: true },
   });
@@ -398,7 +399,7 @@ export async function markOneTasted(id) {
           emptiedAt: emptiedAtForStatus("consumed", bottle.emptiedAt),
         };
 
-  await prisma.bottle.update({ where: { id }, data });
+  await db.bottle.update({ where: { id }, data });
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/inventory");
   revalidatePath("/consumed");
@@ -410,7 +411,7 @@ export async function markOneTasted(id) {
 // markOneTasted is for, and doing it here would strand a bottle in
 // the cellar at quantity 0.
 export async function adjustBottleQuantity(id, delta) {
-  const bottle = await prisma.bottle.findUnique({
+  const bottle = await db.bottle.findUnique({
     where: { id },
     select: { quantity: true, status: true },
   });
@@ -419,7 +420,7 @@ export async function adjustBottleQuantity(id, delta) {
   const next = Math.max(1, bottle.quantity + delta);
   if (next === bottle.quantity) return;
 
-  await prisma.bottle.update({ where: { id }, data: { quantity: next } });
+  await db.bottle.update({ where: { id }, data: { quantity: next } });
   revalidatePath(`/bottles/${id}`);
   revalidatePath(pathForStatus(bottle.status));
 }
@@ -434,7 +435,7 @@ export async function adjustBottleQuantity(id, delta) {
 // was last taken - there's nowhere that's recorded, and there doesn't
 // need to be, since status alone already says which reversal applies.
 export async function undoOneTasted(id) {
-  const bottle = await prisma.bottle.findUnique({
+  const bottle = await db.bottle.findUnique({
     where: { id },
     select: { status: true },
   });
@@ -448,7 +449,7 @@ export async function undoOneTasted(id) {
 }
 
 export async function deleteBottle(id) {
-  const bottle = await prisma.bottle.delete({ where: { id } });
+  const bottle = await db.bottle.delete({ where: { id } });
   revalidatePath(pathForStatus(bottle.status));
   redirect(pathForStatus(bottle.status));
 }
@@ -466,7 +467,7 @@ export async function deleteBottle(id) {
 // database cannot end up disagreeing.
 export async function removeScannedBottle(id) {
   try {
-    const bottle = await prisma.bottle.delete({ where: { id } });
+    const bottle = await db.bottle.delete({ where: { id } });
     revalidatePath(pathForStatus(bottle.status));
     return { ok: true };
   } catch (err) {
@@ -489,11 +490,11 @@ export async function removeScannedBottles(ids) {
   try {
     // Read the statuses before deleting - afterwards there is nothing left to
     // say which lists need refreshing.
-    const bottles = await prisma.bottle.findMany({
+    const bottles = await db.bottle.findMany({
       where: { id: { in: wanted } },
       select: { status: true },
     });
-    await prisma.bottle.deleteMany({ where: { id: { in: wanted } } });
+    await db.bottle.deleteMany({ where: { id: { in: wanted } } });
     for (const path of new Set(bottles.map((b) => pathForStatus(b.status)))) {
       revalidatePath(path);
     }
@@ -512,7 +513,7 @@ export async function addTastingNote(bottleId, formData) {
   // unparseable, so a note is never lost to a bad date.
   const tastedAt = parseTastedDate(formData.get("tastedAt")) ?? undefined;
 
-  await prisma.tastingNote.create({ data: { bottleId, note, rating, tastedAt } });
+  await db.tastingNote.create({ data: { bottleId, note, rating, tastedAt } });
   await syncEmptiedToLatestNote(bottleId);
   revalidatePath(`/bottles/${bottleId}`);
 }
@@ -525,7 +526,7 @@ export async function updateTastingNoteDate(noteId, formData) {
   if (!tastedAt) return { error: "That date doesn't look right." };
 
   try {
-    const note = await prisma.tastingNote.update({
+    const note = await db.tastingNote.update({
       where: { id: noteId },
       data: { tastedAt },
       select: { bottleId: true },
@@ -680,7 +681,7 @@ const WINES_TOOL = {
 async function searchCellar(query) {
   const q = String(query || "").trim();
   if (!q) return [];
-  return prisma.bottle.findMany({
+  return db.bottle.findMany({
     where: {
       OR: [
         { producer: { contains: q, mode: "insensitive" } },
@@ -840,7 +841,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
           // carried in by bottleDataFromWine.
           const status = statusForScanIntent(intent);
           try {
-            const bottle = await prisma.bottle.create({
+            const bottle = await db.bottle.create({
               data: {
                 ownerId,
                 ...bottleDataFromWine(wine),
@@ -853,7 +854,7 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
             });
             if (wine.note) {
               try {
-                await prisma.tastingNote.create({
+                await db.tastingNote.create({
                   data: { bottleId: bottle.id, note: wine.note, rating: null },
                 });
               } catch (err) {
@@ -1047,7 +1048,7 @@ function withoutNulls(row) {
 }
 
 async function browseCellar(filters) {
-  const bottles = await prisma.bottle.findMany({
+  const bottles = await db.bottle.findMany({
     where: { status: "inventory" },
     include: { tastingNotes: { select: { rating: true } } },
     orderBy: { producer: "asc" },
@@ -1221,7 +1222,7 @@ export async function getSuggestions(
         const picks = finalCall.input.picks;
         const ownedIds = picks.map((p) => p.bottleId).filter((id) => id !== null);
         const ownedBottles = ownedIds.length
-          ? await prisma.bottle.findMany({ where: { id: { in: ownedIds } } })
+          ? await db.bottle.findMany({ where: { id: { in: ownedIds } } })
           : [];
         const bottleById = new Map(ownedBottles.map((b) => [b.id, b]));
 
@@ -1520,6 +1521,12 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT) {
 // except the proposal now survives navigating away.
 // Upsert, not create: researching a bottle twice should replace the
 // pending answer rather than fail on the unique bottleId.
+// On the plain client, not the scoped one: this runs from both a signed-in
+// page (researchBottle) and the sessionless bulk step (researchStep, via
+// runResearchJobStep), and both callers already fetched this exact bottle
+// through an owner-checked path before calling here - see researchStep's
+// own ownerId-filtered fetch above for the one that has no session to
+// scope through.
 async function saveResearchProposal(bottleId, { proposed, summary, sources }) {
   await prisma.researchProposal.upsert({
     where: { bottleId },
@@ -1534,7 +1541,7 @@ async function saveResearchProposal(bottleId, { proposed, summary, sources }) {
 // queue - leave it alone: neither is a place where you are weighing one
 // bottle's answer against the wait for it.
 export async function researchBottle(id, effort = DEFAULT_EFFORT) {
-  const bottle = await prisma.bottle.findUnique({ where: { id } });
+  const bottle = await db.bottle.findUnique({ where: { id } });
   if (!bottle) return { error: "That bottle no longer exists." };
 
   const result = await runResearch(bottle, effort);
@@ -1596,14 +1603,27 @@ const BULK_RESEARCH_EFFORT = "low";
 // invocation to carry on - so the total run is bounded by nothing, and
 // what the page shows is real server state rather than a tally in a tab.
 export async function researchBottles(ids) {
+  const ownerId = await currentOwnerId();
+
   // De-duplicated because the same bottle twice in the queue is the same
-  // question twice, and validated because these become a row.
-  const bottleIds = [...new Set(ids)].filter((id) => Number.isInteger(id));
+  // question twice, validated because these become a row, and narrowed to
+  // bottles this owner actually has - a foreign id dropped here reads
+  // truthfully in the job's own total, rather than being counted and then
+  // silently vanishing partway through the run (see researchStep, which
+  // would otherwise be the only thing standing between a bad id and
+  // someone else's bottle).
+  const requestedIds = [...new Set(ids)].filter((id) => Number.isInteger(id));
+  const owned = await db.bottle.findMany({
+    where: { id: { in: requestedIds } },
+    select: { id: true },
+  });
+  const bottleIds = owned.map((bottle) => bottle.id);
   if (bottleIds.length === 0) return { error: "There's nothing waiting to be researched." };
 
   const job = await prisma.researchJob.create({
     data: {
       token: newResearchJobToken(),
+      ownerId,
       bottleIds,
       pendingIds: bottleIds,
     },
@@ -1656,7 +1676,11 @@ export async function runResearchJobStep(jobId, token) {
   let attempted = slice;
 
   try {
-    ({ researched, failed, attempted } = await researchStep(slice, Date.now() + STEP_BUDGET_MS));
+    ({ researched, failed, attempted } = await researchStep(
+      slice,
+      Date.now() + STEP_BUDGET_MS,
+      job.ownerId
+    ));
   } catch (err) {
     console.error(`Research job ${job.id} step failed:`, err);
   }
@@ -1696,8 +1720,13 @@ async function runResearchJobInProcess(jobId, token) {
 export async function getResearchJob(jobId) {
   if (!Number.isInteger(jobId)) return { error: "That research run is no longer on file." };
 
+  // researchJob isn't scoped by lib/scoped-prisma.js's extension (see that
+  // file), so it's filtered here explicitly - without this, the polling
+  // Server Action behind the progress bar would happily read back another
+  // owner's job by id, guessed or otherwise.
+  const ownerId = await currentOwnerId();
   const job = await prisma.researchJob.findUnique({
-    where: { id: jobId },
+    where: { id: jobId, ownerId },
     select: {
       id: true,
       bottleIds: true,
@@ -1732,8 +1761,14 @@ export async function getResearchJob(jobId) {
 // "don't start another after this point", not "stop at this point". The
 // first question always runs, whatever the clock says, so that a step can
 // never come back having consumed nothing.
-async function researchStep(ids, deadline) {
-  const bottles = await prisma.bottle.findMany({ where: { id: { in: ids } } });
+// `ownerId` comes from the job row, not a session - this runs from
+// app/api/research/step/route.js, a plain HTTP route with no cookies
+// attached (see ResearchJob.ownerId in prisma/schema.prisma), so it
+// filters explicitly through the plain client rather than through
+// lib/scoped-prisma.js, which would throw trying to read a session that
+// isn't there.
+async function researchStep(ids, deadline, ownerId) {
+  const bottles = await prisma.bottle.findMany({ where: { id: { in: ids }, ownerId } });
 
   // A bottle deleted since the queue was built has nothing left to
   // research, but it still has to leave the queue or the job never ends.
@@ -1803,8 +1838,8 @@ async function researchStep(ids, deadline) {
 // whole point of having reviewed the diff first.
 export async function applyResearchProposal(id) {
   const [bottle, proposal] = await Promise.all([
-    prisma.bottle.findUnique({ where: { id }, select: { id: true } }),
-    prisma.researchProposal.findUnique({ where: { bottleId: id } }),
+    db.bottle.findUnique({ where: { id }, select: { id: true } }),
+    db.researchProposal.findUnique({ where: { bottleId: id } }),
   ]);
   if (!bottle) return { error: "That bottle no longer exists." };
   if (!proposal) return { error: "That proposal is no longer waiting." };
@@ -1821,7 +1856,7 @@ export async function applyResearchProposal(id) {
   // would come straight back into the review queue claiming changes that
   // have already been applied.
   const [updated] = await prisma.$transaction([
-    prisma.bottle.update({
+    db.bottle.update({
       where: { id },
       data: {
         ...data,
@@ -1832,7 +1867,7 @@ export async function applyResearchProposal(id) {
         needsResearch: false,
       },
     }),
-    prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
+    db.researchProposal.deleteMany({ where: { bottleId: id } }),
   ]);
 
   invalidateRegionOptions();
@@ -1852,11 +1887,11 @@ export async function applyResearch(id, prevState, formData) {
 
   try {
     const [existing, proposal] = await Promise.all([
-      prisma.bottle.findUnique({
+      db.bottle.findUnique({
         where: { id },
         select: { drinkFrom: true, drinkTo: true },
       }),
-      prisma.researchProposal.findUnique({ where: { bottleId: id } }),
+      db.researchProposal.findUnique({ where: { bottleId: id } }),
     ]);
     // Keeping the proposal's own years untouched means accepting its
     // answer, flag and all; typing different ones is the human making the
@@ -1872,11 +1907,11 @@ export async function applyResearch(id, prevState, formData) {
     // does; leaving it would put the bottle straight back in the review
     // queue with an answer that has already been dealt with.
     const [bottle] = await prisma.$transaction([
-      prisma.bottle.update({
+      db.bottle.update({
         where: { id },
         data: { ...withFlag, needsResearch: false },
       }),
-      prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
+      db.researchProposal.deleteMany({ where: { bottleId: id } }),
     ]);
     invalidateRegionOptions();
     revalidatePath(`/bottles/${id}`);
@@ -1896,8 +1931,8 @@ export async function applyResearch(id, prevState, formData) {
 export async function dismissResearch(id) {
   try {
     await prisma.$transaction([
-      prisma.bottle.update({ where: { id }, data: { needsResearch: false } }),
-      prisma.researchProposal.deleteMany({ where: { bottleId: id } }),
+      db.bottle.update({ where: { id }, data: { needsResearch: false } }),
+      db.researchProposal.deleteMany({ where: { bottleId: id } }),
     ]);
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/research");
@@ -1964,7 +1999,7 @@ function describeBottleForWindowEstimate(bottle) {
 // single-bottle action so neither can forget the part that matters: an
 // estimate is always stored marked as an estimate.
 async function writeWindowEstimate(bottleId, { drinkFrom, drinkTo }) {
-  await prisma.bottle.update({
+  await db.bottle.update({
     where: { id: bottleId },
     data: { drinkFrom, drinkTo, drinkWindowEstimated: true },
   });
@@ -2008,7 +2043,7 @@ const WINDOW_ESTIMATE_SELECT = {
 // cellar at once (and stays well under a serverless function's execution
 // limit).
 export async function estimateDrinkWindows(bottleIds) {
-  const bottles = await prisma.bottle.findMany({
+  const bottles = await db.bottle.findMany({
     where: { id: { in: bottleIds } },
     select: WINDOW_ESTIMATE_SELECT,
   });
@@ -2131,7 +2166,7 @@ export async function estimateDrinkWindows(bottleIds) {
 // same wine, and vice versa. No web search - that's what Research is for,
 // and it costs a great deal more.
 export async function estimateWindowForBottle(id) {
-  const bottle = await prisma.bottle.findUnique({
+  const bottle = await db.bottle.findUnique({
     where: { id },
     select: WINDOW_ESTIMATE_SELECT,
   });
@@ -2289,7 +2324,7 @@ const PHOTO_DETAILS_SYSTEM_PROMPT =
 // review-before-save trust model as researchBottle: nothing is saved
 // automatically, the bottle page shows this as an editable, prefilled form.
 export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType) {
-  const bottle = await prisma.bottle.findUnique({ where: { id: bottleId } });
+  const bottle = await db.bottle.findUnique({ where: { id: bottleId } });
   if (!bottle) return { error: "That bottle no longer exists." };
 
   const messages = [
@@ -2358,7 +2393,7 @@ export async function applyPhotoDetails(id, proposed, prevState, formData) {
   if (!data.producer) return { error: "Producer is required." };
 
   try {
-    const existing = await prisma.bottle.findUnique({
+    const existing = await db.bottle.findUnique({
       where: { id },
       select: { drinkFrom: true, drinkTo: true },
     });
@@ -2373,7 +2408,7 @@ export async function applyPhotoDetails(id, proposed, prevState, formData) {
         // photo read's answer is that same shape one level up.
         { ...data, drinkWindowEstimated: windowEstimatedFromProposal(data, { proposed }) }
       : clearEstimatedFlagIfWindowChanged(data, existing);
-    const bottle = await prisma.bottle.update({ where: { id }, data: withFlag });
+    const bottle = await db.bottle.update({ where: { id }, data: withFlag });
     invalidateRegionOptions();
     revalidatePath(`/bottles/${id}`);
     revalidatePath(pathForStatus(bottle.status));
@@ -2401,13 +2436,13 @@ export async function addBottlePhoto(bottleId, base64Image, mediaType) {
         : "Couldn't upload that photo — photo storage isn't configured.",
     };
   }
-  await prisma.bottlePhoto.create({ data: { bottleId, url } });
+  await db.bottlePhoto.create({ data: { bottleId, url } });
   revalidatePath(`/bottles/${bottleId}`);
   return { success: true };
 }
 
 export async function deleteBottlePhoto(id) {
-  const photo = await prisma.bottlePhoto.delete({ where: { id } });
+  const photo = await db.bottlePhoto.delete({ where: { id } });
   revalidatePath(`/bottles/${photo.bottleId}`);
 }
 
@@ -2459,6 +2494,19 @@ export async function toggleFavorite(bottleId) {
   const guest = await getCurrentGuest();
   if (!guest) return;
 
+  // A guest is just a name in a cookie, not a session - lib/scoped-prisma.js
+  // has nothing to read here, and nothing stops a request naming a bottleId
+  // /guest never showed them either way. Checked on the plain client,
+  // against the one cellar /guest browses (see guestOwnerId in
+  // lib/owner.js), rather than trusted at face value - otherwise a
+  // favorite could attach to a bottle in a different owner's cellar
+  // entirely.
+  const bottle = await prisma.bottle.findFirst({
+    where: { id: bottleId, ownerId: await guestOwnerId() },
+    select: { id: true },
+  });
+  if (!bottle) return;
+
   const existing = await prisma.favorite.findUnique({
     where: { guestId_bottleId: { guestId: guest.id, bottleId } },
   });
@@ -2481,7 +2529,7 @@ export async function saveTastingFlight({ title, summary, picks }) {
   const ownedPicks = picks.filter((p) => Number.isInteger(p.bottleId));
   if (ownedPicks.length === 0) return { error: "Nothing in that flight was an owned bottle to save." };
 
-  const flight = await prisma.tastingFlight.create({
+  const flight = await db.tastingFlight.create({
     data: {
       ownerId: await currentOwnerId(),
       // Null rather than falling back to the summary: a flight with no
@@ -2510,7 +2558,7 @@ export async function createFlight(prevState, formData) {
   const summary = String(formData.get("summary") || "").trim();
   if (!title) return { error: "Give the flight a theme name." };
 
-  const flight = await prisma.tastingFlight.create({
+  const flight = await db.tastingFlight.create({
     data: { title, summary: summary || null, ownerId: await currentOwnerId() },
   });
   revalidatePath("/flights");
@@ -2522,11 +2570,11 @@ export async function createFlight(prevState, formData) {
 // can't assume the caller knew what was already in there.
 export async function addBottleToFlight(flightId, bottleId) {
   const [flight, bottle] = await Promise.all([
-    prisma.tastingFlight.findUnique({
+    db.tastingFlight.findUnique({
       where: { id: flightId },
       select: { id: true, title: true, summary: true },
     }),
-    prisma.bottle.findUnique({ where: { id: bottleId }, select: { id: true } }),
+    db.bottle.findUnique({ where: { id: bottleId }, select: { id: true } }),
   ]);
   if (!flight) return { error: "That flight no longer exists." };
   if (!bottle) return { error: "That bottle no longer exists." };
@@ -2535,19 +2583,19 @@ export async function addBottleToFlight(flightId, bottleId) {
   // bottleId): flights saved from Suggest before this existed could
   // already contain a repeat, and a migration that fails on live data is
   // a worse trade than a guard in the one function that adds picks.
-  const existing = await prisma.flightPick.findFirst({
+  const existing = await db.flightPick.findFirst({
     where: { flightId, bottleId },
     select: { id: true },
   });
   if (existing) return { error: "That bottle is already in this flight." };
 
-  const last = await prisma.flightPick.findFirst({
+  const last = await db.flightPick.findFirst({
     where: { flightId },
     orderBy: { order: "desc" },
     select: { order: true },
   });
 
-  await prisma.flightPick.create({
+  await db.flightPick.create({
     data: { flightId, bottleId, order: (last?.order ?? -1) + 1, reason: null },
   });
   revalidatePath(`/flights/${flightId}`);
@@ -2556,7 +2604,7 @@ export async function addBottleToFlight(flightId, bottleId) {
 }
 
 export async function removeFlightPick(pickId) {
-  const pick = await prisma.flightPick.delete({ where: { id: pickId } });
+  const pick = await db.flightPick.delete({ where: { id: pickId } });
   revalidatePath(`/flights/${pick.flightId}`);
   revalidatePath("/flights");
 }
@@ -2565,13 +2613,13 @@ export async function removeFlightPick(pickId) {
 // rather than arithmetic on `order`, because orders are only guaranteed to
 // be increasing - a removal leaves a gap, and nothing renumbers them.
 export async function moveFlightPick(pickId, direction) {
-  const pick = await prisma.flightPick.findUnique({
+  const pick = await db.flightPick.findUnique({
     where: { id: pickId },
     select: { id: true, flightId: true },
   });
   if (!pick) return;
 
-  const picks = await prisma.flightPick.findMany({
+  const picks = await db.flightPick.findMany({
     where: { flightId: pick.flightId },
     orderBy: { order: "asc" },
     select: { id: true, order: true },
@@ -2584,11 +2632,11 @@ export async function moveFlightPick(pickId, direction) {
   // Both rows or neither: a half-applied swap would put two picks on the
   // same order and make the list's sequence arbitrary.
   await prisma.$transaction([
-    prisma.flightPick.update({
+    db.flightPick.update({
       where: { id: picks[index].id },
       data: { order: picks[target].order },
     }),
-    prisma.flightPick.update({
+    db.flightPick.update({
       where: { id: picks[target].id },
       data: { order: picks[index].order },
     }),
@@ -2604,10 +2652,10 @@ export async function moveFlightPick(pickId, direction) {
 // resubmit (a double-tap before the page revalidates) can't decrement the
 // bottle twice.
 export async function markFlightPickConsumed(pickId) {
-  const pick = await prisma.flightPick.findUnique({ where: { id: pickId } });
+  const pick = await db.flightPick.findUnique({ where: { id: pickId } });
   if (!pick || pick.consumed) return;
 
-  await prisma.flightPick.update({
+  await db.flightPick.update({
     where: { id: pickId },
     data: { consumed: true },
   });
@@ -2622,10 +2670,10 @@ export async function markFlightPickConsumed(pickId) {
 // does. Guarded the same way its counterpart is, so a resubmit can't
 // double-restore.
 export async function unmarkFlightPickConsumed(pickId) {
-  const pick = await prisma.flightPick.findUnique({ where: { id: pickId } });
+  const pick = await db.flightPick.findUnique({ where: { id: pickId } });
   if (!pick || !pick.consumed) return;
 
-  await prisma.flightPick.update({
+  await db.flightPick.update({
     where: { id: pickId },
     data: { consumed: false },
   });
@@ -2635,7 +2683,7 @@ export async function unmarkFlightPickConsumed(pickId) {
 }
 
 export async function deleteTastingFlight(id) {
-  await prisma.tastingFlight.delete({ where: { id } });
+  await db.tastingFlight.delete({ where: { id } });
   revalidatePath("/flights");
   redirect("/flights");
 }
@@ -2649,7 +2697,7 @@ export async function renameFlight(id, formData) {
   if (!title) return { error: "Give it a name." };
 
   try {
-    await prisma.tastingFlight.update({
+    await db.tastingFlight.update({
       where: { id },
       data: { title: title.slice(0, 200) },
     });
@@ -2717,7 +2765,7 @@ export async function savePairing(input) {
     .map((pick) => pick.bottleId)
     .filter((id) => Number.isInteger(id));
   const bottles = bottleIds.length
-    ? await prisma.bottle.findMany({ where: { id: { in: bottleIds } } })
+    ? await db.bottle.findMany({ where: { id: { in: bottleIds } } })
     : [];
   const bottleById = new Map(bottles.map((bottle) => [bottle.id, bottle]));
 
@@ -2751,7 +2799,7 @@ export async function savePairing(input) {
     trimmedOrNull(input?.title, 200) ?? `Pairing for ${request.slice(0, 60)}`;
 
   try {
-    const pairing = await prisma.savedPairing.create({
+    const pairing = await db.savedPairing.create({
       data: {
         ownerId: await currentOwnerId(),
         title,
@@ -2779,7 +2827,7 @@ export async function renamePairing(id, formData) {
   if (!title) return { error: "Give it a name." };
 
   try {
-    await prisma.savedPairing.update({
+    await db.savedPairing.update({
       where: { id },
       data: { title: title.slice(0, 200) },
     });
@@ -2793,7 +2841,7 @@ export async function renamePairing(id, formData) {
 }
 
 export async function deletePairing(id) {
-  await prisma.savedPairing.delete({ where: { id } });
+  await db.savedPairing.delete({ where: { id } });
   revalidatePath("/pairings");
   redirect("/pairings");
 }

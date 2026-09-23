@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
 import EstimateWindowsPanel from "@/app/components/EstimateWindowsPanel";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ function bottleHeader(bottle) {
 }
 
 export default async function EstimateWindowsPage() {
-  const bottles = await prisma.bottle.findMany({
+  const bottles = await db.bottle.findMany({
     where: { status: "inventory", drinkFrom: null, drinkTo: null },
     select: {
       id: true,

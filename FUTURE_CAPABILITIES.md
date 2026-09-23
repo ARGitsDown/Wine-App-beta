@@ -153,10 +153,64 @@ Staged so nothing is a leap, and each phase is independently shippable:
   account via the adopt-not-create `createUser` override. The app stays
   single-user in practice; it just knows who you are now, and the front
   door closes.
-- **Phase 2 — scoping.** The extension goes in, queries filter by owner,
-  `/guest` keeps working. This is where the leak risk lives, so it wants a
-  deliberate test: a second account proving it cannot see the first's
-  bottles.
+- ~~**Phase 2 — scoping.**~~ **Done 2026-09-23.** The extension is
+  `lib/scoped-prisma.js`, exporting `db` - `lib/prisma.js`'s client wrapped
+  in a Prisma Client Extension that injects an owner filter into every
+  read, update, delete and upsert-lookup on the eight models a cellar is
+  made of, before the query reaches Postgres. Three of them carry `ownerId`
+  directly (`Bottle`, `TastingFlight`, `SavedPairing`); five inherit it
+  through a relation (`TastingNote`, `BottlePhoto`, `ResearchProposal` via
+  their bottle; `FlightPick` via its flight; `PairingPick` via its
+  pairing) - Prisma's "extended where unique input" support is what makes
+  that work even for a lookup by id, not just a list. `create`/`createMany`
+  are deliberately untouched: every root model's create site already sets
+  `ownerId` itself (Phase 0's seam), and every child-model create site
+  re-fetches the parent it's attaching to through this same client first,
+  which a foreign id already fails.
+
+  `/guest` keeps working, per the original plan, but not by accident: it
+  has no session for the extension to read, so it was never going to be
+  "keep working" for free. `guestOwnerId()` in `lib/owner.js` - the
+  earliest-created owner, the same answer `currentOwnerId` gives before
+  auth exists at all - is what it scopes to instead, applied to both its
+  bottle listing and the guest favorite-toggle action (which took the same
+  fix for the same reason: nothing was stopping a favorite from attaching
+  to a bottle in a different owner's cellar before this).
+
+  One path had no session to give the extension even from an owner's own
+  request: the bulk research step (`app/api/research/step/route.js`) runs
+  from a plain HTTP route hit by a server-to-server fetch with no cookies
+  attached, by design (see that route's own comment). `ResearchJob` picked
+  up its own `ownerId` column for exactly this - set once at job creation,
+  read explicitly by the step that processes it, on the plain client, since
+  routing it through the session-reading extension would just throw. This
+  is also why `researchBottles` now narrows its input ids to bottles the
+  caller actually owns before the job is even created, rather than trusting
+  a client-supplied id list and finding out three layers down.
+
+  `/export` was scoped in the same pass and is worth naming on its own:
+  before this it returned every owner's entire cellar to whoever was
+  signed in, the same category of bug BACKLOG's Phase-1 entry found in the
+  route before accounts existed at all, just one layer deeper. Guest
+  favorites in the export are narrowed to this owner's bottles rather than
+  left out entirely or left global.
+
+  **Not covered, and known rather than missed:** the invites admin screen
+  (`/invites`) has no privilege check beyond "signed in" - any account that
+  can sign in can see the full invite list and the full account list, and
+  can invite or revoke anyone. There is no owner/admin role anywhere in
+  this schema; every signed-in person is, today, equally an owner of their
+  own cellar and equally an administrator of who else gets in. That was
+  already true before this phase and this phase does not change it -
+  fixing it means designing a role, which Phase 2 was scoped to be about
+  *data*, not privilege. Worth deciding before inviting anyone who
+  shouldn't also be trusted with the invite list.
+
+  Verified: `npm run lint` and a production build both clean, and a grep
+  sweep of every `prisma.<scopedModel>` call site in `app/` and `lib/`
+  confirmed only the two deliberate exceptions above remain on the plain
+  client. What is not yet verified from a live account: the thing this
+  phase was built to prove, which is next.
 - **Phase 3 — usage ledger and caps**, per the AI-cost section above.
 - **Phase 4 — what guests become.** Fold into accounts, or keep as the
   deliberately-lighter "browse someone else's cellar" mode.
@@ -167,8 +221,11 @@ Staged so nothing is a leap, and each phase is independently shippable:
   **Verified 2026-09-21 against the live registry, not from memory.**
 - What happens at the usage cap: hard block, or degrade to the
   non-AI features.
-- Whether renamed/hand-built flights and kept pairings need anything
-  beyond a plain `ownerId` (they shouldn't — they're roots like `Bottle`).
+- Whether an owner/admin role is worth adding to gate `/invites` - see
+  Phase 2's "not covered" note above.
+- ~~Whether renamed/hand-built flights and kept pairings need anything
+  beyond a plain `ownerId`.~~ **Confirmed by Phase 2: no.** They're roots
+  like `Bottle`, and the extension scopes all three identically.
 
 ## The OAuth question, answered — 2026-09-21
 

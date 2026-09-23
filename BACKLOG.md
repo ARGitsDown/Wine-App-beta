@@ -2452,3 +2452,20 @@ correct exactly once. The fix everywhere else in this app has been to
 verify against a real environment rather than review the code and assume
 it holds - this is the same lesson, aimed at an access-control decision
 instead of a bundler mechanism.
+
+## 33. Phase 2 of separate cellars per user — query scoping
+
+Full writeup lives in `FUTURE_CAPABILITIES.md` under "Phase 2 - scoping,"
+since it's architecture rather than a hygiene fix. Short version: before
+this, every Prisma read/write in the app - roughly a hundred call sites -
+had no owner filter at all, so a second real account would have seen and
+could have edited the first owner's entire cellar. `lib/scoped-prisma.js`
+closes that in one place, via a Prisma Client Extension, rather than
+correctly repeating an owner check by hand at each site.
+
+Caught by asking "what would actually happen if we added a second real
+user" rather than by review - the same question that started this: #30's
+leak was found by testing, #31's outage was found by a production build,
+#32's lockout was found by a real second sign-in. This one was found by
+asking the question before building anything, for once, which is cheaper
+than any of the other three ways.

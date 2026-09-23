@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
 import SuggestForm from "@/app/components/SuggestForm";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export default async function SuggestPage({ searchParams }) {
   // bar doesn't carry it (#17).
   const [pairing, pairingCount] = await Promise.all([
     Number.isInteger(fromId)
-      ? prisma.savedPairing.findUnique({
+      ? db.savedPairing.findUnique({
           where: { id: fromId },
           select: {
             id: true,
@@ -33,7 +33,7 @@ export default async function SuggestPage({ searchParams }) {
           },
         })
       : null,
-    prisma.savedPairing.count(),
+    db.savedPairing.count(),
   ]);
 
   return (

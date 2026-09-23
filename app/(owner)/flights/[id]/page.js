@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
 import { deleteTastingFlight } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import FlightBottlePicker from "@/app/components/FlightBottlePicker";
@@ -16,8 +16,11 @@ export default async function FlightDetailPage({ params }) {
   const { id } = await params;
   const flightId = Number(id);
 
+  // Reached by a bare id in the URL, so a foreign id has to read exactly
+  // like a deleted flight - notFound() below - rather than rendering
+  // someone else's flight.
   const flight = Number.isInteger(flightId)
-    ? await prisma.tastingFlight.findUnique({
+    ? await db.tastingFlight.findUnique({
         where: { id: flightId },
         include: { picks: { include: { bottle: true }, orderBy: { order: "asc" } } },
       })
@@ -30,7 +33,7 @@ export default async function FlightDetailPage({ params }) {
   // here so the picker can't offer a duplicate the action would refuse.
   const picked = new Set(flight.picks.map((pick) => pick.bottleId));
   const candidates = (
-    await prisma.bottle.findMany({
+    await db.bottle.findMany({
       where: { status: "inventory" },
       select: {
         id: true,

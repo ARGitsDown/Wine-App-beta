@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
 import { pairingSummaryLine } from "@/lib/pairings";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // here, which is where you would look anyway - you come back to a kept
 // pairing to run it again.
 export default async function PairingsPage() {
-  const pairings = await prisma.savedPairing.findMany({
+  const pairings = await db.savedPairing.findMany({
     include: {
       picks: {
         select: { dish: true, wineName: true },

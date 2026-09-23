@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getBottles, getRegionOptions } from "@/lib/bottles";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
+import { currentOwnerId } from "@/lib/owner";
 import { createBottle } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import FilterableBottleList from "@/app/components/FilterableBottleList";
@@ -12,13 +13,14 @@ export const dynamic = "force-dynamic";
 
 export default async function CellarPage({ searchParams }) {
   const filters = await searchParams;
+  const ownerId = await currentOwnerId();
   const [bottles, regionOptions, missingWindowCount, allFlights] = await Promise.all([
     getBottles("inventory"),
-    getRegionOptions(),
-    prisma.bottle.count({
+    getRegionOptions(ownerId),
+    db.bottle.count({
       where: { status: "inventory", drinkFrom: null, drinkTo: null },
     }),
-    prisma.tastingFlight.findMany({
+    db.tastingFlight.findMany({
       select: {
         id: true,
         title: true,

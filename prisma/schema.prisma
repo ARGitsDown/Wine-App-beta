@@ -43,10 +43,13 @@ model User {
   // The three ownership roots. Everything else in this schema inherits its
   // owner through one of these by an existing foreign key - a tasting note
   // belongs to whoever owns its bottle - which is why there are three
-  // columns here and not eleven.
+  // columns here and not eleven. ResearchJob is a fourth ownerId column,
+  // but deliberately not a fourth root: it's a transient job row, not a
+  // list of anyone's things.
   bottles  Bottle[]
   flights  TastingFlight[]
   pairings SavedPairing[]
+  researchJobs ResearchJob[]
 
   // Auth.js's side of this table. Both cascade: deleting a person takes
   // their sign-in records with them.
@@ -478,12 +481,26 @@ model ResearchProposal {
 model ResearchJob {
   id Int @id @default(autoincrement())
   // What each step has to present to be allowed to run, since the step
-  // endpoint is a plain HTTP route and the app has no auth in front of it
-  // yet (see FUTURE_CAPABILITIES.md). A per-job random value rather than a
-  // shared deployment secret: it needs no configuration to be correct, it
-  // is useless once its own job is finished, and it never reaches the
-  // browser - only the server ever reads or sends it.
+  // endpoint is a plain HTTP route rather than a signed-in page - see
+  // ownerId below for why that matters here specifically. A per-job random
+  // value rather than a shared deployment secret: it needs no configuration
+  // to be correct, it is useless once its own job is finished, and it never
+  // reaches the browser - only the server ever reads or sends it.
   token String @unique
+
+  // Who asked. Every other owner-scoped model (Bottle, TastingFlight,
+  // SavedPairing) gets its owner enforced by the Prisma Client Extension in
+  // lib/scoped-prisma.js, which reads the signed-in session - but a bulk
+  // research step runs from app/api/research/step/route.js, a plain HTTP
+  // route hit by a server-to-server fetch with no cookies attached (see the
+  // route's own comment). There is no session to read there, so ownership
+  // has to be recorded as data at job creation time instead, and the step
+  // that fetches bottles to research filters on this column explicitly
+  // rather than going through the session-based extension. Without it, a
+  // job's bottleIds would be trusted at face value with nothing checking
+  // they belong to whoever started the run.
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   // The queue as it was requested: the denominator of the progress bar,
   // and the record of what this run was asked to do.
@@ -509,6 +526,7 @@ model ResearchJob {
   updatedAt DateTime @updatedAt
 
   @@index([status])
+  @@index([ownerId])
 }
 
 // A pairing worth keeping. Its own table rather than a row in

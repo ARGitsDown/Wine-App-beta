@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/scoped-prisma";
 import { deletePairing } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import PairingTitle from "@/app/components/PairingTitle";
@@ -22,8 +22,11 @@ export default async function PairingDetailPage({ params }) {
   const { id } = await params;
   const pairingId = Number(id);
 
+  // Reached by a bare id in the URL, so a foreign id has to read exactly
+  // like a deleted pairing - notFound() below - rather than rendering
+  // someone else's.
   const pairing = Number.isInteger(pairingId)
-    ? await prisma.savedPairing.findUnique({
+    ? await db.savedPairing.findUnique({
         where: { id: pairingId },
         include: {
           picks: {
