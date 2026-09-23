@@ -2632,6 +2632,57 @@ export async function addBottleToFlight(flightId, bottleId) {
   return { data: { flightName: flight.title || flight.summary || "the flight" } };
 }
 
+// The batch version of addBottleToFlight, for scan's "Flight" intent: every
+// wine just saved to the cellar in one photo, added in one call. Looping
+// the single-bottle action from the client is exactly the pattern this
+// file already warns against elsewhere (see removePhoto/removeScannedBottles
+// above) - a client awaiting several Server Actions in a row is not
+// reliable once a router refresh follows the last one.
+export async function addBottlesToFlight(flightId, bottleIds) {
+  const flight = await db.tastingFlight.findUnique({
+    where: { id: flightId },
+    select: {
+      id: true,
+      title: true,
+      summary: true,
+      picks: { select: { bottleId: true, order: true } },
+    },
+  });
+  if (!flight) return { error: "That flight no longer exists." };
+
+  // Same ownership check as the single-bottle version, done once for the
+  // whole batch. Anything not this owner's, or already in the flight, is
+  // silently dropped rather than failing the whole add - a partial add is
+  // still useful, and duplicate/foreign ids here would only ever come from
+  // a scan session the caller ran themselves.
+  const owned = await db.bottle.findMany({
+    where: { id: { in: bottleIds } },
+    select: { id: true },
+  });
+  const ownedIds = new Set(owned.map((bottle) => bottle.id));
+  const already = new Set(flight.picks.map((pick) => pick.bottleId));
+  const toAdd = bottleIds.filter((id) => ownedIds.has(id) && !already.has(id));
+
+  const flightName = flight.title || flight.summary || "the flight";
+  if (toAdd.length === 0) {
+    return { data: { flightId, flightName, added: 0 } };
+  }
+
+  const lastOrder = flight.picks.reduce((max, pick) => Math.max(max, pick.order), -1);
+  await db.flightPick.createMany({
+    data: toAdd.map((bottleId, index) => ({
+      flightId,
+      bottleId,
+      order: lastOrder + 1 + index,
+      reason: null,
+    })),
+  });
+
+  revalidatePath(`/flights/${flightId}`);
+  revalidatePath("/flights");
+  return { data: { flightId, flightName, added: toAdd.length } };
+}
+
 export async function removeFlightPick(pickId) {
   const pick = await db.flightPick.delete({ where: { id: pickId } });
   revalidatePath(`/flights/${pick.flightId}`);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   createBottleWithNote,
   extractWinesFromPhoto,
@@ -10,6 +11,8 @@ import {
   removeScannedBottles,
   dismissResearch,
   researchBottle,
+  addBottlesToFlight,
+  saveTastingFlight,
 } from "@/app/actions";
 import Link from "next/link";
 import BottleForm from "@/app/components/BottleForm";
@@ -20,6 +23,7 @@ import {
   CellarIcon,
   WishlistIcon,
   TastingHistoryIcon,
+  FlightsIcon,
 } from "@/app/components/icons";
 import { fileToBase64, downscaleImage } from "@/lib/client-image";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
@@ -347,6 +351,12 @@ const INTENT_LOOK = {
     Icon: TastingHistoryIcon,
     accent: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
   },
+  // Same violet the home page's own Flights card uses, so this picker and
+  // that one read as the same place.
+  flight: {
+    Icon: FlightsIcon,
+    accent: "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400",
+  },
 };
 
 // The same three destinations as the picker at the top of the page, keyed by
@@ -402,13 +412,104 @@ function DestinationPicker({ name, legend, value, onChange }) {
   );
 }
 
-export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
+// The second, optional step after finishing a batch scanned under the
+// "flight" intent: the wines are already in the cellar (finishBatch already
+// counted them there), this just offers to bundle them into a flight before
+// leaving the page. Same choice AddToFlight already offers from a single
+// bottle's own page - an existing open flight, or start a new one - scaled
+// to a whole batch at once and ending on the flight itself rather than a
+// small inline confirmation, since landing there was the point of choosing
+// this intent in the first place.
+function PendingFlightPanel({ wines, openFlights, busy, error, onAddTo, onStartNew, onSkip }) {
+  const [title, setTitle] = useState("");
+
+  return (
+    <div className="-mt-3 flex flex-col gap-2.5 rounded-lg border border-violet-300 p-3 dark:border-violet-900">
+      <p className="text-sm font-medium text-violet-800 dark:text-violet-400">
+        Add {wines.length === 1 ? "this wine" : `these ${wines.length} wines`} to a
+        flight?
+      </p>
+      <p className="text-xs text-zinc-500">
+        {wines.map((w) => w.title).join(", ")}
+      </p>
+
+      {openFlights.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {openFlights.map((flight) => (
+            <li key={flight.id}>
+              <button
+                type="button"
+                onClick={() => onAddTo(flight.id)}
+                disabled={busy}
+                className="text-left text-sm underline underline-offset-2 disabled:opacity-50"
+              >
+                {flight.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-zinc-500">No flights on the go. Start one below.</p>
+      )}
+
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onStartNew(title);
+        }}
+        className="flex flex-col gap-1.5 border-t border-zinc-200 pt-2 dark:border-zinc-800"
+      >
+        <label className="text-xs text-zinc-500">
+          {openFlights.length > 0 ? "Or start a new flight" : "Start a new flight"}
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            maxLength={120}
+            placeholder="Theme name"
+            className="mt-1 w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy}
+          className="self-start rounded border border-zinc-300 px-2 py-0.5 text-xs disabled:opacity-50 dark:border-zinc-700"
+        >
+          Create and open
+        </button>
+      </form>
+
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onSkip}
+          disabled={busy}
+          className="text-xs text-zinc-500 underline underline-offset-2 disabled:opacity-50"
+        >
+          Skip — leave them in the cellar
+        </button>
+        {busy && <Spinner label="Adding…" />}
+      </div>
+    </div>
+  );
+}
+
+export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFlights = [] }) {
+  const router = useRouter();
   const fileInputRef = useRef(null);
   const [intent, setIntent] = useState(initialIntent);
   const [photos, setPhotos] = useState([]);
   // Survives clearing the batch, so the empty page can still say where the
   // wines went rather than looking like nothing happened.
   const [finished, setFinished] = useState(null);
+  // Wines saved under the "flight" intent, waiting to be bundled into a
+  // flight once the batch itself is finished. Kept separate from `finished`
+  // (which is about where a card's own status put it - Cellar/Wishlist/
+  // Tasted - not about this second, optional step layered on top of Cellar
+  // for anything scanned as "flight").
+  const [pendingFlight, setPendingFlight] = useState(null);
+  const [flightBusy, setFlightBusy] = useState(false);
+  const [flightError, setFlightError] = useState(null);
   const photosRef = useRef(photos);
   useEffect(() => {
     photosRef.current = photos;
@@ -634,15 +735,72 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
   // lists the batch landed in.
   function finishBatch() {
     const counts = {};
+    // Candidates for the flight step below: saved under "flight" (carried
+    // per photo, same as the intent a retry uses - see handleFilesChange),
+    // and still actually in the cellar by the time the batch finishes. A
+    // card flipped to Wishlist or Tasted on its own destination control no
+    // longer belongs in a flight - you cannot open a wine you do not have -
+    // whatever intent it was scanned under.
+    const candidates = [];
     for (const photo of photos) {
       for (const entry of photo.entries) {
         if (entry.kind !== "saved") continue;
         counts[entry.bottle.status] = (counts[entry.bottle.status] ?? 0) + 1;
+        if (photo.intent === "flight" && entry.bottle.status === "inventory") {
+          candidates.push({ id: entry.bottle.id, title: wineTitle(entry.bottle) });
+        }
       }
     }
     photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
     setPhotos([]);
     setFinished(Object.keys(counts).length > 0 ? counts : null);
+    setPendingFlight(candidates.length > 0 ? candidates : null);
+    setFlightError(null);
+  }
+
+  // The two ways the flight step ends: added (either flight), or given up
+  // on - in which case the wines stay exactly where finishBatch already put
+  // them, in the cellar, with nothing further to undo.
+  async function addPendingFlightTo(flightId) {
+    if (!pendingFlight || flightBusy) return;
+    setFlightBusy(true);
+    setFlightError(null);
+    const result = await addBottlesToFlight(flightId, pendingFlight.map((w) => w.id));
+    setFlightBusy(false);
+    if (result?.error) {
+      setFlightError(result.error);
+      return;
+    }
+    setPendingFlight(null);
+    router.push(`/flights/${result.data.flightId}`);
+  }
+
+  async function startFlightFromPending(title) {
+    if (!pendingFlight || flightBusy) return;
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setFlightError("Give the flight a theme name.");
+      return;
+    }
+    setFlightBusy(true);
+    setFlightError(null);
+    const result = await saveTastingFlight({
+      title: trimmed,
+      summary: null,
+      picks: pendingFlight.map((w) => ({ bottleId: w.id, reason: null })),
+    });
+    setFlightBusy(false);
+    if (result?.error) {
+      setFlightError(result.error);
+      return;
+    }
+    setPendingFlight(null);
+    router.push(`/flights/${result.data.id}`);
+  }
+
+  function skipPendingFlight() {
+    setPendingFlight(null);
+    setFlightError(null);
   }
 
   // A photo that fails to read falls back to a blank manual card, which
@@ -742,14 +900,26 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT }) {
             </div>
           )}
 
-          <p className={`text-sm text-zinc-500 ${finished ? "" : "-mt-3"}`}>
+          {pendingFlight && (
+            <PendingFlightPanel
+              wines={pendingFlight}
+              openFlights={openFlights}
+              busy={flightBusy}
+              error={flightError}
+              onAddTo={addPendingFlightTo}
+              onStartNew={startFlightFromPending}
+              onSkip={skipPendingFlight}
+            />
+          )}
+
+          <p className={`text-sm text-zinc-500 ${finished || pendingFlight ? "" : "-mt-3"}`}>
             A bottle label, a shelf, or a whole tasting sheet. Tap where the
             wines should land.
           </p>
 
           <fieldset>
             <legend className="sr-only">Where should these wines go?</legend>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-4 gap-2">
               {SCAN_INTENTS.map((option) => {
                 const look = INTENT_LOOK[option.value];
                 const selected = intent === option.value;

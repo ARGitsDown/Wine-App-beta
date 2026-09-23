@@ -2490,3 +2490,40 @@ turned out to be a false positive on closer reading - `delete` genuinely
 is one of the operations the extension scopes, unlike `create`. Left
 unfixed on purpose, and noted here so "the reviewer said so" isn't
 mistaken for "therefore true" the next time this file gets read.
+
+## 34. Scan: a fourth destination, "Flight"
+
+The owner asked for a way to land in Flights straight from a scan session
+- opening several bottles for a tasting tonight, scanning each label, and
+ending up on the flight rather than the cellar.
+
+Fits alongside the existing three because it shares their shape (chosen
+once for the batch, per SCAN_INTENTS in `lib/scan-intent.js`) but not
+their mechanism: Cellar/Wishlist/Tasting each set a bottle's `status`
+directly, and Flight can't - a flight is a separate queue of picks, not a
+fourth status, and every existing flight only ever holds bottles you
+actually have (`FlightPick`'s own schema comment: "you cannot open a wine
+you do not have"). So "Flight" writes the same `status: "inventory"` as
+Cellar and adds a second step once the batch finishes: a panel offering
+to bundle everything just scanned into an existing open flight or a new
+one, ending on that flight - the same choice `AddToFlight` already offers
+from a single bottle's own page, scaled to a whole batch and landing on
+the flight itself rather than a small inline confirmation.
+
+What decides which saved wines are candidates for that second step is the
+photo they came from, not their final status alone - `Cellar` and
+`Flight` produce identical `inventory` bottles, so distinguishing them
+needs to remember which picker card was selected when that photo was
+read (already tracked, for retry). A card flipped to Wishlist or Tasted
+on its own per-card control afterward drops out of the candidate list
+either way, whatever intent it was scanned under - the same "you cannot
+open a wine you do not have" rule the rest of flights already enforces.
+
+`addBottlesToFlight` is new - the batch counterpart to the existing
+single-bottle `addBottleToFlight`, deliberately not a client-side loop
+over the single version. This file already has a hard-won rule about
+that (see #16's photo-removal fix): a client awaiting several Server
+Actions in a row is not reliable once a router refresh follows the last
+one. Starting a brand-new flight from the batch reuses `saveTastingFlight`
+outright (this session's own IDOR fix earlier tonight, so its ownership
+check comes for free) rather than `createFlight` + an add loop.
