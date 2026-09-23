@@ -2469,3 +2469,24 @@ leak was found by testing, #31's outage was found by a production build,
 #32's lockout was found by a real second sign-in. This one was found by
 asking the question before building anything, for once, which is cheaper
 than any of the other three ways.
+
+### A follow-up review found what the scoping pass itself missed
+
+The extension's own design comment says `create` is safe to leave
+unscoped because "every child-model create site first re-fetches the
+parent it's attaching to." A security review of the diff (three findings,
+independently verified before being trusted) found three call sites
+where that just wasn't true: `saveTastingFlight`, `addTastingNote` and
+`addBottlePhoto` each created a child row from a caller-supplied id with
+no ownership check at all. `saveTastingFlight`'s gap was the worse of the
+three - the flight page's own `include: { bottle: true }` then rendered
+that unowned bottle in full, since a nested Prisma `include` never
+re-enters the extension's interception point. All three are fixed now,
+by the same pattern `addBottleToFlight` already used correctly.
+
+Verification is worth being honest about: a fourth call site
+(`deleteBottlePhoto`) was flagged alongside these by the same pass and
+turned out to be a false positive on closer reading - `delete` genuinely
+is one of the operations the extension scopes, unlike `create`. Left
+unfixed on purpose, and noted here so "the reviewer said so" isn't
+mistaken for "therefore true" the next time this file gets read.

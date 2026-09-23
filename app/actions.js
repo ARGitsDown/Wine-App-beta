@@ -513,6 +513,13 @@ export async function addTastingNote(bottleId, formData) {
   // unparseable, so a note is never lost to a bad date.
   const tastedAt = parseTastedDate(formData.get("tastedAt")) ?? undefined;
 
+  // `create` isn't scoped by lib/scoped-prisma.js (see that file), and this
+  // is a Server Action - callable directly with any bottleId, not only the
+  // one the form it's bound to actually has open. Without this, anyone
+  // signed in could write a note onto a bottle they don't own.
+  const bottle = await db.bottle.findUnique({ where: { id: bottleId }, select: { id: true } });
+  if (!bottle) return;
+
   await db.tastingNote.create({ data: { bottleId, note, rating, tastedAt } });
   await syncEmptiedToLatestNote(bottleId);
   revalidatePath(`/bottles/${bottleId}`);
@@ -2428,6 +2435,13 @@ export async function applyPhotoDetails(id, proposed, prevState, formData) {
 // extractWinesFromPhoto), since there's no plain form-post path for a file
 // this large through a Server Action bound to a specific bottle.
 export async function addBottlePhoto(bottleId, base64Image, mediaType) {
+  // `create` isn't scoped by lib/scoped-prisma.js, and this Server Action
+  // is callable directly with any bottleId - without this, anyone signed
+  // in could attach a photo to a bottle they don't own. Checked before the
+  // upload too, so a foreign id doesn't spend a blob upload for nothing.
+  const bottle = await db.bottle.findUnique({ where: { id: bottleId }, select: { id: true } });
+  if (!bottle) return { error: "That bottle no longer exists." };
+
   const { url, error } = await uploadLabelPhoto(base64Image, mediaType);
   if (!url) {
     return {
@@ -2526,7 +2540,22 @@ export async function toggleFavorite(bottleId) {
 // into the same result isn't something to "pull from the cellar" and can
 // already be added to the wishlist independently.
 export async function saveTastingFlight({ title, summary, picks }) {
-  const ownedPicks = picks.filter((p) => Number.isInteger(p.bottleId));
+  // Number.isInteger alone only proved these look like ids, not that
+  // they're this owner's - `create` isn't scoped by lib/scoped-prisma.js,
+  // and picks arrives as plain data a caller controls. Narrowed against an
+  // actual owned-bottle lookup, the same guard addBottleToFlight already
+  // has, or a foreign bottleId here would create a real FlightPick
+  // pointing at someone else's bottle - visible in full on this flight's
+  // own page afterward, since a saved pick's bottle renders unscoped
+  // (Prisma resolves that include inside the already-scoped flight query,
+  // never as its own call the extension gets a chance to intercept).
+  const candidateIds = picks.filter((p) => Number.isInteger(p.bottleId)).map((p) => p.bottleId);
+  const owned = await db.bottle.findMany({
+    where: { id: { in: candidateIds } },
+    select: { id: true },
+  });
+  const ownedIds = new Set(owned.map((bottle) => bottle.id));
+  const ownedPicks = picks.filter((p) => ownedIds.has(p.bottleId));
   if (ownedPicks.length === 0) return { error: "Nothing in that flight was an owned bottle to save." };
 
   const flight = await db.tastingFlight.create({
