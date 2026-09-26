@@ -750,7 +750,12 @@ const LABEL_SYSTEM_PROMPT =
 // records for the scan flow to show as editable review cards. Each
 // result is either { bottle } on success, or { wine, saveError: true } if
 // reading succeeded but that one wine's save didn't.
-export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEFAULT_SCAN_INTENT) {
+export async function extractWinesFromPhoto(
+  base64Image,
+  mediaType,
+  intent = DEFAULT_SCAN_INTENT,
+  rawEventLabel = null
+) {
   const messages = [
     {
       role: "user",
@@ -835,6 +840,15 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
         // queries. See currentOwnerId - one owner today.
         const ownerId = await currentOwnerId();
 
+        // A wine tasted at an event is worth remembering *where*, typed once
+        // for the whole batch rather than retyped on every card it produces
+        // (e.g. "Chain Bridge Mexican Wine Fiesta 9/19"). Trimmed once here
+        // rather than per wine, and never sanitized like the model's own
+        // fields (cleanModelFields above) - this is the owner's own typing,
+        // not the model's, so the tool-injection guard that exists for is
+        // beside the point.
+        const eventLabel = String(rawEventLabel ?? "").trim() || null;
+
         const results = [];
         for (const wine of wines) {
           // The batch's intent decides where a wine lands. This used to be
@@ -859,17 +873,30 @@ export async function extractWinesFromPhoto(base64Image, mediaType, intent = DEF
                 photoUrl,
               },
             });
-            if (wine.note) {
+            // With no event label, exactly the original rule: a tasting
+            // note only when the photo actually carried one. With one, the
+            // label alone is still worth a note - it's the reason this
+            // wine has anything tasting-related to say at all - so it gets
+            // one even when the photo's own note is empty, with the
+            // photo's note (if any) kept after it rather than replaced.
+            const noteText = eventLabel
+              ? wine.note
+                ? `${eventLabel}\n\n${wine.note}`
+                : eventLabel
+              : wine.note || null;
+            if (noteText) {
               try {
                 await db.tastingNote.create({
-                  data: { bottleId: bottle.id, note: wine.note, rating: null },
+                  data: { bottleId: bottle.id, note: noteText, rating: null },
                 });
               } catch (err) {
                 console.error("Failed to save scanned tasting note:", err);
               }
             }
             revalidatePath(pathForStatus(status));
-            results.push({ bottle: { ...bottle, scannedNote: wine.note ?? null } });
+            results.push({
+              bottle: { ...bottle, scannedNote: wine.note ?? null, eventLabel },
+            });
           } catch (err) {
             console.error("Failed to save scanned bottle:", err);
             results.push({ wine, saveError: true });

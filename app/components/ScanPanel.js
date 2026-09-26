@@ -223,6 +223,11 @@ function draftEntriesFromWines(wines, intent) {
     // whether the source happened to carry tasting text. Still just a
     // starting point - change it per entry before saving.
     saveStatus: statusForScanIntent(intent),
+    // Flight isn't a status a draft can be saved with directly (see
+    // entriesFromScanResults) - it's remembered here so a completed draft
+    // carries the same flight candidacy a scanned card would have gotten,
+    // rather than silently losing it because this one needed a manual save.
+    saveFlight: intent === "flight",
     status: "ready",
   }));
 }
@@ -234,7 +239,16 @@ function draftEntriesFromWines(wines, intent) {
 function entriesFromScanResults(results, intent) {
   return results.map((result) =>
     result.bottle
-      ? { localId: nextEntryId++, kind: "saved", bottle: result.bottle }
+      ? {
+          localId: nextEntryId++,
+          kind: "saved",
+          bottle: result.bottle,
+          // Flight writes the same status as Cellar (a flight only ever
+          // queues bottles you actually have), so which one this card
+          // actually means has to be remembered separately from
+          // bottle.status - this is that flag, not derived from status.
+          flightFlag: intent === "flight",
+        }
       : // Flagged so the card can say why it is still a draft. Otherwise it
         // looks exactly like a wine read from a photo that failed outright,
         // and the only hint that this one needs a click is the word "Save"
@@ -374,20 +388,42 @@ function destinationFor(status) {
   return DESTINATIONS.find((d) => d.value === status);
 }
 
+// What a card's own "Saved to" line should say - Flight first, since a
+// flight-flagged card is not really "just" a Cellar bottle even though
+// that's the status underneath (see DESTINATION_PICKER_OPTIONS below).
+function destinationLabelFor(status, flight) {
+  return flight ? "Flight" : destinationFor(status)?.label;
+}
+
+// The per-card control's four options - the same three real statuses as
+// DESTINATIONS, plus Flight as a fourth. Flight isn't a fourth status (a
+// flight only ever queues bottles you actually have, so it writes
+// "inventory" - the same as Cellar); what makes it a distinct, selectable
+// option here despite sharing that value is the `flight` flag beside it,
+// which the picker and its caller track separately from status entirely.
+const DESTINATION_PICKER_OPTIONS = [
+  ...DESTINATIONS.map((d) => ({ ...d, flight: false })),
+  { value: "inventory", label: "Flight", flight: true, Icon: FlightsIcon, accent: INTENT_LOOK.flight.accent },
+];
+
 // One decision should look like one decision wherever it is made. This
 // control picks the same destination as the 44px picker above it, and was
 // three browser-default radios about 20px tall - the smallest targets on a
 // screen meant to be thumbed one-handed while the other hand holds a bottle.
-function DestinationPicker({ name, legend, value, onChange }) {
+function DestinationPicker({ name, legend, status, flight, onChange }) {
   return (
     <fieldset>
       <legend className="mb-1.5 text-sm text-zinc-500">{legend}</legend>
-      <div className="grid grid-cols-3 gap-1.5">
-        {DESTINATIONS.map((option) => {
-          const selected = value === option.value;
+      {/* Two rows of two rather than four across - this row is icon and
+          label side by side, not stacked like the picker at the top of the
+          page, and "Wishlist" doesn't have the room to spare at quarter
+          width on a phone. */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {DESTINATION_PICKER_OPTIONS.map((option) => {
+          const selected = option.flight ? flight : !flight && status === option.value;
           return (
             <label
-              key={option.value}
+              key={option.label}
               className={`flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-1.5 text-sm transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-zinc-900 dark:has-[:focus-visible]:outline-zinc-100 ${
                 selected
                   ? `border-transparent font-medium ${option.accent}`
@@ -397,9 +433,9 @@ function DestinationPicker({ name, legend, value, onChange }) {
               <input
                 type="radio"
                 name={name}
-                value={option.value}
+                value={option.flight ? "flight" : option.value}
                 checked={selected}
-                onChange={() => onChange(option.value)}
+                onChange={() => onChange(option.value, option.flight)}
                 className="sr-only"
               />
               <option.Icon className="h-4 w-4 shrink-0" />
@@ -498,6 +534,11 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
   const router = useRouter();
   const fileInputRef = useRef(null);
   const [intent, setIntent] = useState(initialIntent);
+  // Optional, and carried through to every wine's tasting note (see
+  // extractWinesFromPhoto) - a wine tasted at an event is worth remembering
+  // *where*, and typing "Chain Bridge Mexican Wine Fiesta 9/19" once per
+  // batch beats retyping it on every card the fiesta produced.
+  const [eventLabel, setEventLabel] = useState("");
   const [photos, setPhotos] = useState([]);
   // Survives clearing the batch, so the empty page can still say where the
   // wines went rather than looking like nothing happened.
@@ -594,16 +635,23 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
   // write didn't land. Before this, setBottleStatus returned nothing whether
   // it worked or not, so a failed move left the card saying Wishlist while
   // the database still said Cellar - and nothing on screen disagreed.
-  async function changeDestination(photo, entry, value) {
-    const previous = entry.bottle.status;
-    if (previous === value) return;
+  async function changeDestination(photo, entry, nextStatus, nextFlight) {
+    const previousStatus = entry.bottle.status;
+    const previousFlight = Boolean(entry.flightFlag);
+    if (previousStatus === nextStatus && previousFlight === nextFlight) return;
 
-    updateEntryBottle(photo.id, entry.localId, { status: value });
+    // The flight flag is never sent to the server - see finishBatch and
+    // lib/scan-intent.js's comment on the "flight" intent for why it's
+    // client-only state, the same as which picker card produced a photo.
+    updateEntry(photo.id, entry.localId, { flightFlag: nextFlight });
+    if (previousStatus === nextStatus) return;
+
+    updateEntryBottle(photo.id, entry.localId, { status: nextStatus });
     updateEntry(photo.id, entry.localId, { statusError: null });
 
-    const result = await setBottleStatus(entry.bottle.id, value);
+    const result = await setBottleStatus(entry.bottle.id, nextStatus);
     if (result?.error) {
-      updateEntryBottle(photo.id, entry.localId, { status: previous });
+      updateEntryBottle(photo.id, entry.localId, { status: previousStatus });
       updateEntry(photo.id, entry.localId, { statusError: result.error });
     }
   }
@@ -671,11 +719,11 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
     removeEntry(photo.id, entry.localId);
   }
 
-  async function processPhoto(photo, batchIntent) {
+  async function processPhoto(photo, batchIntent, batchEventLabel) {
     try {
       const resized = await downscaleImage(photo.file);
       const base64 = await fileToBase64(resized);
-      const result = await extractWinesFromPhoto(base64, "image/jpeg", batchIntent);
+      const result = await extractWinesFromPhoto(base64, "image/jpeg", batchIntent, batchEventLabel);
       if (result.error) {
         // Still offer one blank manual-entry card, through the same
         // entry-card rendering as a successful extraction, rather than a
@@ -711,8 +759,10 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
       // Kept per photo, not read from state at retry time: changing the
       // picker steers the next batch, so a re-read of this photo has to
       // use the destination it was chosen for, not whatever is selected
-      // by the time you notice it failed.
+      // by the time you notice it failed. eventLabel is the same idea for
+      // the tasting/event name field below the picker.
       intent: intent,
+      eventLabel: eventLabel,
       status: "loading",
       error: null,
       entries: [],
@@ -726,7 +776,10 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
     // while a batch runs should steer the next batch, not this one. Same
     // value each photo carries, for the same reason.
     const batchIntent = intent;
-    await runWithConcurrency(newPhotos, 3, (photo) => processPhoto(photo, batchIntent));
+    const batchEventLabel = eventLabel;
+    await runWithConcurrency(newPhotos, 3, (photo) =>
+      processPhoto(photo, batchIntent, batchEventLabel)
+    );
   }
 
   // Clears the review workspace, not the cellar. Every saved wine stays
@@ -735,18 +788,18 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
   // lists the batch landed in.
   function finishBatch() {
     const counts = {};
-    // Candidates for the flight step below: saved under "flight" (carried
-    // per photo, same as the intent a retry uses - see handleFilesChange),
-    // and still actually in the cellar by the time the batch finishes. A
-    // card flipped to Wishlist or Tasted on its own destination control no
-    // longer belongs in a flight - you cannot open a wine you do not have -
-    // whatever intent it was scanned under.
+    // Candidates for the flight step below: flagged on the card itself
+    // (DestinationPicker's fourth option), not derived from whichever
+    // picker was selected when the photo was scanned - a card's own flag
+    // is the one thing that can be changed per-card after the fact, and
+    // finishing the batch should honour whatever it says now, not what it
+    // said when the photo was read.
     const candidates = [];
     for (const photo of photos) {
       for (const entry of photo.entries) {
         if (entry.kind !== "saved") continue;
         counts[entry.bottle.status] = (counts[entry.bottle.status] ?? 0) + 1;
-        if (photo.intent === "flight" && entry.bottle.status === "inventory") {
+        if (entry.flightFlag && entry.bottle.status === "inventory") {
           candidates.push({ id: entry.bottle.id, title: wineTitle(entry.bottle) });
         }
       }
@@ -811,7 +864,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
     const photo = photos.find((p) => p.id === id);
     if (!photo) return;
     updatePhoto(id, { status: "loading", error: null, entries: [] });
-    await processPhoto(photo, photo.intent ?? intent);
+    await processPhoto(photo, photo.intent ?? intent, photo.eventLabel ?? eventLabel);
   }
 
   // Same rule as the per-wine Delete, applied to everything one photo
@@ -958,6 +1011,17 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
             </div>
           </fieldset>
 
+          <label className="-mt-2 flex flex-col gap-1.5 text-sm text-zinc-500">
+            Tasting or event name (optional)
+            <input
+              type="text"
+              value={eventLabel}
+              onChange={(event) => setEventLabel(event.target.value)}
+              placeholder="Chain Bridge Mexican Wine Fiesta 9/19"
+              className="rounded-lg border border-zinc-300 px-3 py-2.5 text-base text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            />
+          </label>
+
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -1026,6 +1090,17 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
               Add photos
             </button>
           </div>
+          {/* Same field as the full picker above, kept reachable here too -
+              a batch can run long enough to span more than one tasting, and
+              there's no way back to that first screen once photos exist. */}
+          <input
+            type="text"
+            value={eventLabel}
+            onChange={(event) => setEventLabel(event.target.value)}
+            placeholder="Tasting or event name (optional)"
+            aria-label="Tasting or event name, carried into these wines' tasting notes"
+            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          />
         </div>
       )}
 
@@ -1097,7 +1172,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                         </span>
                         <span className="text-zinc-500">
                           {" \u2014 "}
-                          {destinationFor(entry.bottle.status)?.label}
+                          {destinationLabelFor(entry.bottle.status, entry.flightFlag)}
                         </span>
                         {/* Collapsing shouldn't make an unsure wine look
                             settled - the flag travels with the line. */}
@@ -1204,8 +1279,9 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                       <DestinationPicker
                         name={`scan-status-${entry.localId}`}
                         legend="Saved to"
-                        value={entry.bottle.status}
-                        onChange={(value) => changeDestination(photo, entry, value)}
+                        status={entry.bottle.status}
+                        flight={Boolean(entry.flightFlag)}
+                        onChange={(status, flight) => changeDestination(photo, entry, status, flight)}
                       />
 
                       {entry.statusError && (
@@ -1223,6 +1299,16 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                           <span className="italic">
                             &ldquo;{entry.bottle.scannedNote}&rdquo;
                           </span>
+                        </p>
+                      )}
+
+                      {/* Confirms the event field actually landed - it was
+                          typed separately from the photo, so it isn't part
+                          of scannedNote above, but it went into the same
+                          tasting note underneath. */}
+                      {entry.bottle.eventLabel && (
+                        <p className="text-xs text-zinc-500">
+                          Tagged in the tasting note: {entry.bottle.eventLabel}
                         </p>
                       )}
 
@@ -1347,9 +1433,13 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                       <DestinationPicker
                         name={`scan-status-${entry.localId}`}
                         legend="Save to"
-                        value={entry.saveStatus}
-                        onChange={(value) =>
-                          updateEntry(photo.id, entry.localId, { saveStatus: value })
+                        status={entry.saveStatus}
+                        flight={Boolean(entry.saveFlight)}
+                        onChange={(status, flight) =>
+                          updateEntry(photo.id, entry.localId, {
+                            saveStatus: status,
+                            saveFlight: flight,
+                          })
                         }
                       />
 
@@ -1381,6 +1471,12 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                               updateEntry(photo.id, entry.localId, {
                                 kind: "saved",
                                 bottle: result.bottle,
+                                // Carried across from the draft's own
+                                // picker, same as bottle/dirty/justSaved -
+                                // a card flagged for a flight before it had
+                                // a real bottle to flag shouldn't lose that
+                                // the moment it gets one.
+                                flightFlag: Boolean(entry.saveFlight),
                                 dirty: false,
                                 justSaved: true,
                               });

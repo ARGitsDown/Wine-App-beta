@@ -2527,3 +2527,50 @@ Actions in a row is not reliable once a router refresh follows the last
 one. Starting a brand-new flight from the batch reuses `saveTastingFlight`
 outright (this session's own IDOR fix earlier tonight, so its ownership
 check comes for free) rather than `createFlight` + an add loop.
+
+## 35. #34's real bug, and a tasting/event label carried into notes
+
+Two follow-ups from actually using #34, the same evening it shipped.
+
+**The bug:** a wine scanned under the "Flight" picker still showed
+"Saved to Cellar" on its own per-card control, with no way to flip it
+back - because that control only ever showed the three real statuses
+(Cellar/Wishlist/Tasted), and Flight isn't a fourth status. It writes the
+same `status: "inventory"` as Cellar (a flight only ever queues bottles
+you actually have), so the per-card picker genuinely had nothing else to
+show; what it was missing was a way to say "and also queue this one,"
+independent of - and after - whichever picker card was selected when the
+photo was scanned.
+
+Fixed by giving `DestinationPicker` a real fourth option instead of
+inferring flight candidacy from `photo.intent` after the fact. Cellar and
+Flight now write the identical `status: "inventory"` but are visually and
+functionally distinct buttons, because a new `flightFlag` travels beside
+`status` on every entry - set by intent when a photo is first read
+(`entriesFromScanResults`/`draftEntriesFromWines`), then freely
+switchable per card afterward the same way `Cellar`/`Wishlist`/`Tasted`
+already were. `finishBatch`'s flight-candidate collection now reads that
+flag instead of the photo's original intent, which is also the more
+correct rule: a card someone actually flipped to Flight after the fact
+belongs in the batch's flight offer, and one flipped away from it
+shouldn't, regardless of which picker card started the photo.
+
+**The feature:** a batch-level "Tasting or event name" field (e.g.
+"Chain Bridge Mexican Wine Fiesta 9/19"), carried through to every
+wine's tasting note - not stored anywhere on `Bottle` itself, since it
+describes the occasion, not the wine. Threaded the same way `intent`
+already was (captured per photo at read time, so changing the field
+mid-batch steers only the *next* photos - see `handleFilesChange`'s own
+comment on why `intent` works this way). Composed into the note text
+server-side (`extractWinesFromPhoto`): with a label and the photo's own
+note both present, the label goes first, a blank line, then the photo's
+note; with a label and no note, the label alone is still worth a
+tasting note of its own, since it's the reason the wine has anything
+tasting-related to say at all. With no label typed, the original
+behaviour - note only when the photo carried one - is unchanged.
+
+`scannedNote` (what the card shows as "read from the photo") deliberately
+stays untouched by this - it would otherwise misattribute the owner's own
+typed event name as something the photo said. A separate line on the
+card ("Tagged in the tasting note: …") confirms the label actually
+landed, without conflating the two sources.
