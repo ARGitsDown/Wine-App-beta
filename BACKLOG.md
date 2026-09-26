@@ -2632,3 +2632,58 @@ run when it's set, and `FlightPicksList` hides the Undo button in favor
 of a plain "Already tasted when scanned — never in your cellar" line for
 those picks. Migration:
 `prisma/migrations/20260926000000_flight_pick_started_consumed`.
+
+## 37. #36's checkbox didn't survive contact with the owner
+
+Shipped #36, described it back, and got direct pushback the same evening:
+*"I don't love it as another checkbox from a UX standpoint. I'd rather it
+be a status option that isn't connected to 'Cellar'."* Right on both
+counts, and the second one is the sharper of the two - a checkbox riding
+on top of a status a wine didn't actually have is the same bug #36 itself
+was written to fix, just relocated from "shares Cellar's status" to
+"shares whichever status the checkbox rides on." Hiding "this is a flight
+wine" behind a flag on a shared status was never the real problem; the
+checkbox was only ever a symptom of it.
+
+The fix this time is the one #36 talked itself out of: `Bottle.status`
+gained a real fourth value, `"flight"` - not `"inventory"`, not
+`"consumed"`, its own thing. A wine poured at a tasting was never bought,
+so it needed a status that says exactly that, the same way `"wishlist"`
+already says "not owned yet." `DestinationPicker` and the top-of-page
+intent picker both went back to a single row of mutually-exclusive
+options - four now, Cellar/Wishlist/Tasted/Flight - and every bit of
+`flightFlag`/`flightIntent`/`saveFlight` client-side bookkeeping the
+checkbox needed came back out, because "is this a flight wine" is now
+just `bottle.status === "flight"`. Read as fully as it looks: nothing
+rides on anything else's status anymore.
+
+Scope question worth recording: a flight-status bottle has no list page
+of its own (no fourth `/flight` index alongside `/inventory`,
+`/wishlist`, `/consumed`) - deliberately, on the owner's own choice
+between the two options put to them. Its only home in the app is the
+flight it belongs to, which is why `PendingFlightPanel`'s "Skip" option
+is gone: skipping isn't leaving a wine in the Cellar anymore, it's
+orphaning a bottle with genuinely nowhere else to be seen (still in
+`/export`, still reachable by direct link, just off every list). Each
+wine saved under Flight is saved immediately (same as every other scan
+destination), so if a batch is abandoned before `PendingFlightPanel`
+resolves - the tab closes, the browser crashes - those bottles sit at
+status `"flight"` unlinked to any `TastingFlight` until someone finds
+them another way. Accepted, not fixed: the alternative (a real list page,
+its own nav entry) was the larger of the two scopes on offer, and this
+was explicitly the smaller one.
+
+`markFlightPickConsumed`/`unmarkFlightPickConsumed` needed the same
+branch #36's `startedConsumed` was reaching for, but the real status
+makes it exact instead of a flag: a flight-only pick graduates straight
+from `"flight"` to `"consumed"` (no Cellar quantity to draw down, since
+there wasn't any), and Undo reverses it straight back to `"flight"` -
+never to `"inventory"`, which is what makes Undo safe to leave
+unconditional again (FlightPicksList's hidden-button special case from
+#36 is gone; there's nothing left to hide it from). `FlightPick` traded
+`startedConsumed` for `originFlightOnly`, recording which of the two a
+pick came from so both directions know where to land - set once at
+creation, same as its predecessor, in a new migration
+(`prisma/migrations/20260926010000_flight_pick_origin_flight_only`)
+rather than editing #36's, since that one may already have run
+somewhere.

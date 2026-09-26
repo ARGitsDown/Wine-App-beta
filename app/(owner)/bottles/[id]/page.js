@@ -39,6 +39,10 @@ const STATUS_FALLBACK_HREF = {
   inventory: "/inventory",
   wishlist: "/wishlist",
   consumed: "/consumed",
+  // No list page of its own - the flights index is the closest thing a
+  // flight-status bottle has to a home (see the Bottle.status comment in
+  // prisma/schema.prisma).
+  flight: "/flights",
 };
 
 // Deleting a bottle cascades to everything hanging off it. Naming what
@@ -174,8 +178,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
                   reason you opened this page, so it belongs among the
                   other small facts about the wine, not under the name of
                   it. A wishlist bottle isn't owned, so there is nothing to
-                  date. */}
-              {bottle.status !== "wishlist" && (
+                  date - a flight-status bottle isn't either, for the same
+                  reason (see acquiredAtForStatus). */}
+              {bottle.status !== "wishlist" && bottle.status !== "flight" && (
                 <div className="flex flex-wrap items-center gap-1 py-0.5 text-xs text-zinc-500">
                   Acquired
                   <InlineDateEditor

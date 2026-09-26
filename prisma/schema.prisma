@@ -148,9 +148,16 @@ model Invite {
   acceptedAt DateTime?
 }
 
-// A single wine, in one of three states:
+// A single wine, in one of four states:
 // - wishlist: something to try or buy, not owned yet
 // - inventory: currently owned/in the cellar
+// - flight: queued for a flight and never (yet) owned - a wine tasted at
+//   an event, poured from someone else's bottle, never bought as your
+//   own. Distinct from inventory precisely so it never counts as
+//   Cellar/owned stock; distinct from consumed because it hasn't been
+//   tasted yet. Its only home in the app is the flight it belongs to
+//   (see FlightPick) - graduates to consumed the same way an inventory
+//   bottle does, by marking its flight pick tasted.
 // - consumed: already drunk, kept around so its tasting notes stay attached
 model Bottle {
   id                   Int       @id @default(autoincrement())
@@ -401,29 +408,28 @@ model TastingFlight {
 
 // One bottle's place in a saved flight, in tasting order.
 model FlightPick {
-  id              Int           @id @default(autoincrement())
-  flightId        Int
-  flight          TastingFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
-  bottleId        Int
-  bottle          Bottle        @relation(fields: [bottleId], references: [id], onDelete: Cascade)
-  order           Int
+  id               Int           @id @default(autoincrement())
+  flightId         Int
+  flight           TastingFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  bottleId         Int
+  bottle           Bottle        @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  order            Int
   // Why this bottle is in this flight, in the model's words. Null for a
   // pick added by hand, which has a position in the running order but no
   // argument attached to it.
-  reason          String?
-  consumed        Boolean       @default(false)
-  // True when the bottle behind this pick was already status "consumed" -
-  // scanned straight to Tasted, e.g. at a wine-tasting event, and never
-  // Cellar inventory - at the moment it joined this flight, as opposed to
-  // becoming consumed later by actually pouring it during the flight
-  // itself. `consumed` alone can't tell those two apart once it's true;
-  // this is what markFlightPickConsumed/unmarkFlightPickConsumed (see
-  // app/actions.js) check before letting Undo run, since undoOneTasted's
-  // setBottleStatus(id, "inventory") would otherwise hand back Cellar
-  // ownership of a bottle nobody ever actually owned. Set once at
-  // creation (see addBottleToFlight, addBottlesToFlight,
-  // saveTastingFlight) and never changed afterward.
-  startedConsumed Boolean       @default(false)
+  reason           String?
+  consumed         Boolean       @default(false)
+  // True when the bottle behind this pick was status "flight" (never
+  // Cellar inventory) at the moment it joined - as opposed to "inventory"
+  // (a bottle you already owned, added the ordinary way). Both eventually
+  // read `bottle.status === "consumed"` once tasted, so this is what
+  // markFlightPickConsumed/unmarkFlightPickConsumed (see app/actions.js)
+  // use to know which status to move the bottle to and back from: a
+  // flight-only bottle graduates straight to consumed and, on Undo,
+  // straight back to flight - never to inventory, since it was never
+  // that. Set once at creation (see addBottleToFlight,
+  // addBottlesToFlight, saveTastingFlight) and never changed afterward.
+  originFlightOnly Boolean       @default(false)
 
   @@index([flightId])
   @@index([bottleId])

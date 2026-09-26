@@ -111,6 +111,10 @@ function invalidateRegionOptions() {
 function pathForStatus(status) {
   if (status === "inventory") return "/inventory";
   if (status === "consumed") return "/consumed";
+  // A flight-only bottle has no list page of its own (see the Bottle.status
+  // comment in prisma/schema.prisma) - the flights index is the closest
+  // thing it has to a home until it's linked to a specific one.
+  if (status === "flight") return "/flights";
   return "/wishlist";
 }
 
@@ -2598,11 +2602,8 @@ export async function saveTastingFlight({ title, summary, picks }) {
           bottleId: pick.bottleId,
           reason: pick.reason,
           order: index,
-          // See addBottleToFlight's own comment: a pick born from a
-          // bottle that's already Tasted starts consumed, since it was
-          // never Cellar inventory to begin with.
-          consumed: ownedStatus.get(pick.bottleId) === "consumed",
-          startedConsumed: ownedStatus.get(pick.bottleId) === "consumed",
+          // See addBottleToFlight's own comment on originFlightOnly.
+          originFlightOnly: ownedStatus.get(pick.bottleId) === "flight",
         })),
       },
     },
@@ -2662,16 +2663,12 @@ export async function addBottleToFlight(flightId, bottleId) {
       bottleId,
       order: (last?.order ?? -1) + 1,
       reason: null,
-      // A bottle that's already Tasted (scanned at an event, never owned)
-      // was drunk before it ever reached this flight - marking its pick
-      // consumed from the start keeps isOpenFlight() honest (a flight of
-      // nothing but already-tasted wines is a record, not a queue).
-      // startedConsumed records that this was true from birth, which is
-      // what stops unmarkFlightPickConsumed from later trying to move
-      // real Cellar inventory that was never there - see its own comment
-      // in the schema.
-      consumed: bottle.status === "consumed",
-      startedConsumed: bottle.status === "consumed",
+      // Recorded once, here, rather than derived later: see the schema
+      // comment on FlightPick.originFlightOnly for why
+      // markFlightPickConsumed/unmarkFlightPickConsumed need to know this
+      // rather than re-deriving it from whatever the bottle's status
+      // happens to be by then.
+      originFlightOnly: bottle.status === "flight",
     },
   });
   revalidatePath(`/flights/${flightId}`);
@@ -2679,12 +2676,12 @@ export async function addBottleToFlight(flightId, bottleId) {
   return { data: { flightName: flight.title || flight.summary || "the flight" } };
 }
 
-// The batch version of addBottleToFlight, for scan's "also queue for a
-// flight" toggle: every wine just saved in one photo, added in one call.
-// Looping the single-bottle action from the client is exactly the pattern
-// this file already warns against elsewhere (see removePhoto/
-// removeScannedBottles above) - a client awaiting several Server Actions
-// in a row is not reliable once a router refresh follows the last one.
+// The batch version of addBottleToFlight, for scan's "Flight" destination:
+// every wine just saved in one photo, added in one call. Looping the
+// single-bottle action from the client is exactly the pattern this file
+// already warns against elsewhere (see removePhoto/removeScannedBottles
+// above) - a client awaiting several Server Actions in a row is not
+// reliable once a router refresh follows the last one.
 export async function addBottlesToFlight(flightId, bottleIds) {
   const flight = await db.tastingFlight.findUnique({
     where: { id: flightId },
@@ -2722,11 +2719,8 @@ export async function addBottlesToFlight(flightId, bottleIds) {
       bottleId,
       order: lastOrder + 1 + index,
       reason: null,
-      // See addBottleToFlight's own comment: a wine scanned straight to
-      // Tasted (a wine-tasting event, never Cellar inventory) starts its
-      // pick already consumed, rather than as something still to pour.
-      consumed: ownedStatus.get(bottleId) === "consumed",
-      startedConsumed: ownedStatus.get(bottleId) === "consumed",
+      // See addBottleToFlight's own comment on originFlightOnly.
+      originFlightOnly: ownedStatus.get(bottleId) === "flight",
     })),
   });
 
@@ -2783,41 +2777,68 @@ export async function moveFlightPick(pickId, direction) {
 // what's actually left in the cellar. Guarded on `pick.consumed` so a
 // resubmit (a double-tap before the page revalidates) can't decrement the
 // bottle twice.
+//
+// A flight-only bottle (originFlightOnly - see the schema comment) has no
+// Cellar quantity to draw down at all, since it was never inventory - it
+// graduates straight from "flight" to "consumed" instead, the same
+// destination a plain Tasted scan writes.
 export async function markFlightPickConsumed(pickId) {
-  const pick = await db.flightPick.findUnique({ where: { id: pickId } });
+  const pick = await db.flightPick.findUnique({
+    where: { id: pickId },
+    select: { id: true, flightId: true, bottleId: true, consumed: true, originFlightOnly: true },
+  });
   if (!pick || pick.consumed) return;
 
   await db.flightPick.update({
     where: { id: pickId },
     data: { consumed: true },
   });
-  await markOneTasted(pick.bottleId);
+  if (pick.originFlightOnly) {
+    await db.bottle.update({
+      where: { id: pick.bottleId },
+      data: { status: "consumed", emptiedAt: emptiedAtForStatus("consumed", null) },
+    });
+    revalidatePath(`/bottles/${pick.bottleId}`);
+    revalidatePath("/consumed");
+  } else {
+    await markOneTasted(pick.bottleId);
+  }
   revalidatePath(`/flights/${pick.flightId}`);
   revalidatePath("/flights");
 }
 
-// Undoes markFlightPickConsumed - marking a pick tasted now moves real
-// inventory (BACKLOG #29), not just a checklist flag, so a mis-tap needs a
-// way back the same way every other consequential action in this app
-// does. Guarded the same way its counterpart is, so a resubmit can't
-// double-restore.
+// Undoes markFlightPickConsumed - marking a pick tasted now moves the
+// bottle somewhere real (Cellar quantity down, or status straight to
+// consumed), not just a checklist flag, so a mis-tap needs a way back the
+// same way every other consequential action in this app does. Guarded the
+// same way its counterpart is, so a resubmit can't double-restore.
 //
-// Also refuses on a pick whose startedConsumed is true: that bottle was
-// already Tasted (never Cellar inventory) when it joined the flight, so
-// there is no real inventory behind it for undoOneTasted's
-// setBottleStatus(id, "inventory") to hand back - only the UI's Undo
-// button is meant to be reachable here, and it's already hidden for these
-// picks (FlightPicksList), but the guard belongs on the action itself,
-// not only on whether a button happens to be on screen.
+// Branches on the same originFlightOnly flag markFlightPickConsumed used
+// to get here: a flight-only bottle reverts straight to "flight" (where it
+// started), never to "inventory" - undoOneTasted's
+// setBottleStatus(id, "inventory") is only correct for a pick that really
+// did come from Cellar stock.
 export async function unmarkFlightPickConsumed(pickId) {
-  const pick = await db.flightPick.findUnique({ where: { id: pickId } });
-  if (!pick || !pick.consumed || pick.startedConsumed) return;
+  const pick = await db.flightPick.findUnique({
+    where: { id: pickId },
+    select: { id: true, flightId: true, bottleId: true, consumed: true, originFlightOnly: true },
+  });
+  if (!pick || !pick.consumed) return;
 
   await db.flightPick.update({
     where: { id: pickId },
     data: { consumed: false },
   });
-  await undoOneTasted(pick.bottleId);
+  if (pick.originFlightOnly) {
+    await db.bottle.update({
+      where: { id: pick.bottleId },
+      data: { status: "flight", emptiedAt: null },
+    });
+    revalidatePath(`/bottles/${pick.bottleId}`);
+    revalidatePath("/consumed");
+  } else {
+    await undoOneTasted(pick.bottleId);
+  }
   revalidatePath(`/flights/${pick.flightId}`);
   revalidatePath("/flights");
 }
