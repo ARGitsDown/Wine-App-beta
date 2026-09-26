@@ -439,8 +439,13 @@ function DestinationPicker({ name, legend, status, onChange }) {
 // to a whole batch at once and ending on the flight itself rather than a
 // small inline confirmation, since landing there was the point of
 // choosing Flight in the first place.
-function PendingFlightPanel({ wines, openFlights, busy, error, onAddTo, onStartNew }) {
-  const [title, setTitle] = useState("");
+function PendingFlightPanel({ wines, openFlights, busy, error, onAddTo, onStartNew, suggestedTitle }) {
+  // Prefilled from the batch's own "Tasting or event name" field when one
+  // was typed - the two used to be easy to conflate (BACKLOG #38: typing
+  // an event name here and expecting it alone to produce a flight), and
+  // starting this field with the same text removes the second decision
+  // rather than just explaining it better.
+  const [title, setTitle] = useState(suggestedTitle || "");
 
   return (
     <div className="-mt-3 flex flex-col gap-2.5 rounded-lg border border-violet-300 p-3 dark:border-violet-900">
@@ -522,6 +527,12 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
   // comment). Kept separate from `finished` (which is about where a
   // card's own status put it - Cellar/Wishlist/Tasted/Flight).
   const [pendingFlight, setPendingFlight] = useState(null);
+  // What to suggest as the new flight's theme name, taken from whichever
+  // flight candidate actually carried one (see finishBatch) - not read
+  // from `eventLabel` directly, since that's the live control's current
+  // value and may have moved on to a later photo's tasting by the time
+  // the batch is finished.
+  const [pendingFlightName, setPendingFlightName] = useState("");
   const [flightBusy, setFlightBusy] = useState(false);
   const [flightError, setFlightError] = useState(null);
   const photosRef = useRef(photos);
@@ -760,12 +771,18 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
     // the one thing that can be changed per-card after the fact, and
     // finishing the batch should honour whatever it says now.
     const candidates = [];
+    // The first event label any flight candidate actually carried - a
+    // batch scanned in one sitting for one tasting has the same label on
+    // every card, so the first is as good as any, and this stays null
+    // when nobody typed one rather than suggesting an empty string.
+    let eventLabelFromBatch = null;
     for (const photo of photos) {
       for (const entry of photo.entries) {
         if (entry.kind !== "saved") continue;
         counts[entry.bottle.status] = (counts[entry.bottle.status] ?? 0) + 1;
         if (entry.bottle.status === "flight") {
           candidates.push({ id: entry.bottle.id, title: wineTitle(entry.bottle) });
+          eventLabelFromBatch ??= entry.bottle.eventLabel || null;
         }
       }
     }
@@ -773,6 +790,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
     setPhotos([]);
     setFinished(Object.keys(counts).length > 0 ? counts : null);
     setPendingFlight(candidates.length > 0 ? candidates : null);
+    setPendingFlightName(eventLabelFromBatch || "");
     setFlightError(null);
   }
 
@@ -921,6 +939,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
               error={flightError}
               onAddTo={addPendingFlightTo}
               onStartNew={startFlightFromPending}
+              suggestedTitle={pendingFlightName}
             />
           )}
 

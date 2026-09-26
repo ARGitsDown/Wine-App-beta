@@ -2687,3 +2687,35 @@ creation, same as its predecessor, in a new migration
 (`prisma/migrations/20260926010000_flight_pick_origin_flight_only`)
 rather than editing #36's, since that one may already have run
 somewhere.
+
+## 38. #37's accepted edge case, on the very first real batch
+
+Scanned 7 wines under "Flight" for a real tasting ("Chain Bridge 9/26"),
+typed that into the batch's own "Tasting or event name" field, and
+never saw a flight afterward. Not a bug in the sense of broken code -
+walked through it with the owner and confirmed exactly the sequence #37
+called out as an accepted risk: the purple "these wines need a flight"
+panel did appear, but nothing was typed into its own, separate "Theme
+name" field before leaving the page. The wines are fine (`status:
+"flight"`, sitting there correctly) - there was just nowhere left in the
+UI to find and finish linking them, since #36's "just the flight
+itself" scope deliberately didn't build one.
+
+Two fixes, one for right now and one for next time:
+
+- `FlightBottlePicker`'s candidate query (on any flight's own page)
+  widened from `status: "inventory"` to `status: { in: ["inventory",
+  "flight"] }`. This is the recovery path #37 didn't build: open any
+  flight (or start a new one), search for the 7 wines by name in "Add a
+  bottle", and they're right there to add by hand. Wording in that
+  component softened from "your cellar" to "your bottles" so it stops
+  overclaiming now that a flight-only wine can show up in it too.
+- The real root cause: two separate name fields that looked like one.
+  The event-name field feeds tasting notes only, and always has; the
+  flight's actual name is a second, blank input inside the purple panel,
+  and typing the first was never going to fill in the second by itself.
+  `PendingFlightPanel` now prefills its "Theme name" input from whichever
+  flight candidate carried an event label, so typing "Chain Bridge 9/26"
+  once, the way the field's own placeholder suggests, now also becomes
+  the flight's name by default - still editable, just no longer a second
+  decision nobody was told to make.

@@ -28,13 +28,19 @@ export default async function FlightDetailPage({ params }) {
 
   if (!flight) notFound();
 
-  // Cellar only, matching what Suggest saves: a flight is a queue of
-  // things you can actually open. Already-picked bottles are filtered out
-  // here so the picker can't offer a duplicate the action would refuse.
+  // Cellar bottles, matching what Suggest saves - a flight is normally a
+  // queue of things you can actually open - plus flight-only bottles
+  // (status "flight") that were saved from a scan but never got linked to
+  // any flight, since that's currently the only recovery path for one:
+  // the scan step that links them is required but not literally
+  // unabortable (BACKLOG #37 - a closed tab mid-batch leaves the bottle
+  // exactly here, findable but not yet in a flight). Already-picked
+  // bottles are filtered out here so the picker can't offer a duplicate
+  // the action would refuse.
   const picked = new Set(flight.picks.map((pick) => pick.bottleId));
   const candidates = (
     await db.bottle.findMany({
-      where: { status: "inventory" },
+      where: { status: { in: ["inventory", "flight"] } },
       select: {
         id: true,
         producer: true,

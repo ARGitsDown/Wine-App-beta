@@ -61,7 +61,7 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
   const body =
     bottles.length === 0 ? (
       <p className="text-sm text-zinc-500">
-        Every bottle in your cellar is already in this flight.
+        Everything eligible is already in this flight.
       </p>
     ) : (
       <div className="flex flex-col gap-2">
@@ -69,8 +69,8 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search your cellar…"
-        aria-label="Search your cellar"
+        placeholder="Search your bottles…"
+        aria-label="Search your bottles"
         className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
       />
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
