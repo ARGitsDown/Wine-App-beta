@@ -133,18 +133,30 @@ export default function FlightPicksList({ flightId, picks }) {
 
                 <div className="flex flex-wrap items-center gap-2">
                   {pick.consumed ? (
-                    // Marking a pick tasted now moves real inventory
-                    // (BACKLOG #29), so a mis-tap needs a way back - Undo
-                    // reverses exactly what that tap did (unmarkFlightPickConsumed),
-                    // not a separate hand-rolled correction.
-                    <form action={unmarkFlightPickConsumed.bind(null, pick.id)}>
-                      <button
-                        type="submit"
-                        className="text-sm text-zinc-500 underline underline-offset-2"
-                      >
-                        Undo
-                      </button>
-                    </form>
+                    pick.startedConsumed ? (
+                      // This bottle was already Tasted - scanned straight
+                      // there, typically at a wine-tasting event - when it
+                      // joined the flight, so there's no Cellar inventory
+                      // behind it for Undo to hand back. No button, since
+                      // there's nothing to undo (see unmarkFlightPickConsumed's
+                      // own guard on this same flag).
+                      <p className="text-sm text-zinc-500">
+                        Already tasted when scanned &mdash; never in your cellar.
+                      </p>
+                    ) : (
+                      // Marking a pick tasted now moves real inventory
+                      // (BACKLOG #29), so a mis-tap needs a way back - Undo
+                      // reverses exactly what that tap did (unmarkFlightPickConsumed),
+                      // not a separate hand-rolled correction.
+                      <form action={unmarkFlightPickConsumed.bind(null, pick.id)}>
+                        <button
+                          type="submit"
+                          className="text-sm text-zinc-500 underline underline-offset-2"
+                        >
+                          Undo
+                        </button>
+                      </form>
+                    )
                   ) : (
                     <form action={markFlightPickConsumed.bind(null, pick.id)}>
                       <button type="submit" className={buttonClass}>

@@ -2574,3 +2574,61 @@ stays untouched by this - it would otherwise misattribute the owner's own
 typed event name as something the photo said. A separate line on the
 card ("Tagged in the tasting note: …") confirms the label actually
 landed, without conflating the two sources.
+
+## 36. A flight isn't a fourth status
+
+Trying #35's Flight fix in practice surfaced the actual design flaw
+underneath it, described by the owner from a real wine tasting: scanning
+wines poured there had them landing "in the cellar" - because "Flight"
+wrote `status: "inventory"`, same as Cellar, on the reasoning that a
+flight only ever queues bottles you actually have (see FlightPick in
+prisma/schema.prisma: "you cannot open a wine you do not have"). That
+reasoning is correct for prepping a home tasting from owned bottles, and
+wrong for a wine tasted at an event and never owned at all - which still
+belongs in a flight, so its note can sit alongside the rest of that
+evening's lineup, but should never inflate the Cellar count.
+
+Two things turned out to already work the way the owner wanted, once
+looked at closely:
+
+- **A flight built from bottles you already own, prepped ahead of
+  hosting it** - already exactly right. `addBottleToFlight`/
+  `addBottlesToFlight` never touch a bottle's status; it stays in the
+  Cellar, visible in both places, until its own pick is marked tasted on
+  the flight page (which runs the same inventory-decrement as the bottle
+  page's "Tasted one" button). No change needed.
+- **A flight staying "live" until you're done with it** - also already
+  true, via `isOpenFlight()` (lib/flights.js): a flight counts as open
+  while any pick is untasted, and reads as "a record now, not a queue"
+  only once every pick has been marked tasted. There's no "complete
+  flight" button because none is needed.
+
+The actual fix: "add to a flight" is no longer a fourth, mutually
+exclusive destination sharing Cellar's status. It's a separate checkbox
+(`flightIntent` for the batch default, `flightFlag` per card) that
+combines with any of the three real statuses - Cellar, Wishlist, or
+Tasted. `DestinationPicker` now renders the three status radios plus this
+checkbox below them; the top-of-page intent picker got the same
+treatment (3 tiles + a separate "Also queue these for a flight" toggle,
+both the full grid and the compact strip). `finishBatch`'s
+flight-candidate collection dropped its `status === "inventory"` filter
+accordingly - any status now qualifies.
+
+Bottles scanned straight to Tasted (an event, never owned) and flagged
+for a flight needed one more piece: their `FlightPick` should start
+already consumed, not "still to pour" - the wine was tasted before it
+ever joined the flight. `addBottleToFlight`, `addBottlesToFlight`, and
+`saveTastingFlight` now seed `consumed` from the bottle's actual status
+at add-time. That alone wasn't quite enough, though: a bottle that
+started as ordinary Cellar inventory and got poured *through* the flight
+also ends up `consumed: true` - and `unmarkFlightPickConsumed`'s Undo
+calls `undoOneTasted`, which would happily call `setBottleStatus(id,
+"inventory")` on a bottle that was never inventory to begin with,
+handing back Cellar ownership of a wine nobody ever owned. The two cases
+are indistinguishable from `consumed` alone once it's true, so
+`FlightPick` gained its own column, `startedConsumed`, set once at
+creation and never touched again - `unmarkFlightPickConsumed` refuses to
+run when it's set, and `FlightPicksList` hides the Undo button in favor
+of a plain "Already tasted when scanned — never in your cellar" line for
+those picks. Migration:
+`prisma/migrations/20260926000000_flight_pick_started_consumed`.

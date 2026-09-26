@@ -2579,10 +2579,10 @@ export async function saveTastingFlight({ title, summary, picks }) {
   const candidateIds = picks.filter((p) => Number.isInteger(p.bottleId)).map((p) => p.bottleId);
   const owned = await db.bottle.findMany({
     where: { id: { in: candidateIds } },
-    select: { id: true },
+    select: { id: true, status: true },
   });
-  const ownedIds = new Set(owned.map((bottle) => bottle.id));
-  const ownedPicks = picks.filter((p) => ownedIds.has(p.bottleId));
+  const ownedStatus = new Map(owned.map((bottle) => [bottle.id, bottle.status]));
+  const ownedPicks = picks.filter((p) => ownedStatus.has(p.bottleId));
   if (ownedPicks.length === 0) return { error: "Nothing in that flight was an owned bottle to save." };
 
   const flight = await db.tastingFlight.create({
@@ -2598,6 +2598,11 @@ export async function saveTastingFlight({ title, summary, picks }) {
           bottleId: pick.bottleId,
           reason: pick.reason,
           order: index,
+          // See addBottleToFlight's own comment: a pick born from a
+          // bottle that's already Tasted starts consumed, since it was
+          // never Cellar inventory to begin with.
+          consumed: ownedStatus.get(pick.bottleId) === "consumed",
+          startedConsumed: ownedStatus.get(pick.bottleId) === "consumed",
         })),
       },
     },
@@ -2630,7 +2635,7 @@ export async function addBottleToFlight(flightId, bottleId) {
       where: { id: flightId },
       select: { id: true, title: true, summary: true },
     }),
-    db.bottle.findUnique({ where: { id: bottleId }, select: { id: true } }),
+    db.bottle.findUnique({ where: { id: bottleId }, select: { id: true, status: true } }),
   ]);
   if (!flight) return { error: "That flight no longer exists." };
   if (!bottle) return { error: "That bottle no longer exists." };
@@ -2652,19 +2657,34 @@ export async function addBottleToFlight(flightId, bottleId) {
   });
 
   await db.flightPick.create({
-    data: { flightId, bottleId, order: (last?.order ?? -1) + 1, reason: null },
+    data: {
+      flightId,
+      bottleId,
+      order: (last?.order ?? -1) + 1,
+      reason: null,
+      // A bottle that's already Tasted (scanned at an event, never owned)
+      // was drunk before it ever reached this flight - marking its pick
+      // consumed from the start keeps isOpenFlight() honest (a flight of
+      // nothing but already-tasted wines is a record, not a queue).
+      // startedConsumed records that this was true from birth, which is
+      // what stops unmarkFlightPickConsumed from later trying to move
+      // real Cellar inventory that was never there - see its own comment
+      // in the schema.
+      consumed: bottle.status === "consumed",
+      startedConsumed: bottle.status === "consumed",
+    },
   });
   revalidatePath(`/flights/${flightId}`);
   revalidatePath("/flights");
   return { data: { flightName: flight.title || flight.summary || "the flight" } };
 }
 
-// The batch version of addBottleToFlight, for scan's "Flight" intent: every
-// wine just saved to the cellar in one photo, added in one call. Looping
-// the single-bottle action from the client is exactly the pattern this
-// file already warns against elsewhere (see removePhoto/removeScannedBottles
-// above) - a client awaiting several Server Actions in a row is not
-// reliable once a router refresh follows the last one.
+// The batch version of addBottleToFlight, for scan's "also queue for a
+// flight" toggle: every wine just saved in one photo, added in one call.
+// Looping the single-bottle action from the client is exactly the pattern
+// this file already warns against elsewhere (see removePhoto/
+// removeScannedBottles above) - a client awaiting several Server Actions
+// in a row is not reliable once a router refresh follows the last one.
 export async function addBottlesToFlight(flightId, bottleIds) {
   const flight = await db.tastingFlight.findUnique({
     where: { id: flightId },
@@ -2684,11 +2704,11 @@ export async function addBottlesToFlight(flightId, bottleIds) {
   // a scan session the caller ran themselves.
   const owned = await db.bottle.findMany({
     where: { id: { in: bottleIds } },
-    select: { id: true },
+    select: { id: true, status: true },
   });
-  const ownedIds = new Set(owned.map((bottle) => bottle.id));
+  const ownedStatus = new Map(owned.map((bottle) => [bottle.id, bottle.status]));
   const already = new Set(flight.picks.map((pick) => pick.bottleId));
-  const toAdd = bottleIds.filter((id) => ownedIds.has(id) && !already.has(id));
+  const toAdd = bottleIds.filter((id) => ownedStatus.has(id) && !already.has(id));
 
   const flightName = flight.title || flight.summary || "the flight";
   if (toAdd.length === 0) {
@@ -2702,6 +2722,11 @@ export async function addBottlesToFlight(flightId, bottleIds) {
       bottleId,
       order: lastOrder + 1 + index,
       reason: null,
+      // See addBottleToFlight's own comment: a wine scanned straight to
+      // Tasted (a wine-tasting event, never Cellar inventory) starts its
+      // pick already consumed, rather than as something still to pour.
+      consumed: ownedStatus.get(bottleId) === "consumed",
+      startedConsumed: ownedStatus.get(bottleId) === "consumed",
     })),
   });
 
@@ -2776,9 +2801,17 @@ export async function markFlightPickConsumed(pickId) {
 // way back the same way every other consequential action in this app
 // does. Guarded the same way its counterpart is, so a resubmit can't
 // double-restore.
+//
+// Also refuses on a pick whose startedConsumed is true: that bottle was
+// already Tasted (never Cellar inventory) when it joined the flight, so
+// there is no real inventory behind it for undoOneTasted's
+// setBottleStatus(id, "inventory") to hand back - only the UI's Undo
+// button is meant to be reachable here, and it's already hidden for these
+// picks (FlightPicksList), but the guard belongs on the action itself,
+// not only on whether a button happens to be on screen.
 export async function unmarkFlightPickConsumed(pickId) {
   const pick = await db.flightPick.findUnique({ where: { id: pickId } });
-  if (!pick || !pick.consumed) return;
+  if (!pick || !pick.consumed || pick.startedConsumed) return;
 
   await db.flightPick.update({
     where: { id: pickId },

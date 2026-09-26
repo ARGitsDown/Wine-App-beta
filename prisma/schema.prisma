@@ -401,17 +401,29 @@ model TastingFlight {
 
 // One bottle's place in a saved flight, in tasting order.
 model FlightPick {
-  id       Int           @id @default(autoincrement())
-  flightId Int
-  flight   TastingFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
-  bottleId Int
-  bottle   Bottle        @relation(fields: [bottleId], references: [id], onDelete: Cascade)
-  order    Int
+  id              Int           @id @default(autoincrement())
+  flightId        Int
+  flight          TastingFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  bottleId        Int
+  bottle          Bottle        @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  order           Int
   // Why this bottle is in this flight, in the model's words. Null for a
   // pick added by hand, which has a position in the running order but no
   // argument attached to it.
-  reason   String?
-  consumed Boolean       @default(false)
+  reason          String?
+  consumed        Boolean       @default(false)
+  // True when the bottle behind this pick was already status "consumed" -
+  // scanned straight to Tasted, e.g. at a wine-tasting event, and never
+  // Cellar inventory - at the moment it joined this flight, as opposed to
+  // becoming consumed later by actually pouring it during the flight
+  // itself. `consumed` alone can't tell those two apart once it's true;
+  // this is what markFlightPickConsumed/unmarkFlightPickConsumed (see
+  // app/actions.js) check before letting Undo run, since undoOneTasted's
+  // setBottleStatus(id, "inventory") would otherwise hand back Cellar
+  // ownership of a bottle nobody ever actually owned. Set once at
+  // creation (see addBottleToFlight, addBottlesToFlight,
+  // saveTastingFlight) and never changed afterward.
+  startedConsumed Boolean       @default(false)
 
   @@index([flightId])
   @@index([bottleId])

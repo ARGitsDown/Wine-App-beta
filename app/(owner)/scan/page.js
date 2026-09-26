@@ -10,11 +10,11 @@ export const dynamic = "force-dynamic";
 // The alternative, useSearchParams() inside the scanner itself, would put a
 // Suspense boundary around the whole thing to no benefit.
 //
-// Open flights are fetched unconditionally rather than only when intent is
-// "flight", since the picker at the top of the page can be changed client
-// side after this renders - the same reason the intent picker itself stays
-// editable rather than being locked by ?intent=. It's one small indexed
-// query either way.
+// Open flights are fetched unconditionally rather than only when the
+// "also queue for a flight" toggle is on, since that toggle can be
+// switched on client side after this renders - the same reason the intent
+// picker itself stays editable rather than being locked by ?intent=. It's
+// one small indexed query either way.
 export default async function ScanPage({ searchParams }) {
   const { intent } = await searchParams;
   const allFlights = await db.tastingFlight.findMany({
