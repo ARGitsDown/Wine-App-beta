@@ -2824,3 +2824,44 @@ no live API key in this sandbox to A/B against, and timing
 instrumentation was offered and declined for now. Revisit if scan/
 estimate quality or speed ever feels like an active problem, or once a
 key is available here to test with directly.
+
+## 41. Flight status: a real data bug found by review, plus two stale strings
+
+A `data-engineer` review of the #34-#38 Flight-status redesign (asked for
+after the backlog recap above) confirmed the 4-value `Bottle.status`
+change is solid everywhere ownership is queried, and found one real bug:
+
+**`markFlightPickConsumed`'s `originFlightOnly` branch could silently
+overwrite a true `emptiedAt` date.** It hardcoded
+`emptiedAtForStatus("consumed", null)` instead of reading the bottle's
+actual current `emptiedAt` - invisible on an ordinary single-flight
+graduation (the bottle really was null beforehand), but nothing stops the
+same flight-only bottle from being added to two open flights at once
+(the duplicate check in `addBottleToFlight` is scoped per-flight, not
+across flights). Mark it tasted in the first flight (correctly stamps
+today), then later mark the second flight's pick for the same bottle
+tasted: the guard on `pick.consumed` is per-pick, not per-bottle, so this
+ran again and reset the date to whatever day the second flight got around
+to it - discarding the true one with no edit that looked like an edit.
+Fixed by selecting the bottle's real `emptiedAt` first and passing it
+through, the same pattern `markOneTasted` already uses.
+
+Also fixed, both stale copy left over from before flight-only bottles
+existed: `FlightPicksList`'s "Remove from flight" confirm always said "It
+stays in your cellar" (untrue for an `originFlightOnly` pick - removing
+one leaves it exactly as unlinked as #37/#38's accepted edge case, just
+via a second path nobody had named), and `FlightBottlePicker`'s empty
+state still said "Nothing in your cellar matches that" a session after
+its placeholder and aria-label were reworded to "your bottles" for the
+same reason.
+
+A companion `ux-critic` review of the same flows (Flight status, Drink
+tonight, the Scan destination picker) came back the same evening with a
+longer list, not yet acted on - most notably that flight-only wines can
+be stranded through several everyday paths beyond the one #38 already
+named (the finished-batch's own "N in Flight →" link goes to `/flights`,
+where they aren't; scanning a second round of photos replaces rather
+than adds to the pending flight-link panel; nothing anywhere lists
+"waiting for a flight" bottles). Recorded here rather than acted on
+immediately - worth its own pass rather than folding into a bug-fix
+entry.

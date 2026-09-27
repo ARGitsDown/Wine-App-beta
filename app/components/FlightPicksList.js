@@ -126,7 +126,11 @@ export default function FlightPicksList({ flightId, picks }) {
                     action={removeFlightPick.bind(null, pick.id)}
                     label="Remove from flight"
                     confirmLabel="Yes, remove"
-                    warning="Removes this wine from the flight. It stays in your cellar."
+                    warning={
+                      pick.originFlightOnly
+                        ? "This bottle was never in your cellar - removing it leaves it unlinked from any flight."
+                        : "Removes this wine from the flight. It stays in your cellar."
+                    }
                     className={removeLinkClass}
                   />
                 </div>

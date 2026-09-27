@@ -75,7 +75,7 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
       />
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {matches.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nothing in your cellar matches that.</p>
+        <p className="text-sm text-zinc-500">None of your bottles match that.</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {matches.map((bottle) => (

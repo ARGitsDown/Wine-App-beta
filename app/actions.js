@@ -2794,9 +2794,18 @@ export async function markFlightPickConsumed(pickId) {
     data: { consumed: true },
   });
   if (pick.originFlightOnly) {
+    // The same bottle can end up in more than one open flight (nothing
+    // stops it), so this can run on a bottle that's already consumed with
+    // a real emptiedAt from graduating through the other flight first -
+    // read it rather than assuming null, or a second graduation would
+    // silently overwrite the true date.
+    const bottle = await db.bottle.findUnique({
+      where: { id: pick.bottleId },
+      select: { emptiedAt: true },
+    });
     await db.bottle.update({
       where: { id: pick.bottleId },
-      data: { status: "consumed", emptiedAt: emptiedAtForStatus("consumed", null) },
+      data: { status: "consumed", emptiedAt: emptiedAtForStatus("consumed", bottle?.emptiedAt ?? null) },
     });
     revalidatePath(`/bottles/${pick.bottleId}`);
     revalidatePath("/consumed");
