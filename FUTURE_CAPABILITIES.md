@@ -472,3 +472,45 @@ same question this entry's own "guest-like" role restates almost exactly,
 just eight days later and with a name (managers/guest-like) attached. The
 phasing list now points here instead of carrying its own copy, so there's
 one open write-up of this question, not two drifting independently.
+
+## Sharing a single Flight or Tasting Notes — raised 2026-09-27
+
+Narrower than either multi-person idea already above. Both of those are
+about several people all seeing (or co-owning) the *whole* cellar; this is
+about handing one specific thing - a saved Flight, or a bottle's Tasting
+Notes - to someone else's view, named for two different audiences: other
+people who have their own Cellarmaster account ("members"), and people
+who don't ("non-members").
+
+**Closest existing precedent: the Guest link.** `/guest` already does the
+"non-member, no login, a link" half of this, but for the *whole* cellar
+(browsing plus favoriting), not one flight or one bottle's notes. Whether
+this is a scoped variant of that same mechanism (a Flight-shaped or
+Notes-shaped guest link) or a genuinely separate share primitive is the
+first thing to settle.
+
+**Not scoped beyond this.** Logged because the owner asked for it to be on
+record, not because a plan exists yet. Open questions worth settling
+before it's picked up:
+
+- What "share" actually grants - read-only viewing; the ability to
+  comment (no existing analog anywhere in this app); or, for a member
+  recipient, the ability to copy it into their *own* cellar (a snapshot,
+  not a live link back to the original)?
+- For a member recipient specifically: does this mean an in-app
+  notification or inbox ("X shared a flight with you")? That's a
+  member-to-member social feature with no analog today - every other
+  feature in this app is one person's private tool, even Shared cellars
+  above is one cellar shared among trusted co-owners, not sharing *out* to
+  an arbitrary other member.
+- For a non-member: a link like the guest link, scoped to one flight or
+  one bottle's notes - does it ask for a name the way guest favoriting
+  does, or stay fully anonymous?
+- The actual data boundary of a shared Flight: its picks name real
+  bottles (producer, region, vintage) - does sharing the flight reveal
+  those bottles' details to someone who otherwise can't browse the rest
+  of the cellar at all?
+- Whether "Tasting Notes" means one note, every note on one bottle, or
+  that bottle's whole tasting history - both "Flight" and "Tasting Notes"
+  are already real pages in this app (`/flights/[id]`, `/consumed`), so
+  this may mean sharing a page's worth of content rather than one row.
