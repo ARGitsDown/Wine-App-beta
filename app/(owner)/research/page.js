@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { db } from "@/lib/scoped-prisma";
-import { currentOwnerId } from "@/lib/owner";
+import { currentDomaineId } from "@/lib/owner";
 import { getRegionOptions } from "@/lib/bottles";
 import ResearchProposalCard from "@/app/components/ResearchProposalCard";
 import ResearchQueue from "@/app/components/ResearchQueue";
@@ -31,7 +31,7 @@ export default async function ResearchQueuePage() {
   // proposal exists). A proposal can also exist for a bottle nobody
   // flagged - you can research anything from its own page - so the review
   // list is driven by the proposals, not by the flag.
-  const ownerId = await currentOwnerId();
+  const domaineId = await currentDomaineId();
   const [proposals, toResearch, regionOptions, activeJob] = await Promise.all([
     db.researchProposal.findMany({
       include: { bottle: true },
@@ -41,7 +41,7 @@ export default async function ResearchQueuePage() {
       where: { needsResearch: true, researchProposal: { is: null } },
       orderBy: { producer: "asc" },
     }),
-    getRegionOptions(ownerId),
+    getRegionOptions(domaineId),
     // A bulk run outlives the tab that started it, so the page has to be
     // able to find one already in flight - otherwise coming back to watch
     // it would show an idle button while the server was mid-queue, which
@@ -50,11 +50,13 @@ export default async function ResearchQueuePage() {
     // showing as one bar rather than two.
     //
     // researchJob isn't a model lib/scoped-prisma.js's extension covers
-    // (see that file for why), so it's filtered by ownerId explicitly
-    // here, on the plain client - without it, an owner would see, and the
-    // progress bar would react to, another owner's job in flight.
+    // (see that file for why), so it's filtered by domaineId explicitly
+    // here, on the plain client - without it, a Domaine would see, and the
+    // progress bar would react to, another Domaine's job in flight. A run
+    // another Cellarmaster of this Domaine started is this cellar's run
+    // too, so it shows here the same as one's own.
     prisma.researchJob.findFirst({
-      where: { status: "running", ownerId },
+      where: { status: "running", domaineId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,

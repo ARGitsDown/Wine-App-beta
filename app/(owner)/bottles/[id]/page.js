@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
-import { currentOwnerId } from "@/lib/owner";
+import { currentDomaineId } from "@/lib/owner";
 import { getRegionOptions } from "@/lib/bottles";
 import {
   updateBottle,
@@ -88,7 +88,7 @@ async function flightNameFor(param) {
 export default async function BottleDetailPage({ params, searchParams }) {
   const { id } = await params;
   const { pairedWith, tastingFlight } = await searchParams;
-  const ownerId = await currentOwnerId();
+  const domaineId = await currentDomaineId();
   const [flightName, allFlights] = await Promise.all([
     flightNameFor(tastingFlight),
     db.tastingFlight.findMany({
@@ -129,7 +129,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
           },
         })
       : null,
-    getRegionOptions(ownerId),
+    getRegionOptions(domaineId),
   ]);
 
   if (!bottle) notFound();

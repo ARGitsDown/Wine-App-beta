@@ -56,12 +56,12 @@ model User {
   // cellar would be exactly the kind of leak this schema's scoping exists
   // to prevent.
   //
-  // Nothing downstream reads either column yet. The ownership roots below
-  // (`Bottle.ownerId` etc.) still point at a User directly, and
-  // lib/scoped-prisma.js still scopes by that - moving them to point at
-  // domaineId instead, so a Domaine's members actually share one cellar,
-  // is deliberately a later phase, done to the ~100 already-scoped call
-  // sites deliberately separately from adding the column itself.
+  // Since Phase 1 of Shared cellars this is what every cellar query is
+  // scoped by (lib/scoped-prisma.js): every member of a Domaine sees and,
+  // as a Cellarmaster, edits the same bottles, flights and pairings. Set
+  // once, at account creation, from the invite that let this person in
+  // (see Invite.access and createUser in lib/auth.js) - or a brand new
+  // Domaine of their own when the invite said so.
   domaineId String
   domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
   // "cellarmaster" (full access - add, edit, scan, delete, run Suggest and
@@ -69,15 +69,19 @@ model User {
   // Shared cellars entry's own "Guest-like" role, which is distinct from
   // the existing anonymous /guest link and doesn't replace it). Every
   // User backfilled by this migration is "cellarmaster", since they were
-  // each already the sole full-access person in their own cellar.
+  // each already the sole full-access person in their own cellar. A
+  // "guest" member is refused by lib/scoped-prisma.js outright (reads
+  // included - they browse through /guest's plain-client view instead)
+  // and redirected there by app/(owner)/layout.js.
   role      String
 
-  // The three ownership roots. Everything else in this schema inherits its
-  // owner through one of these by an existing foreign key - a tasting note
-  // belongs to whoever owns its bottle - which is why there are three
-  // columns here and not eleven. ResearchJob is a fourth ownerId column,
-  // but deliberately not a fourth root: it's a transient job row, not a
-  // list of anyone's things.
+  // What this person added. Since the ownership roots moved to domaineId
+  // (Phase 1 of Shared cellars) these are attribution, not ownership: a
+  // bottle belongs to the Domaine, and ownerId only records which member
+  // put it there - SetNull on the roots, so removing one member of a
+  // shared Domaine never takes everyone's cellar with them. ResearchJob
+  // still cascades: it's a transient job row, not a list of anyone's
+  // things.
   bottles      Bottle[]
   flights      TastingFlight[]
   pairings     SavedPairing[]
@@ -87,14 +91,22 @@ model User {
   // their sign-in records with them.
   accounts Account[]
   sessions Session[]
+
+  // The favorites identity of a guest-role member (see Guest.userId).
+  guest Guest?
+
+  // Created by 20260928040000_domaine_and_membership, which is why it's
+  // declared here: without it, the next generated migration would drop it.
+  @@index([domaineId])
 }
 
 // The estate itself - "more expansive than just the cellar," per the
-// nomenclature decision in FUTURE_CAPABILITIES.md: this is the account-
-// level container a User belongs to, not a fourth ownership root. Nothing
-// hangs off it yet except its own members; the day the ownership roots
-// move from `ownerId: User` to `domaineId: Domaine` is the day a Domaine
-// actually becomes what its name implies.
+// nomenclature decision in FUTURE_CAPABILITIES.md: the account-level
+// container a User belongs to, and (since Phase 1 of Shared cellars) what
+// owns the cellar itself. Bottle, TastingFlight and SavedPairing each
+// carry a domaineId, and lib/scoped-prisma.js scopes every query by it,
+// so every member of one Domaine shares one cellar. Deleting a Domaine
+// takes all of it with it - which is why nothing in the app does.
 model Domaine {
   id        String   @id @default(cuid())
   // Both were on User until this migration - see that model's own
@@ -106,7 +118,12 @@ model Domaine {
   motto     String?
   createdAt DateTime @default(now())
 
-  members User[]
+  members      User[]
+  invites      Invite[]
+  bottles      Bottle[]
+  flights      TastingFlight[]
+  pairings     SavedPairing[]
+  researchJobs ResearchJob[]
 }
 
 // Auth.js's own three tables, plus the invite list.
@@ -190,10 +207,27 @@ model Invite {
   // addresses becomes unreadable within about four entries.
   note  String?
 
+  // The Domaine this invite was sent from - whose /invites list it shows
+  // on, and who can revoke it. Email stays globally unique: one address,
+  // one way in, whichever Domaine asked first.
+  domaineId String
+  domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  // What signing in with this address gives them, decided once at account
+  // creation (createUser in lib/auth.js) and never re-read afterwards:
+  //   "cellarmaster" - joins domaineId's Domaine with full access
+  //   "guest"        - joins domaineId's Domaine, browse and favorite only
+  //   "separate"     - a new, empty Domaine of their own (what every
+  //                    invite meant before Domaines could be shared, and
+  //                    what every pre-existing invite was backfilled to,
+  //                    apart from each Domaine's own founder)
+  access    String
+
   createdAt  DateTime  @default(now())
   // Stamped on the invited person's first successful sign-in, so the list
   // shows who has actually turned up rather than only who was asked.
   acceptedAt DateTime?
+
+  @@index([domaineId])
 }
 
 // A single wine, in one of four states:
@@ -334,10 +368,14 @@ model Bottle {
   // editable field once research has filled it in.
   criticNotes          String?
 
-  // Who this bottle belongs to. See the User model above: one owner today,
-  // seeded by the migration, with nothing yet reading this column.
-  ownerId String
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Whose cellar this is - every member of the Domaine sees it, and
+  // lib/scoped-prisma.js filters every query on it.
+  domaineId String
+  domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  // Which member added it - attribution, not ownership (see the User
+  // model's own comment). Null once that member's account is gone.
+  ownerId   String?
+  owner     User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -355,8 +393,9 @@ model Bottle {
   // cheap to have in place before the cellar is big enough to notice.
   @@index([status])
   @@index([needsResearch])
-  // Postgres does not index a foreign key automatically, and once Phase 2
-  // scopes queries this is the column every single one of them filters on.
+  // Postgres does not index a foreign key automatically, and domaineId is
+  // the column every scoped query filters on.
+  @@index([domaineId])
   @@index([ownerId])
 }
 
@@ -400,11 +439,18 @@ model TastingNote {
 // it. This is deliberately lightweight; real multi-user accounts (separate
 // cellars per person) are a much bigger, separate future capability - see
 // FUTURE_CAPABILITIES.md.
+//
+// Also the favorites identity of a signed-in "guest" member (User.role):
+// same Favorite rows, same owner-side display, just found by userId rather
+// than by cookie - created on their first visit to /guest (see
+// resolveGuestView in lib/guest.js). Null for every cookie guest.
 model Guest {
   id        Int        @id @default(autoincrement())
   name      String
   createdAt DateTime   @default(now())
   favorites Favorite[]
+  userId    String?    @unique
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // One guest's shortlist pick from the (inventory-only) cellar they browsed
@@ -445,12 +491,17 @@ model TastingFlight {
   // not by the columns, since neither can be NOT NULL on its own.
   summary String?
 
-  ownerId String
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Same pair as Bottle's: the Domaine owns it, ownerId only says who
+  // made it.
+  domaineId String
+  domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  ownerId   String?
+  owner     User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   createdAt DateTime     @default(now())
   picks     FlightPick[]
 
+  @@index([domaineId])
   @@index([ownerId])
 }
 
@@ -565,12 +616,18 @@ model ResearchJob {
   // route hit by a server-to-server fetch with no cookies attached (see the
   // route's own comment). There is no session to read there, so ownership
   // has to be recorded as data at job creation time instead, and the step
-  // that fetches bottles to research filters on this column explicitly
-  // rather than going through the session-based extension. Without it, a
+  // that fetches bottles to research filters on it explicitly (by
+  // domaineId, below, since the cellar belongs to the Domaine) rather
+  // than going through the session-based extension. Without it, a
   // job's bottleIds would be trusted at face value with nothing checking
   // they belong to whoever started the run.
-  ownerId String
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId   String
+  owner     User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Whose cellar the job may touch - what researchStep actually filters
+  // bottles by, since bottles belong to a Domaine rather than to whoever
+  // happened to press "Research all". ownerId above still says who did.
+  domaineId String
+  domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
 
   // The queue as it was requested: the denominator of the progress bar,
   // and the record of what this run was asked to do.
@@ -597,6 +654,7 @@ model ResearchJob {
 
   @@index([status])
   @@index([ownerId])
+  @@index([domaineId])
 }
 
 // A pairing worth keeping. Its own table rather than a row in
@@ -662,12 +720,17 @@ model SavedPairing {
   // date.
   plannedForTonightAt DateTime?
 
-  ownerId String
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Same pair as Bottle's: the Domaine owns it, ownerId only says who
+  // kept it.
+  domaineId String
+  domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  ownerId   String?
+  owner     User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   createdAt DateTime      @default(now())
   picks     PairingPick[]
 
+  @@index([domaineId])
   @@index([ownerId])
 }
 

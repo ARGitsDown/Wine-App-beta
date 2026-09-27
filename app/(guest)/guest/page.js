@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { getCurrentGuest } from "@/lib/guest";
-import { guestOwnerId } from "@/lib/owner";
+import { resolveGuestView } from "@/lib/guest";
 import { getRegionOptions } from "@/lib/bottles";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { enterAsGuest, switchGuest } from "@/app/actions";
+import { signOutOfCellar } from "@/app/signin/actions";
 import GuestBottleList from "@/app/components/GuestBottleList";
 
 export const dynamic = "force-dynamic";
@@ -25,32 +25,45 @@ function ownerDisplayName(owner) {
 // (see the schema comment on Domaine.name) - already reads as a place, so
 // it stands alone rather than taking a possessive - falling back to the
 // person's own name otherwise, exactly as before this existed.
-function cellarDisplayName(owner) {
-  return owner?.domaine?.name || `${ownerDisplayName(owner)}'s cellar`;
+function cellarDisplayName(domaine, owner) {
+  return domaine?.name || `${ownerDisplayName(owner)}'s cellar`;
 }
 
 // The estate's tagline, if one was set - shown after cellarDisplayName
 // wherever that appears, in the owner's own words, never manufactured
 // when absent.
-function cellarMotto(owner) {
-  return owner?.domaine?.motto || null;
+function cellarMotto(domaine) {
+  return domaine?.motto || null;
 }
 
 export default async function GuestPage({ searchParams }) {
-  const [guest, owner] = await Promise.all([
-    getCurrentGuest(),
-    // Needed before a guest even has a name of their own (BACKLOG #29
-    // finding 8: the sign-in screen never said whose cellar this was, or
-    // that picks are visible to them) - so this is fetched unconditionally
-    // rather than only once a guest exists.
-    prisma.user.findFirst({
-      orderBy: { createdAt: "asc" },
-      select: { name: true, email: true, domaine: { select: { name: true, motto: true } } },
-    }),
-  ]);
+  // Which cellar, and as whom - see resolveGuestView for the three kinds
+  // of visitor this page serves since Domaines could be shared.
+  const { domaineId, guest, member } = await resolveGuestView();
+
+  // Needed before a guest even has a name of their own (BACKLOG #29
+  // finding 8: the sign-in screen never said whose cellar this was, or
+  // that picks are visible to them) - so this is fetched unconditionally
+  // rather than only once a guest exists. "The owner" named here is the
+  // Domaine's founding Cellarmaster - the person a guest most likely
+  // knows it by.
+  const domaine = await prisma.domaine.findUnique({
+    where: { id: domaineId },
+    select: {
+      name: true,
+      motto: true,
+      members: {
+        where: { role: "cellarmaster" },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+        select: { name: true, email: true },
+      },
+    },
+  });
+  const owner = domaine?.members[0];
   const ownerName = ownerDisplayName(owner);
-  const cellarName = cellarDisplayName(owner);
-  const motto = cellarMotto(owner);
+  const cellarName = cellarDisplayName(domaine, owner);
+  const motto = cellarMotto(domaine);
 
   if (!guest) {
     return (
@@ -83,19 +96,16 @@ export default async function GuestPage({ searchParams }) {
     );
   }
 
-  // /guest has no session for lib/scoped-prisma.js's extension to read -
-  // there's no signed-in owner here at all, just a name in a cookie. This
-  // is the one cellar guest browsing shows, not per-invitee (see
-  // guestOwnerId in lib/owner.js for what that means and what Phase 4
-  // would need to change about it).
-  const ownerId = await guestOwnerId();
+  // lib/scoped-prisma.js is for Cellarmasters, and most visitors here have
+  // no session at all - so this page scopes itself, by the Domaine
+  // resolveGuestView settled on above.
   const [rows, regionOptions, filters] = await Promise.all([
     prisma.bottle.findMany({
-      where: { status: "inventory", ownerId },
+      where: { status: "inventory", domaineId },
       include: { favorites: { where: { guestId: guest.id }, select: { id: true } } },
       orderBy: { producer: "asc" },
     }),
-    getRegionOptions(ownerId),
+    getRegionOptions(domaineId),
     searchParams,
   ]);
 
@@ -124,11 +134,23 @@ export default async function GuestPage({ searchParams }) {
             — {ownerName} can see your name next to what you favorite.
           </p>
         </div>
-        <form action={switchGuest}>
-          <button type="submit" className="text-xs text-zinc-500 underline underline-offset-2">
-            Not you?
-          </button>
-        </form>
+        {/* A guest-role member is who their account says, so "Not you?"
+            (which only forgets a typed name) would be the wrong way out -
+            signing out is the right one, and the only one they have,
+            since the owner pages send them straight back here. */}
+        {member?.role === "guest" ? (
+          <form action={signOutOfCellar}>
+            <button type="submit" className="text-xs text-zinc-500 underline underline-offset-2">
+              Sign out
+            </button>
+          </form>
+        ) : (
+          <form action={switchGuest}>
+            <button type="submit" className="text-xs text-zinc-500 underline underline-offset-2">
+              Not you?
+            </button>
+          </form>
+        )}
       </div>
 
       <GuestBottleList

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
-import { currentDomaineId } from "@/lib/owner";
+import { currentCellarmaster } from "@/lib/owner";
+import { inviteAccessLabel } from "@/lib/invite-access";
 import { revokeInvite } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
 import DomaineDetailsForm from "@/app/components/DomaineDetailsForm";
@@ -13,25 +14,29 @@ function when(date) {
   return new Date(date).toLocaleDateString();
 }
 
+// How each member's role reads in the member list.
+const ROLE_LABELS = { cellarmaster: "Cellarmaster", guest: "Guest" };
+
 export default async function InvitesPage() {
-  const domaineId = await currentDomaineId();
-  const [me, invites, users] = await Promise.all([
+  // Everything on this page is this Domaine's own: its name, the invites
+  // sent from it, and who belongs to it. Another Domaine's invites and
+  // members are none of its business, and were only ever listed together
+  // because before Domaines could be shared there was one list for the
+  // one door.
+  const { id: myId, domaineId } = await currentCellarmaster();
+  const [domaine, invites, members] = await Promise.all([
     prisma.domaine.findUnique({
       where: { id: domaineId },
       select: { name: true, motto: true },
     }),
-    prisma.invite.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.invite.findMany({ where: { domaineId }, orderBy: { createdAt: "desc" } }),
     prisma.user.findMany({
+      where: { domaineId },
       orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        domaine: { select: { name: true, motto: true } },
-      },
+      select: { id: true, name: true, email: true, role: true },
     }),
   ]);
+  const myEmail = members.find((member) => member.id === myId)?.email;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
@@ -45,22 +50,24 @@ export default async function InvitesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Name your Domaine</h1>
           <p className="text-sm text-zinc-500">
-            The estate&apos;s own name - distinct from your own name, which
-            still shows wherever this app says who you are. Blank uses
-            your name instead, wherever this would otherwise appear (right
-            now, just the guest sign-in screen). A motto only ever shows
-            alongside the name, never on its own.
+            The estate&apos;s own name - shared by everyone in it, and
+            distinct from your own name, which still shows wherever this
+            app says who you are. Blank uses the founding Cellarmaster&apos;s
+            name instead, wherever this would otherwise appear (right now,
+            just the guest screens). A motto only ever shows alongside the
+            name, never on its own.
           </p>
         </div>
-        <DomaineDetailsForm domaineName={me?.name} domaineMotto={me?.motto} />
+        <DomaineDetailsForm domaineName={domaine?.name} domaineMotto={domaine?.motto} />
       </section>
 
       <div>
         <h2 className="font-medium">Who can sign in</h2>
         <p className="text-sm text-zinc-500">
-          This cellar is invite-only. An address has to be on this list
-          before it can sign in, whether with Google or by email link —
-          there is no open registration and no other way in.
+          This cellar is invite-only. An address has to be invited before
+          it can sign in, whether with Google or by email link — there is
+          no open registration and no other way in. What an invite gives
+          them is settled the first time they sign in.
         </p>
       </div>
 
@@ -107,23 +114,29 @@ export default async function InvitesPage() {
                   <p className="text-sm font-medium">{invite.email}</p>
                   <p className="text-xs text-zinc-500">
                     {invite.note ? `${invite.note} · ` : ""}
-                    invited {when(invite.createdAt)}
+                    {inviteAccessLabel(invite.access)} · invited {when(invite.createdAt)}
                     {invite.acceptedAt
                       ? ` · signed in ${when(invite.acceptedAt)}`
                       : " · hasn't signed in yet"}
                   </p>
                 </div>
-                <ConfirmButton
-                  action={revokeInvite.bind(null, invite.id)}
-                  label="Revoke"
-                  confirmLabel="Yes, revoke"
-                  warning={
-                    invite.acceptedAt
-                      ? `${invite.email} can't sign in again after this. They keep any session they already have until it expires or they sign out, and their own cellar is untouched.`
-                      : `${invite.email} won't be able to sign in.`
-                  }
-                  className="shrink-0 rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400"
-                />
+                {/* Never on your own invite - revokeInvite refuses it
+                    too, since it would lock you out of your own cellar. */}
+                {invite.email === myEmail ? (
+                  <span className="shrink-0 text-xs text-zinc-500">You</span>
+                ) : (
+                  <ConfirmButton
+                    action={revokeInvite.bind(null, invite.id)}
+                    label="Revoke"
+                    confirmLabel="Yes, revoke"
+                    warning={
+                      invite.acceptedAt
+                        ? `${invite.email} can't sign in again after this. They keep any session they already have until it expires or they sign out${invite.access === "separate" ? ", and their own cellar is untouched." : "."}`
+                        : `${invite.email} won't be able to sign in.`
+                    }
+                    className="shrink-0 rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400"
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -131,47 +144,41 @@ export default async function InvitesPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-medium">Accounts</h2>
-        {/* Deliberately read-only. Deleting a person here would cascade to
-            every bottle, flight and pairing they own - which is the correct
-            database behaviour and entirely the wrong thing to put behind a
-            button on a list page. Revoking an invite is the reversible
-            action; removing somebody's cellar should be deliberate enough
-            to need a hand on the database. */}
+        <h2 className="font-medium">Members</h2>
+        {/* Deliberately read-only. Removing a member is safe for the
+            cellar itself (it belongs to the Domaine; see Bottle.ownerId),
+            but a button that deletes a person's account belongs behind
+            more thought than a list row. Revoking an invite is the
+            reversible action. Only this Domaine's own members: a
+            separately-invited account has its own Domaine and its own
+            list. */}
         <ul className="flex flex-col gap-1.5">
-          {users.map((user) => (
+          {members.map((member) => (
             <li
-              key={user.id}
-              className="rounded-lg border border-zinc-200 px-4 py-2.5 text-sm dark:border-zinc-800"
+              key={member.id}
+              className="flex flex-wrap items-baseline justify-between gap-x-2 rounded-lg border border-zinc-200 px-4 py-2.5 text-sm dark:border-zinc-800"
             >
-              <span className="font-medium">{user.name || "Cellar owner"}</span>
-              <span className="text-zinc-500">
-                {" — "}
-                {user.email || "not claimed yet"}
-              </span>
-              {/* Each account has its own Domaine today (Phase 0 of Shared
-                  cellars - one per User, backfilled 1:1 rather than
-                  merged), so this is that account's own estate name, not
-                  a shared one - two rows here can carry two different
-                  Domaine names, correctly. Once a Domaine can hold more
-                  than one User, two rows could legitimately show the
-                  *same* name - that's the feature working, not a bug.
-                  The motto never renders without the name (see the
-                  page's own intro text) - a tagline with nothing to sit
-                  under wouldn't mean anything. */}
-              {user.domaine?.name && (
-                <span className="block text-xs text-zinc-400">
-                  {user.domaine.name}
-                  {user.domaine.motto && ` — "${user.domaine.motto}"`}
+              <span className="min-w-0">
+                {/* Their own name if they have one, else their address -
+                    never a stand-in like "Cellar owner", which in a
+                    shared Domaine would label every unnamed member as
+                    the owner. The seeded row before anyone claims it has
+                    neither. */}
+                <span className="font-medium">
+                  {member.name || member.email || "Not claimed yet"}
+                  {member.id === myId && " (you)"}
                 </span>
-              )}
+                {member.name && member.email && (
+                  <span className="text-zinc-500">
+                    {" — "}
+                    {member.email}
+                  </span>
+                )}
+              </span>
+              <span className="text-xs text-zinc-500">{ROLE_LABELS[member.role] ?? member.role}</span>
             </li>
           ))}
         </ul>
-        <p className="text-xs text-zinc-500">
-          Removing an account would take its whole cellar with it, so it
-          isn&apos;t a button here on purpose.
-        </p>
       </section>
     </div>
   );

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { db } from "@/lib/scoped-prisma";
-import { currentOwnerId } from "@/lib/owner";
+import { currentDomaineId } from "@/lib/owner";
 import { auth, isAuthConfigured } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -43,9 +43,15 @@ export async function GET() {
     if (!session?.user?.id) {
       return Response.json({ error: "Not signed in." }, { status: 401 });
     }
+    // Same reasoning, one step further: the layout's guest-role redirect
+    // doesn't cover this file either, and a guest-role member is not
+    // someone the whole cellar should be downloadable by.
+    if (session.user.role !== "cellarmaster") {
+      return Response.json({ error: "Only a Cellarmaster can export." }, { status: 403 });
+    }
   }
 
-  const ownerId = await currentOwnerId();
+  const domaineId = await currentDomaineId();
 
   const [bottles, guests, flights, pairings, researchProposals] = await Promise.all([
     db.bottle.findMany({
@@ -55,14 +61,14 @@ export async function GET() {
     // Guest isn't owner-scoped by lib/scoped-prisma.js's extension (see
     // that file) - it's shared browsing-identity state, not cellar data.
     // But favorites point at bottles, and a favorite on someone else's
-    // bottle isn't this owner's to export. Filtered here explicitly:
-    // favorites narrowed to this owner's bottles, and only guests who
+    // bottle isn't this Domaine's to export. Filtered here explicitly:
+    // favorites narrowed to this Domaine's bottles, and only guests who
     // have at least one such favorite - a guest who has only ever
-    // favorited another owner's cellar has nothing to say about this
+    // favorited another Domaine's cellar has nothing to say about this
     // one.
     prisma.guest.findMany({
-      where: { favorites: { some: { bottle: { ownerId } } } },
-      include: { favorites: { where: { bottle: { ownerId } } } },
+      where: { favorites: { some: { bottle: { domaineId } } } },
+      include: { favorites: { where: { bottle: { domaineId } } } },
       orderBy: { id: "asc" },
     }),
     db.tastingFlight.findMany({

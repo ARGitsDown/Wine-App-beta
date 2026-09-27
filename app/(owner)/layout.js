@@ -55,6 +55,12 @@ export default async function OwnerLayout({ children }) {
   if (isAuthConfigured()) {
     const session = await auth();
     if (!session?.user?.id) redirect("/signin");
+    // A guest-role member of a Domaine (User.role) browses and favorites,
+    // and /guest is exactly that view - so that's where they live. Only a
+    // convenience: lib/scoped-prisma.js refuses them on its own, which is
+    // what actually covers Server Actions, since those never render this
+    // layout.
+    if (session.user.role !== "cellarmaster") redirect("/guest");
     signedIn = true;
   }
 

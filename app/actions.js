@@ -6,7 +6,7 @@ import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
 import { aiErrorMessage } from "@/lib/ai-errors";
 import { cleanModelText, cleanModelFields } from "@/lib/model-text";
-import { currentOwnerId, guestOwnerId } from "@/lib/owner";
+import { currentCellarmaster, currentOwnerId } from "@/lib/owner";
 import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
 import { DEFAULT_DEPTH, normalizeDepth } from "@/lib/suggest-depth";
 import { depthConfig } from "@/lib/suggest-model";
@@ -21,7 +21,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { after } from "next/server";
-import { GUEST_COOKIE, getCurrentGuest } from "@/lib/guest";
+import { GUEST_COOKIE, resolveGuestView } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { characterRule } from "@/lib/suggestion-character";
@@ -172,9 +172,8 @@ async function insertBottle(status, formData) {
       // is the same standing guess the tasting note's date makes, and is
       // correctable afterward.
       data: {
-        // Phase 0 of separate cellars: every new row names its owner. One
-        // owner today - see currentOwnerId, which is the only place that
-        // has to change when there is more than one.
+        // Who added it - attribution only; the Domaine that owns it is
+        // stamped by lib/scoped-prisma.js.
         ownerId: await currentOwnerId(),
         ...data,
         status,
@@ -760,6 +759,11 @@ export async function extractWinesFromPhoto(
   intent = DEFAULT_SCAN_INTENT,
   rawEventLabel = null
 ) {
+  // Claude is called before anything touches the database, so
+  // lib/scoped-prisma.js's own Cellarmaster check would only fire after
+  // the spend. See the same line in getSuggestions.
+  await currentCellarmaster();
+
   const messages = [
     {
       role: "user",
@@ -839,9 +843,9 @@ export async function extractWinesFromPhoto(
         // saves; that one wine falls back to the same unsaved-draft card
         // used when reading a photo fails outright.
         // Resolved once for the batch rather than per wine: a photo's
-        // wines all belong to whoever is scanning it, and looking that up
-        // eight times for a tasting sheet would be eight identical
-        // queries. See currentOwnerId - one owner today.
+        // wines were all added by whoever is scanning it, and looking that
+        // up eight times for a tasting sheet would be eight identical
+        // queries. Attribution only - see currentOwnerId.
         const ownerId = await currentOwnerId();
 
         // A wine tasted at an event is worth remembering *where*, typed once
@@ -1203,6 +1207,12 @@ export async function getSuggestions(
 ) {
   const text = String(request || "").trim();
   if (!text) return { error: "Describe what you're working with first." };
+
+  // A guest-role member can't reach this page, but a Server Action is its
+  // own endpoint. The cellar isn't read until the model asks to browse it,
+  // which is after the first (paid) call - so the check that
+  // lib/scoped-prisma.js would make then is made here, before it.
+  await currentCellarmaster();
 
   // Normalized once, so the prompt, the API request and the copy handed
   // back for saving all describe the same three settings.
@@ -1641,7 +1651,7 @@ const BULK_RESEARCH_EFFORT = "low";
 // invocation to carry on - so the total run is bounded by nothing, and
 // what the page shows is real server state rather than a tally in a tab.
 export async function researchBottles(ids) {
-  const ownerId = await currentOwnerId();
+  const { id: ownerId, domaineId } = await currentCellarmaster();
 
   // De-duplicated because the same bottle twice in the queue is the same
   // question twice, validated because these become a row, and narrowed to
@@ -1662,6 +1672,7 @@ export async function researchBottles(ids) {
     data: {
       token: newResearchJobToken(),
       ownerId,
+      domaineId,
       bottleIds,
       pendingIds: bottleIds,
     },
@@ -1717,7 +1728,7 @@ export async function runResearchJobStep(jobId, token) {
     ({ researched, failed, attempted } = await researchStep(
       slice,
       Date.now() + STEP_BUDGET_MS,
-      job.ownerId
+      job.domaineId
     ));
   } catch (err) {
     console.error(`Research job ${job.id} step failed:`, err);
@@ -1761,10 +1772,12 @@ export async function getResearchJob(jobId) {
   // researchJob isn't scoped by lib/scoped-prisma.js's extension (see that
   // file), so it's filtered here explicitly - without this, the polling
   // Server Action behind the progress bar would happily read back another
-  // owner's job by id, guessed or otherwise.
-  const ownerId = await currentOwnerId();
+  // Domaine's job by id, guessed or otherwise. By Domaine, not by who
+  // started it: a run another Cellarmaster of this Domaine started is
+  // researching this cellar too.
+  const { domaineId } = await currentCellarmaster();
   const job = await prisma.researchJob.findUnique({
-    where: { id: jobId, ownerId },
+    where: { id: jobId, domaineId },
     select: {
       id: true,
       bottleIds: true,
@@ -1799,14 +1812,14 @@ export async function getResearchJob(jobId) {
 // "don't start another after this point", not "stop at this point". The
 // first question always runs, whatever the clock says, so that a step can
 // never come back having consumed nothing.
-// `ownerId` comes from the job row, not a session - this runs from
+// `domaineId` comes from the job row, not a session - this runs from
 // app/api/research/step/route.js, a plain HTTP route with no cookies
 // attached (see ResearchJob.ownerId in prisma/schema.prisma), so it
 // filters explicitly through the plain client rather than through
 // lib/scoped-prisma.js, which would throw trying to read a session that
 // isn't there.
-async function researchStep(ids, deadline, ownerId) {
-  const bottles = await prisma.bottle.findMany({ where: { id: { in: ids }, ownerId } });
+async function researchStep(ids, deadline, domaineId) {
+  const bottles = await prisma.bottle.findMany({ where: { id: { in: ids }, domaineId } });
 
   // A bottle deleted since the queue was built has nothing left to
   // research, but it still has to leave the queue or the job never ends.
@@ -2550,18 +2563,17 @@ export async function switchGuest() {
 }
 
 export async function toggleFavorite(bottleId) {
-  const guest = await getCurrentGuest();
+  const { guest, domaineId } = await resolveGuestView();
   if (!guest) return;
 
-  // A guest is just a name in a cookie, not a session - lib/scoped-prisma.js
-  // has nothing to read here, and nothing stops a request naming a bottleId
-  // /guest never showed them either way. Checked on the plain client,
-  // against the one cellar /guest browses (see guestOwnerId in
-  // lib/owner.js), rather than trusted at face value - otherwise a
-  // favorite could attach to a bottle in a different owner's cellar
-  // entirely.
+  // lib/scoped-prisma.js is for Cellarmasters, and nothing stops a request
+  // naming a bottleId /guest never showed them either way. Checked on the
+  // plain client, against the same cellar /guest itself shows this visitor
+  // (resolveGuestView in lib/guest.js), rather than trusted at face value
+  // - otherwise a favorite could attach to a bottle in a different
+  // Domaine's cellar entirely.
   const bottle = await prisma.bottle.findFirst({
-    where: { id: bottleId, ownerId: await guestOwnerId() },
+    where: { id: bottleId, domaineId },
     select: { id: true },
   });
   if (!bottle) return;

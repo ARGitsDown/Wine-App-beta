@@ -3120,3 +3120,26 @@ lint and a production build clean, and that `Bottle`/`TastingFlight`/
 `prisma/schema.prisma`, `prisma/migrations/20260928040000_domaine_and_membership/`,
 `lib/owner.js`, `app/(owner)/invites/actions.js`,
 `app/(owner)/invites/page.js`, `app/(guest)/guest/page.js`.
+
+## 48. Multiple Users per Domaine — Phase 1
+
+The Domaine now owns the cellar: `Bottle`/`TastingFlight`/`SavedPairing`/
+`ResearchJob` carry `domaineId` and `lib/scoped-prisma.js` scopes by it,
+so a Domaine's members share one cellar. Invites carry `access`
+(Cellarmaster, Guest, or their own Domaine) and the Domaine that sent
+them; `createUser` places each new account accordingly - which also fixed
+a Phase 0 bug where any new invited sign-in would have failed on the
+NOT NULL `domaineId`. Guest-role members are refused by the data layer
+itself (not just the layout redirect), browse and favorite at `/guest`
+through a `Guest` row linked to their account, and can sign out from
+there. `ownerId` on the roots is now attribution only (nullable,
+`SET NULL`), so removing a member can't take the shared cellar with them.
+Full write-up, verification and what's still open: FUTURE_CAPABILITIES.md,
+"Shared cellars", Phase 1.
+
+`prisma/schema.prisma`, `prisma/migrations/20260928050000_domaine_owns_the_cellar/`,
+`lib/scoped-prisma.js`, `lib/owner.js`, `lib/auth.js`, `lib/guest.js`,
+`lib/invite-access.js`, `lib/bottles.js`, `app/actions.js`,
+`app/(owner)/layout.js`, `app/(owner)/invites/`, `app/(owner)/export/route.js`,
+`app/(owner)/research/page.js`, the four other owner list/detail pages,
+`app/(guest)/guest/page.js`, `app/components/InviteForm.js`.

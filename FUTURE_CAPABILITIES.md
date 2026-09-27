@@ -421,7 +421,7 @@ below - explicitly the smaller and more independent of the two. Nothing
 about the scoping above has changed since it was first written; still
 just a column and a filter.
 
-## Shared cellars, a.k.a. "Domaine" — multiple Users per account, with roles — raised 2026-09-27, Phase 0 done 2026-09-28
+## Shared cellars, a.k.a. "Domaine" — multiple Users per account, with roles — raised 2026-09-27, Phases 0 and 1 done 2026-09-28
 
 Reopens a call this file made explicit above, in "Separate cellars per
 user": *"Fully separate cellars... No household/shared-bottle concept."*
@@ -556,14 +556,70 @@ every page that reads Domaine data (`/invites`, `/guest`) rendered
 exactly as before. `Bottle`/`TastingFlight`/`SavedPairing`'s own foreign
 keys confirmed untouched.
 
-**Still open, unchanged by this phase:** how invites map to Domaine
-membership once a Domaine can hold more than one Cellarmaster (today's
-`Invite` table is still flat and global); and the later phase itself -
-moving the three ownership roots from `ownerId: User` to
-`domaineId: Domaine`, adding role-gated writes, and building the actual
-invite-a-Cellarmaster/invite-a-guest UI. None of the ~100 already-scoped
-call sites have changed; they're still correct for what's still true
-today, one Domaine per person.
+### Phase 1 — the Domaine owns the cellar; invites say how you join. Done 2026-09-28.
+
+**Ownership moved.** `Bottle`, `TastingFlight`, `SavedPairing` and
+`ResearchJob` each gained a NOT NULL `domaineId` (backfilled from the
+row's existing owner's Domaine, so nothing separate before is shared
+after), and `lib/scoped-prisma.js` now scopes by it - so every member of
+a Domaine sees one cellar. The same file stamps `domaineId` onto every
+root-model create (refusing one naming another Domaine), and refuses any
+operation on a scoped model it doesn't explicitly handle rather than
+passing it through unscoped. `ownerId` on the three roots stays as
+attribution - who added it - now nullable with `ON DELETE SET NULL`, so
+removing one member can never cascade away the cellar everyone else uses.
+None of the ~100 already-scoped call sites had to change; the region
+cache, the research job/step, `/research`'s running-job lookup and the
+export's favorites filter - the explicit, plain-client filters - moved
+from `ownerId` to `domaineId` by hand.
+
+**Roles are enforced where the data is.** `lib/owner.js` has
+`currentMember()` (`{ id, domaineId, role }`, off the session - the
+session callback fills both from the User row the adapter already read)
+and `currentCellarmaster()`, which refuses a guest-role member.
+`lib/scoped-prisma.js` calls the latter for *every* scoped query, reads
+included, since a guest member browses through `/guest`'s own view and
+never needs that client. Scan and Suggest, the two actions that call
+Claude before touching the database, check it up front so a refusal
+comes before the spend. The owner layout redirects a guest member to
+`/guest`; `/export` returns 403 for them.
+
+**Invites say how you join.** `Invite` gained `domaineId` (the Domaine
+that sent it - whose list it shows on, who can revoke it) and `access`:
+`cellarmaster` or `guest` join that Domaine; `separate` founds a new,
+empty one (what every invite meant before, and what existing ones were
+backfilled to - apart from each founder's own bootstrap invite, recorded
+as `cellarmaster`). `createUser` in `lib/auth.js` reads it once, at
+account creation. That also fixed a real bug Phase 0 introduced: the
+stock-adapter create path set neither `domaineId` nor `role`, both NOT
+NULL, so every invited sign-in since Phase 0 would have failed at the
+database. `/invites` now shows only this Domaine's invites and members
+(with roles), picks the access per invite, and won't revoke your own.
+
+**Guest members.** A guest-role member's favorites go through a `Guest`
+row linked by the new `Guest.userId`, created on their first `/guest`
+visit and named from their account - no name form, and "Sign out"
+instead of "Not you?". A Cellarmaster visiting `/guest` previews their
+own Domaine; anyone without a session still gets the original cellar.
+All three are resolved in one place, `resolveGuestView` in
+`lib/guest.js`, which `toggleFavorite` uses too.
+
+**Verified** against a pre-existing two-account database (the backfill
+kept both cellars separate, zero mismatched rows), then end to end with
+accounts switched on, signing people in through Auth.js's real email-link
+callback: an invited Cellarmaster joined the owner's Domaine and saw and
+added to the shared cellar; an invited guest was redirected to `/guest`,
+favorited, and got 403 from `/export`; a "separate" invite got a new
+empty Domaine; the pre-existing second account stayed separate. `npm run
+verify` clean with accounts on and off, and the full migration chain
+matches the schema from an empty database.
+
+**Still open:** changing an existing member's role, or removing a member
+(both need a hand on the database today - the Members list is
+read-only); inviting an address that already has an account into a
+different Domaine (it would need to leave its own - one Domaine per
+User); and the anonymous `/guest` link is still the original cellar's
+only, not per-Domaine (Phase 4 in "Separate cellars per user").
 
 ## Sharing a single Flight or Tasting Notes — raised 2026-09-27
 
