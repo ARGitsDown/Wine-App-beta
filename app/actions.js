@@ -3006,3 +3006,26 @@ export async function deletePairing(id) {
   revalidatePath("/pairings");
   redirect("/pairings");
 }
+
+// "Drink tonight" (BACKLOG #28/#39) - marks the whole pairing, not one wine
+// within it (see the schema comment on plannedForTonight), and is the only
+// way the flag is ever set: nothing in this app infers it. More than one
+// pairing can be marked at once, deliberately - a real evening can be an
+// aperitif pairing and a dinner pairing both, and forcing a single choice
+// would just make marking the second one silently un-mark the first.
+export async function markPairingForTonight(id) {
+  await db.savedPairing.update({ where: { id }, data: { plannedForTonight: true } });
+  revalidatePath(`/pairings/${id}`);
+  revalidatePath("/pairings");
+}
+
+// The only way the flag ever clears - see the schema comment on
+// plannedForTonight for why this is a manual "Done for tonight" rather
+// than something the app decides has happened (every pick's note logged,
+// a time limit): an owner-set state should end on an owner's own say-so,
+// not quietly resolve itself.
+export async function clearPairingForTonight(id) {
+  await db.savedPairing.update({ where: { id }, data: { plannedForTonight: false } });
+  revalidatePath(`/pairings/${id}`);
+  revalidatePath("/pairings");
+}

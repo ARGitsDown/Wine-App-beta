@@ -1015,25 +1015,22 @@ three.
   the bottle's own page, while the page's own subtitle promises "bottles
   you've finished, with their tasting notes". The narrow fix is to put the
   most recent note, or a count and an excerpt, into the expanded row on
-  this page. The wider question, if that does not settle it, is whether
+  this page. ~~The wider question, if that does not settle it, is whether
   `/consumed` should be a list of wines with notes attached or a list of
-  notes with wines attached: the name says the second, the implementation
-  is the first. Both are defensible, which is what makes it a branch
-  question rather than a fix.
+  notes with wines attached~~ - **decided, see #40: wines with notes
+  attached.** Chosen over the note-first rebuild specifically to keep this
+  page's list on the same instant, client-side filtering every other list
+  uses (BACKLOG #19) rather than giving it its own model.
 
-  A second reason to settle it, found once the note rendering landed:
-  **search on this page cannot find the text the page now shows.** The
-  filter bar's free-text search reads producer, bottling, type, variety,
-  region, subRegion, country and vintage (`searchableText` in
-  `lib/filter-bottles.js`), so typing a word visible on your own screen -
-  "smoky", "corked" - hides the row containing it. Fixing it properly runs
-  straight into the question above: matching only the *latest* note is
-  misleading, since the word you remember is often in an older one, and
-  matching every note means shipping all the note text to the browser,
-  which is what the trimmed select exists to avoid. The honest options are
-  a server-side search over `TastingNote` for this page only, or settling
-  the branch question so the text is on the client anyway. Worth deciding
-  before adding more note-aware UI to the shared `BottleList`.
+  ~~A second reason to settle it, found once the note rendering landed:
+  **search on this page cannot find the text the page now shows.**~~ —
+  done (see #40), and settled without the branch question above: rather
+  than a server round-trip per keystroke, or restructuring the page,
+  `getBottles`'s `withLatestNote` option now also ships every note's text
+  for this page's bottles, search-only (`noteSearchText`, never
+  rendered - the row still shows just the latest note) - a bounded,
+  page-specific exception to the trimmed select, the same shape the
+  latest-note column itself already was.
 
 ## ~~18. The export doesn't export everything~~ — done
 
@@ -2010,24 +2007,21 @@ things could be meant by "Drink tonight," with different costs:
    knows nothing about), so this is the same pattern built again rather
    than one component stretched to cover both.
 
-### Still open
+### Decided and built - see #40
 
-3. **"Drink tonight" is deferred**, on the owner's call: it needs a look at
-   how tasting notes are actually captured per wine first, before deciding
-   its shape. There's a live alternative worth weighing when that happens,
-   raised by the owner - not a Pairings-specific shortcut at all, but a
-   general tagging mechanism on wines themselves ("drink tonight" as one
-   possible tag among others), which would be different and broader work
-   than anything scoped in this entry, and probably its own BACKLOG entry
-   rather than a subsection of this one. `PairingPick`'s reasoning - a
-   pairing can be a dish with one wine or a menu with several, and any
-   "tonight" marker has to say whether it means the whole pairing or one
-   wine in it - still applies to a tagging approach as much as a dedicated
-   one, so it isn't wasted by the delay. #24's rename of "Log this pairing"
-   to **"Add a tasting note"** is the one piece already built that either
-   shape would build on.
-4. Where it surfaces stays open along with it, contingent on which shape -
-   or whether a wines-wide tagging feature - gets picked up.
+3. ~~**"Drink tonight" is deferred**, on the owner's call.~~ Decided: a
+   real planned/in-progress state, not the pure navigation shortcut, and
+   not the wider wine-tagging idea raised as an alternative (still
+   possible later, as its own separate feature - the tagging idea was
+   never specific to Pairings, so this doesn't close it off). Resolves
+   `PairingPick`'s open question too: the whole pairing, not one wine
+   within it - a multi-course menu is "tonight's" as a unit, and #24's
+   rename of "Log this pairing" to **"Add a tasting note"** is what each
+   wine in it still uses individually once you're actually pouring.
+4. ~~Where it surfaces stays open along with it~~. `/pairings` (badge, and
+   sorted first), the pairing's own page (the toggle itself), and the
+   home page's Pairings card (its description swaps from "Kept" to
+   "N tonight") - see #40.
 
 ## 29. UX critic findings (2026-09-18): drinking window visibility, irreversible research decisions, and more
 
@@ -2781,3 +2775,52 @@ already were, not here.
   and `PROJECT.md` had their "pairings are ephemeral, never saved" claims
   corrected to describe `/pairings` and "Save this pairing", which shipped
   in #41 and has been true since.
+
+## 40. The three remaining open questions, decided and built
+
+The three items #39 left alone because they were genuinely blocked on a
+decision, not on effort - `/consumed`'s shape, "Drink tonight"'s shape,
+and #9's two measurement questions. Put to the owner directly rather
+than guessed at, since each was recorded as exactly that kind of
+question when it was first raised.
+
+**`/consumed` stays a list of wines, not a list of notes** (#17's branch
+question). Chosen specifically to keep this page on the same instant,
+client-side filtering every other list already uses (BACKLOG #19) - a
+note-first rebuild would have meant a new query shape and a new list
+component just for this one page, diverging from how every other list
+in the app works. That decision also settled the second half of the
+same finding, the broken search: `getBottles`'s `withLatestNote` option
+now also loads every note's text for this page's bottles into a
+search-only field (`noteSearchText` in `lib/bottles.js`, folded into
+`searchableText()` in `lib/filter-bottles.js`) - a second, non-`distinct`
+query alongside the existing latest-note one, since Prisma's client only
+ever hands back the deduped rows once `distinct` is applied. Never
+rendered - the row still shows just the latest note - so a word from an
+*older* note now matches without shipping every note to every list
+(Cellar, Wishlist still carry none at all) or paying a round-trip per
+keystroke.
+
+**"Drink tonight" is a real state, on the whole pairing, cleared by
+hand** (#28 findings 3-4). `SavedPairing.plannedForTonight` (migration
+`20260928000000_pairing_planned_for_tonight`), set by
+`markPairingForTonight` and cleared only by `clearPairingForTonight` -
+nothing in the app ever flips it on its own, deliberately: an auto-clear
+tied to every pick's note being logged risks staying silently stuck on
+if one course's wine never gets written up, which is worse than one more
+tap. Whole pairing rather than one pick within it, since a multi-course
+menu is "tonight's" as a unit even worked through course by course; more
+than one pairing can be marked at once on purpose, since a real evening
+can be an aperitif pairing and a dinner pairing both, and forcing a
+single choice would just make marking the second one silently un-mark
+the first. Surfaces in the three places #28 left open: a "Tonight" badge
+on `/pairings` (sorted first) and on the pairing's own page, a "Drink
+tonight"/"Done for tonight" toggle on that page, and the home page's
+Pairings card swapping its description from "Kept" to "N tonight" - the
+count shown stays every kept pairing, unchanged.
+
+**#9's two measurement questions stay deferred**, on the owner's call -
+no live API key in this sandbox to A/B against, and timing
+instrumentation was offered and declined for now. Revisit if scan/
+estimate quality or speed ever feels like an active problem, or once a
+key is available here to test with directly.

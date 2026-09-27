@@ -17,7 +17,11 @@ export default async function PairingsPage() {
         orderBy: { order: "asc" },
       },
     },
-    orderBy: { createdAt: "desc" },
+    // Tonight's pairing(s) first, regardless of when they were kept -
+    // that's the one thing on this list actually worth doing something
+    // about today (BACKLOG #28/#39). Newest-first within each group,
+    // same as before.
+    orderBy: [{ plannedForTonight: "desc" }, { createdAt: "desc" }],
   });
 
   return (
@@ -45,12 +49,19 @@ export default async function PairingsPage() {
               key={pairing.id}
               className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
             >
-              <Link
-                href={`/pairings/${pairing.id}`}
-                className="font-medium underline underline-offset-2"
-              >
-                {pairing.title}
-              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/pairings/${pairing.id}`}
+                  className="font-medium underline underline-offset-2"
+                >
+                  {pairing.title}
+                </Link>
+                {pairing.plannedForTonight && (
+                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                    Tonight
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-sm text-zinc-500">
                 {pairingSummaryLine(pairing)}
               </p>

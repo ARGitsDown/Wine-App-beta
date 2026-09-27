@@ -61,6 +61,7 @@ export default async function HomePage() {
     tastedCount,
     flightCount,
     pairingCount,
+    tonightCount,
     researchCount,
   ] = await Promise.all([
       db.bottle.count({ where: { status: "inventory" } }),
@@ -76,6 +77,11 @@ export default async function HomePage() {
       }),
       db.tastingFlight.count(),
       db.savedPairing.count(),
+      // "Drink tonight" (BACKLOG #28/#39) needs somewhere that "surfaces
+      // prominently", which is what this card already is - the count stays
+      // every kept pairing (unchanged), and this only swaps the small
+      // description line beneath it, from "Kept" to naming tonight's.
+      db.savedPairing.count({ where: { plannedForTonight: true } }),
       getResearchCount(),
     ]);
 
@@ -116,7 +122,10 @@ export default async function HomePage() {
       href: "/pairings",
       label: "Pairings",
       count: pairingCount,
-      description: "Kept",
+      description:
+        tonightCount > 0
+          ? `${tonightCount} tonight`
+          : "Kept",
       Icon: PairingsIcon,
       accent: "bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-400",
     },

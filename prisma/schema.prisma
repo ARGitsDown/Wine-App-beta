@@ -558,8 +558,9 @@ model ResearchJob {
 // `reason` is nullable for the hand-added ones. A pairing only ever comes
 // from Suggest. Lifecycle: isOpenFlight() says a flight is a queue while
 // any pick is undrunk and "a record now, not a queue" once they are all
-// done; a pairing has no such state, it is a decision you wrote down.
-// Owned vs not: FlightPick.bottleId is correctly NOT NULL because you
+// done - a pairing has nothing that elaborate, just `plannedForTonight`
+// below, an owner-set flag rather than anything the app derives. Owned vs
+// not: FlightPick.bottleId is correctly NOT NULL because you
 // cannot open a wine you do not have, and "buy this for that dish" is the
 // entire point of Suggest's include-outside toggle.
 //
@@ -568,19 +569,19 @@ model ResearchJob {
 // column as "null means unknown" - the distinction the rest of this
 // schema works to keep.
 model SavedPairing {
-  id             Int     @id @default(autoincrement())
+  id                Int     @id @default(autoincrement())
   // The model's own title, which the owner can rename. NOT NULL unlike
   // TastingFlight.title: every pairing is born from a Suggest result,
   // where the title is a required tool field, so there is no such thing
   // as a pairing without one and no reader that has to cope with the
   // absence.
-  title          String
+  title             String
   // What was asked for, word for word, plus the three settings that were
   // in force. These are what make refining cheap - reload the form from a
   // saved pairing, change one control, run it again - and without them
   // iterating would be a feature rather than four columns.
-  request        String
-  character      String
+  request           String
+  character         String
   // Which model answered: "standard" (Sonnet) or "sommelier" (Opus). Was
   // `effort` and held a thinking-budget level, back when Suggest always
   // ran on Opus and the dial only changed how long it thought. Renamed
@@ -588,12 +589,21 @@ model SavedPairing {
   // what is in force is now a different fact about the request - leaving
   // the old name would have meant a column called effort holding a model.
   // See lib/suggest-depth.js for what the two levels cost and buy.
-  depth          String
-  includeOutside Boolean
+  depth             String
+  includeOutside    Boolean
   // The model's "why these". Nullable because it is the argument, not the
   // identity: a pairing with its picks and their reasons is still whole
   // without it.
-  summary        String?
+  summary           String?
+  // "Drink tonight" (BACKLOG #28/#39), decided as a real planned state
+  // rather than a pure navigation shortcut: marks the whole pairing, not
+  // one wine within it - a multi-course menu is "tonight's" as a unit,
+  // even worked through course by course. Owner-set and owner-cleared
+  // only ("Done for tonight"); nothing in this app ever flips it back on
+  // its own, on purpose - an auto-clear (every pick's note logged, a
+  // time limit) risks leaving it silently stuck on if one wine's note
+  // never gets written, which is worse than asking for one more tap.
+  plannedForTonight Boolean @default(false)
 
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)

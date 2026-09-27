@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
-import { deletePairing } from "@/app/actions";
+import { deletePairing, markPairingForTonight, clearPairingForTonight } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import PairingTitle from "@/app/components/PairingTitle";
 import PairingPicksList from "@/app/components/PairingPicksList";
@@ -13,6 +13,8 @@ export const dynamic = "force-dynamic";
 
 const dangerButtonClass =
   "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
+const secondaryButtonClass =
+  "rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700";
 
 function labelFor(options, value) {
   return options.find((option) => option.value === value)?.label ?? value;
@@ -53,9 +55,14 @@ export default async function PairingDetailPage({ params }) {
             {pairing.summary}
           </p>
         )}
-        <p className="text-sm text-zinc-500">
-          Kept {new Date(pairing.createdAt).toLocaleDateString()}
-        </p>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
+          <span>Kept {new Date(pairing.createdAt).toLocaleDateString()}</span>
+          {pairing.plannedForTonight && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+              Tonight
+            </span>
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* The first control, not the last: coming back to a kept
@@ -66,6 +73,24 @@ export default async function PairingDetailPage({ params }) {
           >
             Ask again, with changes
           </Link>
+          {/* A plain toggle, not a checkbox or a status control - it's an
+              owner decision with exactly one way in and one way out
+              (BACKLOG #28/#39: "drink tonight" as a real state rather than
+              a shortcut), so two buttons that each say what tapping them
+              does reads more directly than one control with two states. */}
+          {pairing.plannedForTonight ? (
+            <form action={clearPairingForTonight.bind(null, pairing.id)}>
+              <button type="submit" className={secondaryButtonClass}>
+                Done for tonight
+              </button>
+            </form>
+          ) : (
+            <form action={markPairingForTonight.bind(null, pairing.id)}>
+              <button type="submit" className={secondaryButtonClass}>
+                Drink tonight
+              </button>
+            </form>
+          )}
           <ConfirmButton
             action={deletePairing.bind(null, pairing.id)}
             label="Delete"
