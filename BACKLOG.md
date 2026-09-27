@@ -2857,11 +2857,104 @@ same reason.
 
 A companion `ux-critic` review of the same flows (Flight status, Drink
 tonight, the Scan destination picker) came back the same evening with a
-longer list, not yet acted on - most notably that flight-only wines can
-be stranded through several everyday paths beyond the one #38 already
-named (the finished-batch's own "N in Flight →" link goes to `/flights`,
-where they aren't; scanning a second round of photos replaces rather
-than adds to the pending flight-link panel; nothing anywhere lists
-"waiting for a flight" bottles). Recorded here rather than acted on
-immediately - worth its own pass rather than folding into a bug-fix
-entry.
+longer list - most notably that flight-only wines can be stranded through
+several everyday paths beyond the one #38 already named. Acted on the
+same evening; see #42.
+
+## 42. The ux-critic findings from #41, built
+
+Every finding from #41's companion review, in the order the review itself
+ranked them.
+
+**Breaks the task:**
+
+- **Four ordinary moves on the Scan page silently stranded a flight
+  wine, beyond the one #38 already named.** The finished-batch box's own
+  "N in Flight →" link went to `/flights`, where an unresolved batch's
+  wines aren't yet - it's plain text now ("N waiting for a flight ↓")
+  while the panel below is still unresolved. Scanning a second round of
+  photos before resolving the first Done silently replaced the pending
+  panel's candidates instead of adding to them - `finishBatch` now merges.
+  Done's own help text claimed "this just puts the page away" even with a
+  required next step still open - conditional now
+  ("Next: choose a flight for the wines waiting on one."). The
+  leave-page warning covered unsaved edits but not an unresolved panel -
+  it does now.
+- **Nothing anywhere said a flight-only wine was stranded, and its own
+  page couldn't fix it.** `/flights` gets a "waiting for a flight" panel
+  (`OrphanedFlightBottles.js`, sharing the same picker ScanPanel shows
+  right after a batch finishes, via a new `FlightLinkPanel.js`) for
+  whatever an earlier, abandoned batch left unresolved. The home Flights
+  card's description swaps to "N unfiled" while any exist. The bottle
+  page's own "Add to a tasting" control - the recovery path itself - was
+  restricted to `status === "inventory"`, hiding it from the one status
+  that most needed it; widened to include `"flight"`, and once a
+  flight-only bottle is actually linked, the page names which flight
+  instead of still offering to add it again. `FlightBottlePicker`'s
+  search puts flight-only bottles first and badges them, rather than
+  burying one past the 12-row cap in an unfiltered cellar.
+- **Three confirmations promised the opposite of what would actually
+  happen** for a flight-only wine: "Remove from flight" and "Delete
+  flight" both claimed the bottle "stays in your cellar" (fixed in #41
+  and here respectively - the flight delete now names how many picks were
+  never in the cellar at all), and a scan card's own delete confirm made
+  the same claim for a card whose status was "flight".
+
+**Costs the user:**
+
+- **The flight-linking panel's own controls were the smallest and least
+  guarded on the page** - existing-flight buttons at ~20px with no
+  confirm on a one-tap "add all N and leave the page" action, 14px text
+  triggering iOS zoom-on-focus. `FlightLinkPanel.js` (and `AddToFlight.js`,
+  named alongside it) now use 44px controls throughout, 16px inputs, and
+  a real confirm on the one-tap add.
+- **The tile grid's one distinguishing fact about Flight lived only in a
+  hover tooltip**, which a phone never shows. The same hint text now
+  renders as a line under the grid, live as the selection changes.
+
+**Polish:**
+
+- **The "Tonight" badge was amber**, the same color already meaning
+  "needs a check" (Needs research, unsaved) and Wishlist elsewhere in the
+  app. Both pairings pages now use teal, matching the Pairings home
+  card's own accent.
+- **A flight pick's collapsed row didn't say which wines were
+  flight-only**, where "Tasted" means something different for them
+  (straight to Tasted vs. a real Cellar decrement) - the violet
+  `StatusBadge` now shows on `originFlightOnly` picks. Undo was a bare
+  text link under 44px; it's a real button now.
+
+**Also decided and built, from the review's other section (Drink
+tonight):** `plannedForTonight` never cleared itself, so the label kept
+saying "Tonight" for a pairing marked weeks ago (the manual-clear
+decision from #40 is unchanged - only the label's honesty). A new
+`plannedForTonightAt` timestamp (migration
+`20260928010000_pairing_planned_for_tonight_at`) lets `tonightLabel()`
+(`lib/pairings.js`) say "Planned Sep 3 — done?" once the marked day has
+passed. `TonightToggle.js` replaces the plain, pending-state-free toggle
+forms on both pairings pages with a real button (Spinner, 44px) and adds
+the same toggle to the list row itself, so clearing a stale one doesn't
+require opening the pairing first. The toggle moved below the wines on
+the detail page - the evening ends there, not at the top. A planned
+pairing's wine links now carry the same `?pairedWith=` note prefill
+Suggest's own result gives the same wine, shown as a separate "Add a
+tasting note →" link. The home Pairings card links straight to the one
+pairing when exactly one is planned for tonight, rather than to the
+whole list.
+
+**Left open, on purpose:** the review's closing "tradeoff" section (not
+one of its numbered findings) - whether a wine scanned under Flight
+should start already tasted rather than left-to-taste, for the workflow
+where wines are scanned *as* they're poured rather than from a sheet
+beforehand - is explicitly an owner call, not an engineering one, and
+nothing here builds toward either answer. Also not touched: Suggest's own
+"a flight is a queue of bottles you can open" line, which the review
+flagged as dated wording but which is still literally true in the one
+context it appears (a gap pick with no `Bottle` row at all, genuinely
+distinct from a flight-only bottle that has one).
+
+`app/components/FlightLinkPanel.js`, `OrphanedFlightBottles.js`,
+`TonightToggle.js`, `app/(owner)/flights/page.js`,
+`app/(owner)/bottles/[id]/page.js`, `app/(owner)/page.js`,
+`app/(owner)/pairings/page.js`, `app/(owner)/pairings/[id]/page.js`,
+`lib/pairings.js`, `app/actions.js`.

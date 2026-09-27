@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { addBottleToFlight } from "@/app/actions";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
+import StatusBadge from "@/app/components/StatusBadge";
 
 // Searching happens in memory over the cellar the server already sent,
 // the same trade the filter bar makes: typing narrows the list instantly
@@ -22,21 +23,28 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
 
   const searchable = useMemo(
     () =>
-      bottles.map((bottle) => ({
-        ...bottle,
-        haystack: [
-          bottle.producer,
-          bottle.bottling,
-          bottle.vintage,
-          bottle.type,
-          bottle.variety,
-          bottle.region,
-          bottle.country,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase(),
-      })),
+      // Flight-only bottles first, stably within the producer order the
+      // server already sent - this search is the recovery path for
+      // exactly those (BACKLOG #38), and an unfiltered cellar of hundreds
+      // could otherwise bury one past the 12-row cap before it's ever
+      // seen (a UX review, 2026-09-27).
+      [...bottles]
+        .sort((a, b) => (a.status === "flight" ? 0 : 1) - (b.status === "flight" ? 0 : 1))
+        .map((bottle) => ({
+          ...bottle,
+          haystack: [
+            bottle.producer,
+            bottle.bottling,
+            bottle.vintage,
+            bottle.type,
+            bottle.variety,
+            bottle.region,
+            bottle.country,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+        })),
     [bottles]
   );
 
@@ -71,7 +79,7 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
         onChange={(event) => setQuery(event.target.value)}
         placeholder="Search your bottles…"
         aria-label="Search your bottles"
-        className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+        className="rounded-lg border border-zinc-300 px-3 py-2.5 text-base dark:border-zinc-700 dark:bg-zinc-900"
       />
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {matches.length === 0 ? (
@@ -91,12 +99,19 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
                 {bottle.bottling ? ` “${bottle.bottling}”` : ""}
                 {bottle.vintage ? ` ${bottle.vintage}` : ""}
                 {bottle.type ? ` — ${bottle.type}` : ""}
+                {/* Flags exactly the wines this search is the recovery
+                    path for - unlinked and easy to mistake for an
+                    ordinary cellar bottle otherwise (a UX review,
+                    2026-09-27). */}
+                {bottle.status === "flight" && (
+                  <StatusBadge status="flight" className="ml-1.5" />
+                )}
               </span>
               <button
                 type="button"
                 onClick={() => add(bottle.id)}
                 disabled={addingId === bottle.id}
-                className="shrink-0 rounded border border-zinc-300 px-2 py-0.5 text-xs disabled:opacity-50 dark:border-zinc-700"
+                className="min-h-11 shrink-0 rounded-lg border border-zinc-300 px-3 text-sm disabled:opacity-50 dark:border-zinc-700"
               >
                 {addingId === bottle.id ? "Adding…" : "Add"}
               </button>

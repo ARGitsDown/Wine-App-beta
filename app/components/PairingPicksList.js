@@ -10,7 +10,7 @@ import Link from "next/link";
 // on screen until asked for. Not the same button-does-both pattern
 // BottleList/FlightPicksList use, because nesting the navigable <Link>
 // inside that toggle <button> would be invalid HTML.
-export default function PairingPicksList({ picks }) {
+export default function PairingPicksList({ picks, plannedForTonight = false }) {
   const [expandedIds, setExpandedIds] = useState(new Set());
 
   function toggle(id) {
@@ -50,6 +50,20 @@ export default function PairingPicksList({ picks }) {
                   </Link>
                 ) : (
                   <span className="block font-medium">{pick.wineLabel}</span>
+                )}
+                {/* Only while the evening is actually tonight, and only
+                    where there's a bottle and a dish to name - a kept
+                    pairing's own links used to skip the ?pairedWith
+                    prefill Suggest's own result gives the same wine, so
+                    the saved version worked worse than the throwaway one
+                    it came from (a UX review, 2026-09-27). */}
+                {plannedForTonight && pick.bottle && pick.dish && (
+                  <Link
+                    href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish)}`}
+                    className="mt-0.5 block text-sm text-zinc-500 underline underline-offset-2"
+                  >
+                    Add a tasting note →
+                  </Link>
                 )}
               </span>
               <span className="shrink-0">

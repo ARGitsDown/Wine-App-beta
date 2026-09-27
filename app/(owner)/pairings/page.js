@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/scoped-prisma";
-import { pairingSummaryLine } from "@/lib/pairings";
+import { pairingSummaryLine, tonightLabel } from "@/lib/pairings";
+import TonightToggle from "@/app/components/TonightToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -56,9 +57,14 @@ export default async function PairingsPage() {
                 >
                   {pairing.title}
                 </Link>
-                {pairing.plannedForTonight && (
-                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
-                    Tonight
+                {/* Teal, matching the Pairings card's own accent on home -
+                    amber was already "needs a check" (Needs research,
+                    unsaved) and Wishlist elsewhere in the app, so the same
+                    color meant two unrelated things on this one screen
+                    (a UX review, 2026-09-27). */}
+                {tonightLabel(pairing) && (
+                  <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs text-teal-800 dark:bg-teal-950 dark:text-teal-400">
+                    {tonightLabel(pairing)}
                   </span>
                 )}
               </div>
@@ -70,9 +76,18 @@ export default async function PairingsPage() {
               <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
                 {pairing.request}
               </p>
-              <p className="mt-1 text-xs text-zinc-500">
-                Kept {new Date(pairing.createdAt).toLocaleDateString()}
-              </p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-zinc-500">
+                  Kept {new Date(pairing.createdAt).toLocaleDateString()}
+                </p>
+                {/* On the row itself, not just the detail page - clearing
+                    a stale "Planned ... - done?" shouldn't require opening
+                    the pairing first (a UX review, 2026-09-27). */}
+                <TonightToggle
+                  pairingId={pairing.id}
+                  plannedForTonight={pairing.plannedForTonight}
+                />
+              </div>
             </li>
           ))}
         </ul>

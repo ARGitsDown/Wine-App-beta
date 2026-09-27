@@ -3023,7 +3023,10 @@ export async function deletePairing(id) {
 // aperitif pairing and a dinner pairing both, and forcing a single choice
 // would just make marking the second one silently un-mark the first.
 export async function markPairingForTonight(id) {
-  await db.savedPairing.update({ where: { id }, data: { plannedForTonight: true } });
+  await db.savedPairing.update({
+    where: { id },
+    data: { plannedForTonight: true, plannedForTonightAt: new Date() },
+  });
   revalidatePath(`/pairings/${id}`);
   revalidatePath("/pairings");
 }
@@ -3034,7 +3037,10 @@ export async function markPairingForTonight(id) {
 // a time limit): an owner-set state should end on an owner's own say-so,
 // not quietly resolve itself.
 export async function clearPairingForTonight(id) {
-  await db.savedPairing.update({ where: { id }, data: { plannedForTonight: false } });
+  await db.savedPairing.update({
+    where: { id },
+    data: { plannedForTonight: false, plannedForTonightAt: null },
+  });
   revalidatePath(`/pairings/${id}`);
   revalidatePath("/pairings");
 }

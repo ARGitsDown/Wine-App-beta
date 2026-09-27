@@ -51,10 +51,21 @@ export default async function FlightDetailPage({ params }) {
         region: true,
         country: true,
         wineColor: true,
+        // Read so the picker can put a flight-only bottle first and
+        // badge it - it's the one this search exists to help you find
+        // again (a UX review, 2026-09-27).
+        status: true,
       },
       orderBy: { producer: "asc" },
     })
   ).filter((bottle) => !picked.has(bottle.id));
+
+  // How many of this flight's own picks were never in the cellar to begin
+  // with - the delete confirm below has to say so, since "the bottles stay
+  // in your cellar" is false for exactly these (a UX review, 2026-09-27:
+  // the same misleading claim FlightPicksList's own "Remove from flight"
+  // made, fixed there in BACKLOG #41).
+  const originFlightOnlyCount = flight.picks.filter((pick) => pick.originFlightOnly).length;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
@@ -79,9 +90,21 @@ export default async function FlightDetailPage({ params }) {
           action={deleteTastingFlight.bind(null, flight.id)}
           label="Delete flight"
           confirmLabel="Yes, delete"
-          warning={`Deletes this flight and its ${flight.picks.length} pick${
-            flight.picks.length === 1 ? "" : "s"
-          }. The bottles themselves stay in your cellar.`}
+          warning={
+            originFlightOnlyCount > 0
+              ? `Deletes this flight and its ${flight.picks.length} pick${
+                  flight.picks.length === 1 ? "" : "s"
+                }. ${originFlightOnlyCount} of these wine${
+                  originFlightOnlyCount === 1 ? " was" : "s were"
+                } only ever in this flight and will have nowhere else to appear.${
+                  flight.picks.length > originFlightOnlyCount
+                    ? " The rest stay in your cellar."
+                    : ""
+                }`
+              : `Deletes this flight and its ${flight.picks.length} pick${
+                  flight.picks.length === 1 ? "" : "s"
+                }. The bottles themselves stay in your cellar.`
+          }
           className={dangerButtonClass}
         />
       </div>

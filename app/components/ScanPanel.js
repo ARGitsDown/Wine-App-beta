@@ -19,6 +19,7 @@ import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import Spinner from "@/app/components/Spinner";
 import ProgressBar from "@/app/components/ProgressBar";
+import FlightLinkPanel from "@/app/components/FlightLinkPanel";
 import {
   ScanIcon,
   CellarIcon,
@@ -132,7 +133,7 @@ function DoneButton({ photos, onDone }) {
   );
 }
 
-function BatchProgress({ photos, onDone }) {
+function BatchProgress({ photos, onDone, flightPending }) {
   const { total, done, failed, wines, unsaved, running } = batchProgress(photos);
   if (total === 0) return null;
 
@@ -178,8 +179,14 @@ function BatchProgress({ photos, onDone }) {
         <div className="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
           <DoneButton photos={photos} onDone={onDone} />
           <span className="text-xs text-zinc-500">
-            Everything above is already saved &mdash; this just puts the page
-            away.
+            {/* Done still doesn't lose anything, but for a flight wine it
+                isn't a no-op either - a UX review (2026-09-27) found the
+                old wording told you it was always safe to stop right here,
+                which is exactly wrong the one time there's a required next
+                step. */}
+            {flightPending
+              ? "Next: choose a flight for the wines waiting on one."
+              : "Everything above is already saved — this just puts the page away."}
           </span>
         </div>
       )}
@@ -418,85 +425,6 @@ function DestinationPicker({ name, legend, status, onChange }) {
   );
 }
 
-// The required next step after finishing a batch with any wine saved
-// under the Flight destination: a flight-status bottle has no home of its
-// own (see the Bottle.status comment in prisma/schema.prisma) other than
-// the flight it belongs to, so this isn't optional the way it might look -
-// there's no "leave it in the cellar" to fall back to, unlike Cellar/
-// Wishlist/Tasted. Same choice AddToFlight already offers from a single
-// bottle's own page - an existing open flight, or start a new one - scaled
-// to a whole batch at once and ending on the flight itself rather than a
-// small inline confirmation, since landing there was the point of
-// choosing Flight in the first place.
-function PendingFlightPanel({ wines, openFlights, busy, error, onAddTo, onStartNew, suggestedTitle }) {
-  // Prefilled from the batch's own "Tasting or event name" field when one
-  // was typed - the two used to be easy to conflate (BACKLOG #38: typing
-  // an event name here and expecting it alone to produce a flight), and
-  // starting this field with the same text removes the second decision
-  // rather than just explaining it better.
-  const [title, setTitle] = useState(suggestedTitle || "");
-
-  return (
-    <div className="-mt-3 flex flex-col gap-2.5 rounded-lg border border-violet-300 p-3 dark:border-violet-900">
-      <p className="text-sm font-medium text-violet-800 dark:text-violet-400">
-        {wines.length === 1 ? "This wine needs" : `These ${wines.length} wines need`} a
-        flight
-      </p>
-      <p className="text-xs text-zinc-500">
-        {wines.map((w) => w.title).join(", ")}
-      </p>
-
-      {openFlights.length > 0 ? (
-        <ul className="flex flex-col gap-1">
-          {openFlights.map((flight) => (
-            <li key={flight.id}>
-              <button
-                type="button"
-                onClick={() => onAddTo(flight.id)}
-                disabled={busy}
-                className="text-left text-sm underline underline-offset-2 disabled:opacity-50"
-              >
-                {flight.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-xs text-zinc-500">No flights on the go. Start one below.</p>
-      )}
-
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          onStartNew(title);
-        }}
-        className="flex flex-col gap-1.5 border-t border-zinc-200 pt-2 dark:border-zinc-800"
-      >
-        <label className="text-xs text-zinc-500">
-          {openFlights.length > 0 ? "Or start a new flight" : "Start a new flight"}
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            maxLength={120}
-            placeholder="Theme name"
-            className="mt-1 w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={busy}
-          className="self-start rounded border border-zinc-300 px-2 py-0.5 text-xs disabled:opacity-50 dark:border-zinc-700"
-        >
-          Create and open
-        </button>
-      </form>
-
-      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-      {busy && <Spinner label="Adding…" />}
-    </div>
-  );
-}
-
 export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFlights = [] }) {
   const router = useRouter();
   const fileInputRef = useRef(null);
@@ -512,7 +440,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
   const [finished, setFinished] = useState(null);
   // Wines saved under the Flight destination, waiting to be bundled into a
   // real flight once the batch itself is finished - a flight-status bottle
-  // has no home of its own until then (see PendingFlightPanel's own
+  // has no home of its own until then (see FlightLinkPanel's own
   // comment). Kept separate from `finished` (which is about where a
   // card's own status put it - Cellar/Wishlist/Tasted/Flight).
   const [pendingFlight, setPendingFlight] = useState(null);
@@ -778,14 +706,27 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
     photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
     setPhotos([]);
     setFinished(Object.keys(counts).length > 0 ? counts : null);
-    setPendingFlight(candidates.length > 0 ? candidates : null);
-    setPendingFlightName(eventLabelFromBatch || "");
+    // Merged into whatever the panel already had, never replaced - a UX
+    // review (2026-09-27) found that scanning a second round of photos
+    // before resolving the first Done silently dropped the first round's
+    // candidates the moment this ran again with none of its own. Common
+    // at a real tasting: wines arrive poured one at a time, not all at
+    // once, so a still-unresolved panel from an earlier Done has to
+    // survive a later one that doesn't add anything to it.
+    if (candidates.length > 0) {
+      setPendingFlight((prev) => {
+        if (!prev) return candidates;
+        const existingIds = new Set(prev.map((w) => w.id));
+        return [...prev, ...candidates.filter((w) => !existingIds.has(w.id))];
+      });
+      setPendingFlightName((prev) => prev || eventLabelFromBatch || "");
+    }
     setFlightError(null);
   }
 
   // Either resolves pendingFlight and moves on to the flight itself - there
   // is no third "give up" path, since a flight-status bottle has nowhere
-  // else to go (see PendingFlightPanel's own comment).
+  // else to go (see FlightLinkPanel's own comment).
   async function addPendingFlightTo(flightId) {
     if (!pendingFlight || flightBusy) return;
     setFlightBusy(true);
@@ -858,8 +799,13 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
   // Typing into a card and then closing the tab used to lose the edit with
   // no sign it had happened. The browser's own prompt is the only thing that
   // can interrupt a tab close, and it only appears while there is genuinely
-  // something to lose - `dirty` clears on a successful save.
-  const hasUnsavedEdits = photos.some((p) => p.entries.some((e) => e.dirty));
+  // something to lose - `dirty` clears on a successful save. An unresolved
+  // flight panel is the same kind of loss (a UX review, 2026-09-27): the
+  // wines are already saved, but with nowhere else to be found until
+  // they're linked, closing the tab here leaves them exactly as stranded
+  // as the accepted edge case BACKLOG #38 already names.
+  const hasUnsavedEdits =
+    photos.some((p) => p.entries.some((e) => e.dirty)) || Boolean(pendingFlight);
   useEffect(() => {
     if (!hasUnsavedEdits) return;
     function warn(event) {
@@ -907,21 +853,32 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                 &#10003; Batch finished &mdash; everything was saved.
               </p>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                {DESTINATIONS.filter((d) => finished[d.value]).map((d) => (
-                  <Link
-                    key={d.value}
-                    href={d.path}
-                    className="underline underline-offset-2"
-                  >
-                    {finished[d.value]} in {d.label} &rarr;
-                  </Link>
-                ))}
+                {DESTINATIONS.filter((d) => finished[d.value]).map((d) => {
+                  // The Flight count isn't a place to link to while the
+                  // panel below is still unresolved - a UX review
+                  // (2026-09-27) found this link went straight to
+                  // /flights, which has no record of these wines at all
+                  // until the panel's own choice is made. Plain text here
+                  // points at the panel instead of away from it.
+                  if (d.value === "flight" && pendingFlight) {
+                    return (
+                      <span key={d.value} className="text-zinc-600 dark:text-zinc-400">
+                        {finished[d.value]} waiting for a flight &darr;
+                      </span>
+                    );
+                  }
+                  return (
+                    <Link key={d.value} href={d.path} className="underline underline-offset-2">
+                      {finished[d.value]} in {d.label} &rarr;
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {pendingFlight && (
-            <PendingFlightPanel
+            <FlightLinkPanel
               wines={pendingFlight}
               openFlights={openFlights}
               busy={flightBusy}
@@ -929,6 +886,11 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
               onAddTo={addPendingFlightTo}
               onStartNew={startFlightFromPending}
               suggestedTitle={pendingFlightName}
+              heading={
+                pendingFlight.length === 1
+                  ? "This wine needs a flight"
+                  : `These ${pendingFlight.length} wines need a flight`
+              }
             />
           )}
 
@@ -984,6 +946,17 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
               })}
             </div>
           </fieldset>
+
+          {/* The tooltip on each tile (title=option.hint above) is the only
+              place the difference between Flight and Tasting Notes lived -
+              a phone never shows a hover title at all, so the two easiest
+              destinations to confuse had nothing distinguishing them on
+              the one device this app is built for (a UX review,
+              2026-09-27). This reads the same hint, live as the selection
+              changes. */}
+          <p className="-mt-2 text-xs text-zinc-500">
+            {SCAN_INTENTS.find((option) => option.value === intent)?.hint}
+          </p>
 
           <label className="-mt-2 flex flex-col gap-1.5 text-sm text-zinc-500">
             Tasting or event name (optional)
@@ -1073,7 +1046,14 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
         </div>
       )}
 
-      <BatchProgress photos={photos} onDone={finishBatch} />
+      <BatchProgress
+        photos={photos}
+        onDone={finishBatch}
+        flightPending={
+          Boolean(pendingFlight) ||
+          photos.some((p) => p.entries.some((e) => e.kind === "saved" && e.bottle.status === "flight"))
+        }
+      />
 
       <div className="flex flex-col gap-6">
         {photos.map((photo) => (
@@ -1371,7 +1351,11 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                           action={() => handleRemove(photo, entry)}
                           label="Delete this wine"
                           confirmLabel="Yes, delete it"
-                          warning={`Deletes ${entry.bottle.producer || "this wine"} from your cellar.`}
+                          warning={
+                            entry.bottle.status === "flight"
+                              ? `Deletes ${entry.bottle.producer || "this wine"}. It was never in your cellar to begin with.`
+                              : `Deletes ${entry.bottle.producer || "this wine"} from your cellar.`
+                          }
                           className="-mx-2 rounded px-2 py-2 text-xs text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100"
                           confirmClassName="-mx-2 rounded px-2 py-2 text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-400"
                         />

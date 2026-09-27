@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
 import { currentOwnerId } from "@/lib/owner";
@@ -120,6 +121,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
             // here rather than fetched by the panel so the review is part
             // of the page's first render, not a second round trip.
             researchProposal: true,
+            // Only meaningful for a flight-status bottle - whether it's
+            // already linked decides between showing "Add to a tasting"
+            // (BACKLOG #38's recovery path, widened below) and just
+            // naming where it already went (a UX review, 2026-09-27).
+            flightPicks: { select: { flight: { select: { id: true, title: true, summary: true } } } },
           },
         })
       : null,
@@ -237,10 +243,34 @@ export default async function BottleDetailPage({ params, searchParams }) {
             className={dangerButtonClass}
           />
         </div>
-        {/* Cellar only, like the card control: a flight is a queue of
-            bottles you can actually open. */}
-        {bottle.status === "inventory" && (
-          <AddToFlight bottleId={bottle.id} flights={openFlights} />
+        {/* Cellar wines can always add another tasting. A flight-status
+            bottle can too, and needs to more - it's the recovery path for
+            exactly the stranded case BACKLOG #38 names, reachable from
+            here since this page (Research, an old scan card, a direct
+            link) is often the only way back to one. Restricted to
+            "inventory" alone used to hide this control from the one
+            status that most needed it (a UX review, 2026-09-27). Once
+            it's actually linked, naming where beats offering to add it
+            again. */}
+        {bottle.status === "flight" && bottle.flightPicks.length > 0 ? (
+          <p className="text-sm text-zinc-500">
+            In:{" "}
+            {bottle.flightPicks
+              .map((pick) => (
+                <Link
+                  key={pick.flight.id}
+                  href={`/flights/${pick.flight.id}`}
+                  className="underline underline-offset-2"
+                >
+                  {nameOfFlight(pick.flight)}
+                </Link>
+              ))
+              .reduce((prev, curr) => [prev, ", ", curr])}
+          </p>
+        ) : (
+          (bottle.status === "inventory" || bottle.status === "flight") && (
+            <AddToFlight bottleId={bottle.id} flights={openFlights} />
+          )
         )}
       </div>
 

@@ -45,7 +45,7 @@ export default function AddToFlight({ bottleId, flights }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="self-start rounded border border-zinc-300 px-2 py-0.5 text-xs dark:border-zinc-700"
+        className="min-h-11 self-start rounded-lg border border-zinc-300 px-3 text-sm dark:border-zinc-700"
       >
         Add to a tasting
       </button>
@@ -53,16 +53,16 @@ export default function AddToFlight({ bottleId, flights }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded border border-zinc-200 p-2 dark:border-zinc-800">
+    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
       {flights.length > 0 ? (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-1.5">
           {flights.map((flight) => (
             <li key={flight.id}>
               <button
                 type="button"
                 onClick={() => add(flight.id)}
                 disabled={pending}
-                className="text-left text-sm underline underline-offset-2 disabled:opacity-50"
+                className="flex min-h-11 w-full items-center rounded-lg border border-zinc-300 px-3 text-left text-sm disabled:opacity-50 dark:border-zinc-700"
               >
                 {flight.name}
               </button>
@@ -86,12 +86,12 @@ export default function AddToFlight({ bottleId, flights }) {
             required
             maxLength={120}
             placeholder="Theme name"
-            className="mt-1 w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-base dark:border-zinc-700 dark:bg-zinc-900"
           />
         </label>
         <button
           type="submit"
-          className="self-start rounded border border-zinc-300 px-2 py-0.5 text-xs dark:border-zinc-700"
+          className="min-h-11 self-start rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
         >
           Create and open
         </button>

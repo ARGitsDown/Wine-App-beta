@@ -61,7 +61,8 @@ export default async function HomePage() {
     tastedCount,
     flightCount,
     pairingCount,
-    tonightCount,
+    tonightPairings,
+    unfiledFlightCount,
     researchCount,
   ] = await Promise.all([
       db.bottle.count({ where: { status: "inventory" } }),
@@ -80,10 +81,20 @@ export default async function HomePage() {
       // "Drink tonight" (BACKLOG #28/#39) needs somewhere that "surfaces
       // prominently", which is what this card already is - the count stays
       // every kept pairing (unchanged), and this only swaps the small
-      // description line beneath it, from "Kept" to naming tonight's.
-      db.savedPairing.count({ where: { plannedForTonight: true } }),
+      // description line beneath it, from "Kept" to naming tonight's. Ids,
+      // not just a count, so the card can link straight to the one pairing
+      // when there's exactly one (a UX review, 2026-09-27 - the card used
+      // to link to the whole list even when there was only one thing on it
+      // worth acting on today).
+      db.savedPairing.findMany({ where: { plannedForTonight: true }, select: { id: true } }),
+      // A flight-status bottle with no pick anywhere is stranded - scanned
+      // under "Flight" but never actually linked to one (BACKLOG #37/#38).
+      // Nothing on this page said so before (a UX review, 2026-09-27);
+      // this count is what swaps the card's own description to name it.
+      db.bottle.count({ where: { status: "flight", flightPicks: { none: {} } } }),
       getResearchCount(),
     ]);
+  const tonightCount = tonightPairings.length;
 
   // Two columns, ordered by how often each one is actually reached for
   // (BACKLOG #25) - authored as two plain arrays, left column first, so the
@@ -119,7 +130,11 @@ export default async function HomePage() {
     // tab bar existed. With four tabs, home is the way to everything not
     // in the bar, so it needs a card here regardless of column order.
     {
-      href: "/pairings",
+      // Straight to the one pairing when there's only one - the count on
+      // this card is "how many kept", but the thing worth acting on is the
+      // specific pairing, and a list of one is a click the card can skip
+      // (a UX review, 2026-09-27).
+      href: tonightCount === 1 ? `/pairings/${tonightPairings[0].id}` : "/pairings",
       label: "Pairings",
       count: pairingCount,
       description:
@@ -133,7 +148,7 @@ export default async function HomePage() {
       href: "/flights",
       label: "Flights",
       count: flightCount,
-      description: "Curated",
+      description: unfiledFlightCount > 0 ? `${unfiledFlightCount} unfiled` : "Curated",
       Icon: FlightsIcon,
       accent:
         "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400",

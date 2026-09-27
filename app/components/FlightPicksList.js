@@ -9,9 +9,12 @@ import {
   moveFlightPick,
 } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
+import StatusBadge from "@/app/components/StatusBadge";
 
 const buttonClass =
   "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
+const undoButtonClass =
+  "min-h-11 rounded-lg border border-zinc-300 px-3 text-sm dark:border-zinc-700";
 // 44px, not the 24px this used to be (BACKLOG #29) - reordering a flight is
 // a precision task done one-handed, possibly holding a bottle, and the tab
 // bar already holds the line that a tap target is thumb-sized or it's
@@ -78,6 +81,14 @@ export default function FlightPicksList({ flightId, picks }) {
               <span className="min-w-0 flex-1 font-medium">
                 {index + 1}. {bottleHeader(pick.bottle)}
                 {pick.bottle.type ? ` — ${pick.bottle.type}` : ""}
+                {/* "Tasted" means something different for these than for
+                    a cellar wine here (Cellar quantity down vs. straight
+                    to Tasted, see markFlightPickConsumed) - the collapsed
+                    row said nothing about which was which until now (a
+                    UX review, 2026-09-27). */}
+                {pick.originFlightOnly && (
+                  <StatusBadge status="flight" className="ml-1.5 align-middle" />
+                )}
               </span>
               {pick.consumed && (
                 <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
@@ -145,10 +156,7 @@ export default function FlightPicksList({ flightId, picks }) {
                     // separate hand-rolled correction, and lands the bottle
                     // back wherever it actually started either way.
                     <form action={unmarkFlightPickConsumed.bind(null, pick.id)}>
-                      <button
-                        type="submit"
-                        className="text-sm text-zinc-500 underline underline-offset-2"
-                      >
+                      <button type="submit" className={undoButtonClass}>
                         Undo
                       </button>
                     </form>
