@@ -11,8 +11,25 @@ export const dynamic = "force-dynamic";
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 
+// The name on the invite, in the owner's own words - a display name if
+// Google or the profile provided one, their email otherwise, and only
+// "the owner" if somehow neither exists (a row from before either was
+// required). Never null: both screens below use this to say whose cellar
+// is being browsed, and "browsing 's cellar" is worse than a generic noun.
+function ownerDisplayName(owner) {
+  return owner?.name || owner?.email || "the owner";
+}
+
 export default async function GuestPage({ searchParams }) {
-  const guest = await getCurrentGuest();
+  const [guest, owner] = await Promise.all([
+    getCurrentGuest(),
+    // Needed before a guest even has a name of their own (BACKLOG #29
+    // finding 8: the sign-in screen never said whose cellar this was, or
+    // that picks are visible to them) - so this is fetched unconditionally
+    // rather than only once a guest exists.
+    prisma.user.findFirst({ orderBy: { createdAt: "asc" }, select: { name: true, email: true } }),
+  ]);
+  const ownerName = ownerDisplayName(owner);
 
   if (!guest) {
     return (
@@ -20,8 +37,9 @@ export default async function GuestPage({ searchParams }) {
         <div>
           <h1 className="text-2xl font-semibold">Who&apos;s visiting?</h1>
           <p className="text-sm text-zinc-500">
-            Enter your name to browse the cellar and favorite anything
-            you&apos;d like pulled for your next visit.
+            You&apos;re browsing {ownerName}&apos;s cellar. Enter your name
+            to favorite anything you&apos;d like pulled for your next visit
+            — {ownerName} will see your name next to what you pick.
           </p>
         </div>
         <form action={enterAsGuest} className="flex flex-col gap-3">
@@ -67,7 +85,9 @@ export default async function GuestPage({ searchParams }) {
         <div>
           <h1 className="text-2xl font-semibold">Hi, {guest.name}</h1>
           <p className="text-sm text-zinc-500">
-            Favorite anything you&apos;d like pulled for your next visit.
+            Browsing {ownerName}&apos;s cellar. Favorite anything
+            you&apos;d like pulled for your next visit — {ownerName} can see
+            your name next to what you favorite.
           </p>
         </div>
         <form action={switchGuest}>

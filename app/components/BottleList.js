@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { adjustBottleQuantity } from "@/app/actions";
 import AddToFlight from "@/app/components/AddToFlight";
+import TastedControls from "@/app/components/TastedControls";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 import { wineDetailOrNone, wineOrigin } from "@/lib/wine-origin";
 import { drinkWindowLabel } from "@/lib/drink-window";
@@ -15,6 +16,10 @@ const stepperClass =
 // Adjusting the count is the most common thing you do to a bottle you
 // already own, and it used to mean opening the bottle's page and saving a
 // form. Inline here, it's one tap. Floors at 1 - see adjustBottleQuantity.
+//
+// Labelled "Correct the count", not "Qty:", so it doesn't read like the
+// answer to "I drank one" - that's TastedControls below it, a different
+// control for a different question (BACKLOG #29 finding 3).
 function QuantityStepper({ bottle }) {
   const [pending, startTransition] = useTransition();
 
@@ -24,7 +29,7 @@ function QuantityStepper({ bottle }) {
 
   return (
     <div className="flex items-center gap-2 text-xs text-zinc-400">
-      <span>Qty:</span>
+      <span>Correct the count:</span>
       <button
         type="button"
         onClick={() => step(-1)}
@@ -193,6 +198,20 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
                     <div className="text-xs text-zinc-400">Qty: {bottle.quantity}</div>
                   ) : (
                     <QuantityStepper bottle={bottle} />
+                  )}
+                  {/* The stepper above corrects a count (bought two more,
+                      miscounted) - a different question from "I drank
+                      one", which used to only have an answer on the
+                      bottle's own page (BACKLOG #29 finding 3). Same
+                      component and the same markOneTasted the bottle page
+                      uses, not a second implementation - it already
+                      self-gates to nothing on a wishlist row. */}
+                  {bottle.status === "inventory" && (
+                    <TastedControls
+                      bottleId={bottle.id}
+                      status={bottle.status}
+                      quantity={bottle.quantity}
+                    />
                   )}
                   {flights !== null && bottle.status === "inventory" && (
                     <AddToFlight bottleId={bottle.id} flights={flights} />

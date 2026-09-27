@@ -10,6 +10,7 @@ import {
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import Spinner from "@/app/components/Spinner";
+import StatusBadge from "@/app/components/StatusBadge";
 import { researchChanges, isProposalStale } from "@/lib/research-fields";
 
 const primaryButtonClass =
@@ -88,7 +89,7 @@ export default function ResearchProposalCard({ bottle, proposal, regionOptions }
         >
           {bottleHeader(bottle)}
         </Link>
-        <span className="text-xs capitalize text-zinc-500">{bottle.status}</span>
+        <StatusBadge status={bottle.status} />
       </div>
 
       <p className="text-sm text-zinc-600 dark:text-zinc-400">{proposal.summary}</p>
@@ -108,30 +109,56 @@ export default function ResearchProposalCard({ bottle, proposal, regionOptions }
           Research confirmed every field as it stands — nothing to change.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[30rem] text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-zinc-400">
-                <th className="py-1 pr-3 font-medium">Field</th>
-                <th className="py-1 pr-3 font-medium">Now</th>
-                <th className="py-1 font-medium">Proposed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {changes.map((change) => (
-                <tr key={change.key} className="border-t border-zinc-100 align-top dark:border-zinc-800">
-                  <td className="py-1.5 pr-3 text-zinc-500">{change.label}</td>
-                  <td className="py-1.5 pr-3">
-                    <Value value={change.from} muted />
-                  </td>
-                  <td className="py-1.5">
-                    <Value value={change.to} />
-                  </td>
+        <>
+          {/* Stacked below sm: - the three-column table's own min width
+              (30rem) left the "Proposed" column, the actual point of the
+              screen, starting off a phone's ~311px (BACKLOG #29 finding
+              5). The table is worth keeping once there's room for it. */}
+          <div className="flex flex-col gap-3 text-sm sm:hidden">
+            {changes.map((change) => (
+              <div
+                key={change.key}
+                className="border-t border-zinc-100 pt-2 dark:border-zinc-800"
+              >
+                <p className="text-xs uppercase tracking-wide text-zinc-400">
+                  {change.label}
+                </p>
+                <p className="mt-0.5">
+                  <span className="text-zinc-400">Now: </span>
+                  <Value value={change.from} muted />
+                </p>
+                <p className="mt-0.5">
+                  <span className="text-zinc-400">Proposed: </span>
+                  <Value value={change.to} />
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[30rem] text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-zinc-400">
+                  <th className="py-1 pr-3 font-medium">Field</th>
+                  <th className="py-1 pr-3 font-medium">Now</th>
+                  <th className="py-1 font-medium">Proposed</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {changes.map((change) => (
+                  <tr key={change.key} className="border-t border-zinc-100 align-top dark:border-zinc-800">
+                    <td className="py-1.5 pr-3 text-zinc-500">{change.label}</td>
+                    <td className="py-1.5 pr-3">
+                      <Value value={change.from} muted />
+                    </td>
+                    <td className="py-1.5">
+                      <Value value={change.to} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {proposal.sources.length > 0 && (

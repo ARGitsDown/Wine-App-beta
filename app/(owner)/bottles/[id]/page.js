@@ -5,7 +5,6 @@ import { getRegionOptions } from "@/lib/bottles";
 import {
   updateBottle,
   deleteBottle,
-  setBottleStatus,
   addTastingNote,
   updateTastingNoteDate,
   updateEmptiedDate,
@@ -20,6 +19,7 @@ import TastedControls from "@/app/components/TastedControls";
 import { flightName as nameOfFlight, isOpenFlight } from "@/lib/flights";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
+import StatusBadge from "@/app/components/StatusBadge";
 import InlineDateEditor from "@/app/components/InlineDateEditor";
 import EstimateWindowButton from "@/app/components/EstimateWindowButton";
 import { todayInputValue } from "@/lib/tasting-date";
@@ -153,7 +153,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
               {bottle.vintage ? ` ${bottle.vintage}` : ""}
             </h1>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm capitalize text-zinc-500">{bottle.status}</p>
+              <StatusBadge status={bottle.status} />
               {bottle.needsResearch && (
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
                   Needs research
@@ -221,13 +221,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {bottle.status === "wishlist" && (
-            <form action={setBottleStatus.bind(null, bottle.id, "inventory")}>
-              <button className={buttonClass} type="submit">
-                Bought it → move to inventory
-              </button>
-            </form>
-          )}
+          {/* "Bought it" lives inside TastedControls now (BACKLOG #29
+              polish note) - it was the one status-change button on this
+              page still a plain, pending-state-free <form>. */}
           <TastedControls
             bottleId={bottle.id}
             status={bottle.status}

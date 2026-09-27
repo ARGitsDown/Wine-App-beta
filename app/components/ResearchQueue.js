@@ -5,9 +5,14 @@ import Link from "next/link";
 import { researchBottle, dismissResearch } from "@/app/actions";
 import { useResearchRun } from "@/app/components/research-run-context";
 import Spinner from "@/app/components/Spinner";
+import StatusBadge from "@/app/components/StatusBadge";
 
+// min-h-11 rather than the app's more common py-1.5: this button and
+// Dismiss beside it were ~20px tall, the one control on this page that
+// missed the "thumb-sized or it's decoration" standard the rest of the
+// app holds to (BACKLOG #29 polish note).
 const secondaryButtonClass =
-  "rounded border border-zinc-300 px-2 py-0.5 text-xs disabled:opacity-50 dark:border-zinc-700";
+  "inline-flex min-h-11 items-center rounded border border-zinc-300 px-3 text-xs disabled:opacity-50 dark:border-zinc-700";
 
 function bottleHeader(bottle) {
   return [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage, bottle.type]
@@ -120,7 +125,7 @@ export default function ResearchQueue({ bottles }) {
               {bottleHeader(bottle)}
             </Link>
             <div className="flex shrink-0 items-center gap-3">
-              <span className="text-xs capitalize text-zinc-500">{bottle.status}</span>
+              <StatusBadge status={bottle.status} />
               <button
                 type="button"
                 onClick={() => researchOne(bottle.id)}
@@ -132,7 +137,7 @@ export default function ResearchQueue({ bottles }) {
               <form action={dismissResearch.bind(null, bottle.id)}>
                 <button
                   type="submit"
-                  className="text-xs text-zinc-500 underline underline-offset-2"
+                  className="-mx-2 rounded px-2 py-2 text-xs text-zinc-500 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100"
                 >
                   Dismiss
                 </button>

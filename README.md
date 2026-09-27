@@ -189,10 +189,11 @@ features like separate cellars per user.
   result leads with a short evocative title ("The Many Faces of Pinot")
   and keeps the fuller explanation behind a "Why these" disclosure, so
   you can see what was suggested before reading why. A pairing
-  recommendation is ephemeral (not saved anywhere) but links each pick
-  straight to "log this pairing," which prefills the dish into a new
-  tasting note. A tasting-flight result can be saved via "Save this
-  flight" - see **Tasting flights** below.
+  recommendation can be kept via "Save this pairing" (`/pairings`, its own
+  list of every one you've kept), which also links each pick straight to
+  "Add a tasting note," prefilling the dish. A tasting-flight result can be
+  saved the same way via "Save this flight" - see **Tasting flights**
+  below.
 - **Tasting flights** (`/flights`) — a themed flight kept as a queue to
   pull bottles from over time rather than disappearing once you leave the
   page. Either ask Suggest for one and save it, or start one yourself with
@@ -248,14 +249,16 @@ features like separate cellars per user.
   `app/apple-icon.js` at 180px for the iOS home screen. Note that iOS
   snapshots the name and icon when you add it — changing either later
   won't update a bookmark that already exists.
-- **Design touches** — the home page is six cards and nothing else: no
-  title, no section labels, since six labelled cards say what the app holds
-  better than a heading above them does. Each card carries its icon and
+- **Design touches** — the home page is eight cards and nothing else: no
+  title, no section labels, since eight labelled cards say what the app holds
+  better than a heading above them does (plus a plain "Export all your
+  data" link underneath, which isn't a card - see **Data export** above).
+  Each card carries its icon and
   name top-left, its count bottom-left (centered under the icon, so the
   figure reads as belonging to it) and its description bottom-right, each cut
-  short enough to sit on one line at phone width. Only
-  Cellar, Wishlist, Tasting notes and Flights carry a count — a number
-  on "Scan" would be meaningless, so Scan and Suggest give their
+  short enough to sit on one line at phone width. Cellar, Wishlist, Tasting
+  notes, Flights, Pairings and Research carry a count; a number on Scan or
+  Suggest would be meaningless, so those two give their
   description the whole bottom row instead. Where there is a count, the
   card reads as two columns: icon over number on the left, name over
   description on the right. "Wines tasted" counts wines you have actually

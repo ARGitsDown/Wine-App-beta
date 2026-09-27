@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { markOneTasted, setBottleStatus, undoOneTasted } from "@/app/actions";
+import Spinner from "@/app/components/Spinner";
 
 const buttonClass =
-  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
+  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
 const secondaryButtonClass =
-  "rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700";
+  "rounded border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700";
 
 // The Tasted buttons and their own Undo, as one client component rather
 // than plain <form> actions - Undo needs to survive exactly the moment it
@@ -14,14 +15,23 @@ const secondaryButtonClass =
 // away from "inventory", and a component gated on that status - the old
 // markup was - would unmount right along with it, taking a plain
 // useState undo flag with it before the tap could ever show it. The
-// bottle page now renders this unconditionally (past the wishlist stage),
-// so the component instance - and `justActed` - survives that status
-// flip; only the buttons shown inside it change.
+// bottle page renders this unconditionally (regardless of status), so the
+// component instance - and `justActed` - survives that status flip; only
+// the buttons shown inside it change.
+//
+// "Bought it" moved in here too (BACKLOG #29 polish note) - it used to be
+// a separate plain `<form>` on the page itself, the one status-change
+// button on this page with no pending state at all, since every other one
+// already lived in this component and got it for free from `isPending`.
 export default function TastedControls({ bottleId, status, quantity }) {
   const [isPending, startTransition] = useTransition();
   const [justActed, setJustActed] = useState(false);
 
-  if (status === "wishlist") return null;
+  function boughtIt() {
+    startTransition(async () => {
+      await setBottleStatus(bottleId, "inventory");
+    });
+  }
 
   function tasteOne() {
     startTransition(async () => {
@@ -42,6 +52,17 @@ export default function TastedControls({ bottleId, status, quantity }) {
       await undoOneTasted(bottleId);
       setJustActed(false);
     });
+  }
+
+  if (status === "wishlist") {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={boughtIt} disabled={isPending} className={buttonClass}>
+          Bought it → move to inventory
+        </button>
+        {isPending && <Spinner label="Moving…" />}
+      </div>
+    );
   }
 
   return (
@@ -87,6 +108,7 @@ export default function TastedControls({ bottleId, status, quantity }) {
           </button>
         </span>
       )}
+      {isPending && <Spinner label="Saving…" />}
     </div>
   );
 }

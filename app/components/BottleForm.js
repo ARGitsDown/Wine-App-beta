@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { allVarietalNames } from "@/lib/varietal-match";
-import { KNOWN_REGIONS } from "@/lib/regions";
+import { KNOWN_REGIONS, countryForRegion } from "@/lib/regions";
 import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 import Spinner from "@/app/components/Spinner";
 import AutoTextarea from "@/app/components/AutoTextarea";
@@ -45,6 +45,30 @@ export default function BottleForm({
   children,
 }) {
   const [state, formAction, pending] = useActionState(action, null);
+
+  // Region and Country stay uncontrolled everywhere else in this form, but
+  // need real state here so picking a known region can fill Country in and
+  // a mismatch can be flagged (BACKLOG #17) - neither is possible from a
+  // plain defaultValue, which never sees what's typed afterward.
+  const [region, setRegion] = useState(defaultValues.region || "");
+  const [country, setCountry] = useState(defaultValues.country || "");
+  const impliedCountry = countryForRegion(region);
+  // Soft, not blocking: a region genuinely can move countries over time
+  // (a producer relocating, an appellation redrawn), and the curated list
+  // is suggestions, not law - this says "you might mean X" rather than
+  // refusing "Bordeaux" paired with "Spain".
+  const countryMismatch =
+    impliedCountry && country.trim() && country.trim().toLowerCase() !== impliedCountry.toLowerCase();
+
+  function handleRegionChange(event) {
+    const next = event.target.value;
+    setRegion(next);
+    // Only when Country is still blank - never overwrites a country
+    // someone already chose, including one that disagrees with the region
+    // (that's what the mismatch note below is for, not a silent rewrite).
+    const implied = countryForRegion(next);
+    if (implied && !country.trim()) setCountry(implied);
+  }
 
   useEffect(() => {
     if (state) onResult?.(state);
@@ -136,7 +160,8 @@ export default function BottleForm({
               <input
                 name="region"
                 list={regionListId}
-                defaultValue={defaultValues.region || ""}
+                value={region}
+                onChange={handleRegionChange}
                 className={inputClass}
                 placeholder="e.g. Bordeaux, or a US state"
               />
@@ -154,9 +179,16 @@ export default function BottleForm({
               Country
               <input
                 name="country"
-                defaultValue={defaultValues.country || ""}
+                value={country}
+                onChange={(event) => setCountry(event.target.value)}
                 className={inputClass}
               />
+              {countryMismatch && (
+                <span className="text-xs text-amber-700 dark:text-amber-400">
+                  {region.trim()} is usually {impliedCountry} — this bottle
+                  is set to {country.trim()}.
+                </span>
+              )}
             </label>
             <label className={labelClass}>
               Color

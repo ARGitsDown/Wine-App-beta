@@ -4,10 +4,11 @@ import { pairingSummaryLine } from "@/lib/pairings";
 
 export const dynamic = "force-dynamic";
 
-// Not in the nav, deliberately: the nav is already at seven links and
-// where the eighth goes is the open question in BACKLOG #17. Suggest links
-// here, which is where you would look anyway - you come back to a kept
-// pairing to run it again.
+// In both navs now - the phone tab bar got a Pairings tab in an earlier
+// session, and NavLinks.js's desktop list was fixed to match (BACKLOG
+// #29's polish note: it had drifted out of sync and never gained one).
+// Suggest also links here directly, which is where you'd look anyway -
+// you come back to a kept pairing to run it again.
 export default async function PairingsPage() {
   const pairings = await db.savedPairing.findMany({
     include: {

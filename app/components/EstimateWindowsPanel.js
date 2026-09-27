@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { estimateDrinkWindows } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
+import ProgressBar from "@/app/components/ProgressBar";
 
 // Chunked client-side so no single server request has to process the
 // whole cellar at once - keeps each request well under a serverless
@@ -133,19 +134,7 @@ export default function EstimateWindowsPanel({ bottles }) {
           <div className="text-sm text-zinc-500">
             <Spinner label={`Estimating… ${done} of ${total} bottles`} />
           </div>
-          <div
-            className="h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-            role="progressbar"
-            aria-valuenow={done}
-            aria-valuemin={0}
-            aria-valuemax={total}
-            aria-label="Bottles estimated"
-          >
-            <div
-              className="h-full rounded-full bg-zinc-900 transition-[width] duration-300 dark:bg-zinc-100"
-              style={{ width: `${total ? (done / total) * 100 : 0}%` }}
-            />
-          </div>
+          <ProgressBar value={done} max={total} label="Bottles estimated" />
           {/* Only worth saying when there is more than one batch: a
               cellar smaller than a batch goes from 0 to done in a single
               step, where "counted in batches of 20" is just confusing. */}

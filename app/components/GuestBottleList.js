@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { toggleFavorite } from "@/app/actions";
 import FilterBar from "@/app/components/FilterBar";
 import useBottleFilters from "@/app/components/useBottleFilters";
@@ -10,6 +11,29 @@ function bottleHeader(bottle) {
   return [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage || null]
     .filter(Boolean)
     .join(" ");
+}
+
+// Was a plain `<form action={toggleFavorite}>` - it worked, but a tap gave
+// no sign anything happened until the page quietly re-rendered, and the
+// bare emoji was a ~20px target (BACKLOG #29 finding 8). `useTransition`
+// (the same pattern QuantityStepper already uses) disables the button and
+// dims it while the toggle is in flight, and the button itself is now a
+// real 44px target rather than just the glyph's own ink.
+function FavoriteButton({ bottle }) {
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <button
+      type="button"
+      onClick={() => startTransition(() => toggleFavorite(bottle.id))}
+      disabled={pending}
+      aria-label={bottle.favorited ? "Remove favorite" : "Favorite this bottle"}
+      aria-pressed={bottle.favorited}
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none disabled:opacity-40"
+    >
+      {bottle.favorited ? "❤️" : "🤍"}
+    </button>
+  );
 }
 
 // The guest view gets the same instant filtering as the owner's cellar -
@@ -60,15 +84,7 @@ export default function GuestBottleList({ bottles, regionOptions, initialFilters
                     guest ever sees. It was dropping the sub-region. */}
                 <p className="text-sm text-zinc-500">{wineDetail(bottle)}</p>
               </div>
-              <form action={toggleFavorite.bind(null, bottle.id)}>
-                <button
-                  type="submit"
-                  className="shrink-0 text-xl leading-none"
-                  aria-label={bottle.favorited ? "Remove favorite" : "Favorite this bottle"}
-                >
-                  {bottle.favorited ? "❤️" : "🤍"}
-                </button>
-              </form>
+              <FavoriteButton bottle={bottle} />
             </li>
           ))}
         </ul>

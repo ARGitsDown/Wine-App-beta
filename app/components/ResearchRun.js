@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { researchBottles, getResearchJob } from "@/app/actions";
 import { isResearchJobStalled } from "@/lib/research-job";
 import { ResearchRunContext, useResearchRun } from "@/app/components/research-run-context";
+import ProgressBar from "@/app/components/ProgressBar";
 
 // A bulk run is a fact about the whole page, not about the button that
 // starts it, so its state lives above both of the places that care.
@@ -106,7 +107,6 @@ export function ResearchRunProgress() {
   if (!job) return null;
 
   const done = job.researched + job.failed;
-  const percent = job.total > 0 ? Math.round((done / job.total) * 100) : 0;
 
   const barClass = stalled
     ? "bg-amber-500"
@@ -140,19 +140,14 @@ export function ResearchRunProgress() {
         )}
       </div>
 
-      <div
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={job.total}
-        aria-valuenow={done}
-        aria-label={`Bulk research progress: ${done} of ${job.total} bottles`}
-        className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-      >
-        <div
-          className={`h-full rounded-full transition-[width] duration-700 ${barClass}`}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
+      <ProgressBar
+        value={done}
+        max={job.total}
+        label={`Bulk research progress: ${done} of ${job.total} bottles`}
+        height="h-2"
+        duration="duration-700"
+        barClassName={barClass}
+      />
 
       <p className="text-zinc-500">
         {running ? (

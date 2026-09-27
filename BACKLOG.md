@@ -632,19 +632,18 @@ reintroduced later as a fresh idea.
   Next's root boundary and blanks the page. A dozen-line `app/error.js` is
   the difference between "that didn't work, try again" and losing a screen
   of unreviewed scan cards.
-- **Region could imply country, from data already in the file.**
-  `lib/regions.js` is a flat array of names grouped by country *in
-  comments* (`// France`, `// Italy`). Promoting those comments to data -
-  `{ name: "Bordeaux", country: "France" }` - would let country auto-fill
-  when a known region is picked, and a mismatch warn softly: Bordeaux
-  could not be entered against Spain without the app saying so. One file
-  plus the two autocomplete call sites, no schema change, no migration.
-  Narrowing the Region suggestions once a country is chosen is a related
-  option better done as a soft ranking than a hard filter, since
-  `getRegionOptions()` blends the curated list with names already in the
-  cellar and a hard filter would hide an unusual region exactly when it
-  was being re-entered. The full hierarchy (Bordeaux → Médoc → Margaux as
-  related records rather than three strings) remains #2, still deferred.
+- ~~**Region could imply country, from data already in the file.**~~ —
+  done (see #39). `lib/regions.js`'s comment groupings (`// France`,
+  `// Italy`) are now data (`REGIONS_BY_COUNTRY`), and `BottleForm` auto-
+  fills Country from a known Region (only while Country is still blank -
+  never overwriting a choice already made) and shows a soft mismatch note
+  otherwise. Two comment-headed groups genuinely mixed countries and were
+  split rather than grouped by the loose heading a human would reach for:
+  Wachau/Kamptal/Kremstal/Burgenland are Austria and Tokaj is Hungary, not
+  all "Germany"; Mendoza/Uco Valley/Salta are Argentina, not Chile.
+  Narrowing the Region suggestions once a country is chosen, and the full
+  hierarchy (Bordeaux → Médoc → Margaux as related records rather than
+  three strings, #2), remain open.
 
 ### Scan: what #16's rework did not reach
 
@@ -878,15 +877,16 @@ All three verified still open against the current scan code.
   isn't one. The context now lives in `research-run-context.js`, which no
   Server Component imports.
 
-  Scanning and `/estimate-windows` still have their own bars; lifting one
-  into a shared component would settle all three, and is now the only
-  part of this item left.
-- **Research names destinations in text where the rest of the app uses an
-  icon and a colour.** Cellar, Wishlist and Tasted each have an icon and
-  an accent pair that the home cards and the scan picker already share.
-  Holding the icon alongside the label and path in one list would let
-  Research, the scan cards and the bottle page speak the same visual
-  language from one source rather than three.
+  ~~Scanning and `/estimate-windows` still have their own bars; lifting
+  one into a shared component would settle all three.~~ — done (see #39).
+  `ProgressBar.js` covers all three now - height, fill color and
+  transition speed are props, since Research's stalled/running/done
+  coloring is a real difference from the other two's fixed color, not
+  drift to erase.
+- ~~**Research names destinations in text where the rest of the app uses an
+  icon and a colour.**~~ — done (see #39). `lib/status-look.js` +
+  `StatusBadge.js` are that one source now, used by both of Research's
+  lists and the bottle page - the three places that were still bare text.
 
 ### Cellar: order and proportion
 
@@ -2075,7 +2075,7 @@ being worth reading. Struck through above, with what landed:
 - **7** - `FlightPicksList`: number and title collapsed, reason and
   controls on expand.
 
-**Still open: 3, 5, 8** - all polish, none structural.
+~~**Still open: 3, 5, 8**~~ - all done, see #39.
 
 **6 is done (2026-09-21).** One root cause under both halves:
 `createBottleWithNote` returned `{ success: true }` without the bottle, so
@@ -2123,14 +2123,12 @@ in the database.
    (adds a tap to the *common* path, not just the mistake), or just get
    more separation from "Keep as is" plus a rename of the latter to
    something honest ("Discard this research").
-3. **The cellar row's quantity stepper isn't what "I drank one" should
-   use, but reads like it.** `Qty: − 3 +` on the expanded row
-   (`BottleList.js:17-50,181-188`) doesn't log a tasting, doesn't stamp an
-   emptied date, and - per the spot-check above - can never reach zero. The
-   control that actually means "I drank one" (`Tasted one - N left`) only
-   exists on the bottle's own page. Proposed fix: add that same button to
-   the expanded cellar row, and relabel the stepper "Correct the count" so
-   the two read as different questions.
+3. ~~**The cellar row's quantity stepper isn't what "I drank one" should
+   use, but reads like it.**~~ — done (see #39). The expanded row now
+   renders `TastedControls` (the exact component the bottle's own page
+   uses, not a second implementation) whenever status is `inventory`, and
+   the stepper is relabelled "Correct the count" so the two read as
+   different questions.
 4. ~~**"Mark as tasted" in a flight can't be undone, and the app is unsure
    what it should even mean.** Marking a `FlightPick` consumed
    (`app/actions.js:2303`) only flips a boolean - the cellar's own quantity
@@ -2148,13 +2146,9 @@ in the database.
 
 ### Costs the user
 
-5. **The research diff table scrolls sideways at 375px.**
-   `ResearchProposalCard.js:96` - `min-w-[30rem]` (480px) inside
-   `overflow-x-auto`, but the page only has ~311px to give it, so the
-   "Proposed" column - the actual point of the screen - starts off-edge.
-   Proposed fix: stack old/new per field instead of a three-column table on
-   narrow screens; keep the table at `sm:` and up if the density is worth
-   it there.
+5. ~~**The research diff table scrolls sideways at 375px.**~~ — done (see
+   #39). Stacked per field (label, then "Now: …" / "Proposed: …") below
+   `sm:`; the original three-column table is unchanged at `sm:` and up.
 6. ~~**A manually-typed Scan card collapses to a bare "✓ Saved" with no
    name, no link, no way to edit** (`ScanPanel.js:1156-1159`), unlike a
    normally-scanned card's collapsed state, which keeps the name,
@@ -2177,29 +2171,34 @@ in the database.
    **This is a direct second opinion on a call made this session** (keeping
    those controls always-visible below the collapse rather than moving them
    inside it) - worth weighing deliberately, not just filing.
-8. **The guest heart gives no feedback, and the sign-in copy doesn't say
-   whose cellar this is or that picks are visible to the owner.**
-   `GuestBottleList.js:63-71` - a plain form submit with no
-   pending/optimistic state, ~20px tap target. `app/(guest)/guest/page.js:
-   20-25`'s copy never names the owner or mentions that the owner sees the
-   guest's name next to what they favorite.
+8. ~~**The guest heart gives no feedback, and the sign-in copy doesn't say
+   whose cellar this is or that picks are visible to the owner.**~~ —
+   done (see #39). The heart is a real button now (`useTransition`,
+   disabled + dimmed while in flight, a 44px target), and both guest
+   screens name the owner and say they'll see the guest's name next to
+   what they favorite.
 
-### Polish
+### Polish — all done, see #39
 
-- Desktop `NavLinks.js`'s order and set no longer match the phone tab bar
-  (see spot-check above) - the stale "Not in the nav, deliberately" comment
-  on `pairings/page.js:7` should go either way this gets resolved.
-- No pending/loading state on the bottle page's `Tasted one`, `Tasted all
-  N`, `Bought it` buttons (`bottles/[id]/page.js:222-249`) - everywhere
-  else in the app uses `Spinner` for this.
-- `/research` queue's per-row buttons are ~20px tall
-  (`ResearchQueue.js:13-14`) with an unconfirmed "Dismiss" beside
-  "Research" - inconsistent with the bulk button's care above them.
-- README/PROJECT.md drift: README's "six cards and nothing else" is now
-  eight-plus-export (`app/(owner)/page.js:103-178`); both README and
-  `PROJECT.md:61-62` still describe pairings as "ephemeral (not saved
-  anywhere)," which hasn't been true since kept pairings shipped (#28,
-  #41).
+- ~~Desktop `NavLinks.js`'s order and set no longer match the phone tab
+  bar~~ - reordered to match the tab bar's first five exactly
+  (Home/Suggest/Pairings/Scan/Cellar), then the three desktop-only extras
+  the phone bar has no room for. The stale "Not in the nav, deliberately"
+  comment on `pairings/page.js:7` is rewritten.
+- ~~No pending/loading state on the bottle page's `Tasted one`, `Tasted all
+  N`, `Bought it` buttons~~ - `Bought it` moved into `TastedControls`
+  (it was the one status button still a plain form, outside the component
+  every other one already got `isPending` from for free), and a shared
+  `Spinner` now shows on all of them while in flight.
+- ~~`/research` queue's per-row buttons are ~20px tall with an unconfirmed
+  "Dismiss"~~ - both are real 44px targets now (`min-h-11`); left
+  `Dismiss` unconfirmed on purpose, since at this stage (before any search
+  has run) there's no proposal yet to lose - `ResearchProposalCard`'s own
+  "Discard this research" already confirms the one that does risk that.
+- ~~README/PROJECT.md drift~~ - README's card count corrected to eight (+
+  the export link, not a ninth card) and its counted-card list updated to
+  include Pairings and Research; both files' "pairings are ephemeral, not
+  saved" claims corrected to describe `/pairings` and "Save this pairing".
 
 ### Decided, and built (2026-09-18) — findings 4 and 7
 
@@ -2719,3 +2718,66 @@ Two fixes, one for right now and one for next time:
   once, the way the field's own placeholder suggests, now also becomes
   the flight's name by default - still editable, just no longer a second
   decision nobody was told to make.
+
+## 39. The design/UX review backlog, cleared out in one pass
+
+Asked to work through the design/UX review items (#9, #16, #17, #20,
+#28, #29) rather than one at a time - everything below was "cheap and
+ready", with no open design question blocking it, which is what made
+doing all seven in one sitting reasonable. The three items still blocked
+on a real decision (`/consumed`'s shape, "Drink tonight"'s shape, #9's
+two measurement questions) are untouched; they're recorded where they
+already were, not here.
+
+- **Region implies country** (#17). `lib/regions.js`'s comment-grouped
+  regions became real data (`REGIONS_BY_COUNTRY`, with `countryForRegion`
+  reading it case-insensitively); `BottleForm` fills Country in from a
+  known Region while Country is still blank, and shows a soft "Bordeaux
+  is usually France" note rather than blocking a genuine mismatch. Two
+  groups a human would've kept together got split on the way in -
+  Austria/Hungary out of "Germany", Argentina out of "South America" -
+  since a loose heading isn't the same claim as the data underneath it.
+- **Research's status badges** (#17). `lib/status-look.js` (icon + accent
+  per status) and `StatusBadge.js` (the small pill built from it) replace
+  bare `{bottle.status}` text in Research's two lists and on the bottle
+  page - the "one source rather than three" the finding asked for.
+  Deliberately additive: Scan's and the home page's own existing icon/
+  accent definitions were left alone rather than folded in too, since
+  neither was flagged as wrong and both still work.
+- **One progress bar** (#17). `ProgressBar.js` replaces the near-identical
+  markup Scan and `/estimate-windows` each drew by hand; Research's own
+  bar moved onto it too, with its multi-state coloring and taller, slower
+  animation kept as props rather than smoothed away - a real difference
+  in what that bar means, not drift to erase.
+- **A real "Tasted one" on the cellar row** (#29 finding 3). The expanded
+  row now renders `TastedControls` - the same component, not a second
+  implementation - whenever status is `inventory`; the quantity stepper
+  is relabelled "Correct the count" so it stops reading like the same
+  question.
+- **Research's diff table on narrow screens** (#29 finding 5). Stacked
+  per field (label, then "Now: …" / "Proposed: …") below `sm:`, where the
+  three-column table's own 480px minimum used to leave the "Proposed"
+  column - the actual point of the screen - starting off a phone's
+  ~311px. The table itself is unchanged at `sm:` and up.
+- **The guest heart and sign-in copy** (#29 finding 8). The heart is a
+  real button now (`useTransition`, dimmed and disabled while in flight,
+  a 44px target instead of ~20px) rather than a bare form submit with no
+  feedback at all. Both guest screens - before and after entering a name
+  - now say whose cellar is being browsed and that the owner sees the
+  guest's name next to what they favorite.
+- **Polish** (#29). Desktop `NavLinks.js` reordered to match the phone
+  tab bar's first five exactly, with the three phone-bar-only-via-home-
+  card extras (Wishlist, Flights, Tasting notes) appended after rather
+  than interleaved; `pairings/page.js`'s stale "not in the nav" comment
+  rewritten. `Bought it` moved into `TastedControls` (it was the one
+  status button left as a plain form with no pending state) so a shared
+  `Spinner` now covers all of the bottle page's status buttons. `/research`
+  queue's `Research`/`Dismiss` buttons are real 44px targets; `Dismiss`
+  deliberately stayed unconfirmed, since at that stage no proposal exists
+  yet to lose - `ResearchProposalCard`'s own "Discard this research"
+  already confirms the version of this that does risk something. README's
+  stale "six cards" became eight (plus the export link, not a ninth card)
+  with Pairings and Research added to the counted-card list; both README
+  and `PROJECT.md` had their "pairings are ephemeral, never saved" claims
+  corrected to describe `/pairings` and "Save this pairing", which shipped
+  in #41 and has been true since.

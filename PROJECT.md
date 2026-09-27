@@ -58,8 +58,9 @@ rule them out. Two items originally listed here are since built — see
 - Offline support
 - ~~Saved/browsable tasting flights (a "queue" to pull bottles from later
   to consume and rate)~~ — built as `/flights`, either saved from a
-  `/suggest` result or started by hand. A pairing suggestion is still
-  deliberately ephemeral; a flight is the thing that gets kept.
+  `/suggest` result or started by hand. A pairing suggestion can be kept
+  too now (`/pairings`, via "Save this pairing") - this line used to say
+  only a flight could be, which stopped being true once that shipped.
 
 ## 5. How I want to use it
 

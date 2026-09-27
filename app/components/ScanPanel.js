@@ -18,6 +18,7 @@ import Link from "next/link";
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import Spinner from "@/app/components/Spinner";
+import ProgressBar from "@/app/components/ProgressBar";
 import {
   ScanIcon,
   CellarIcon,
@@ -165,19 +166,7 @@ function BatchProgress({ photos, onDone }) {
           </span>
         )}
       </div>
-      <div
-        className="h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-        role="progressbar"
-        aria-valuenow={done}
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-label="Photos read"
-      >
-        <div
-          className="h-full rounded-full bg-zinc-900 transition-[width] duration-300 dark:bg-zinc-100"
-          style={{ width: `${(done / total) * 100}%` }}
-        />
-      </div>
+      <ProgressBar value={done} max={total} label="Photos read" />
 
       {/* Nothing told a screen reader the batch had finished: the bar's
           aria-valuenow isn't announced, and the visible summary is only
