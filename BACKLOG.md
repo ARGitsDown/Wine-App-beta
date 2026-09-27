@@ -3014,3 +3014,45 @@ measured and tuned it to, not a fresh problem.
 
 `app/(owner)/bottles/[id]/page.js`, `lib/research-fields.js`,
 `app/actions.js`.
+
+## 44. "Name your Domaine"
+
+The first real touchpoint for the "Domaine"/"Cellarmaster" nomenclature
+FUTURE_CAPABILITIES.md settled on - the estate's own name (e.g. "Rucker
+Family Cellar"), as distinct from the person's own `name`. `User` gains
+`domaineName String?` (nullable - naming an estate is optional, and every
+existing row predates this), settable from a new section at the top of
+`/invites` via `setDomaineName` (`app/(owner)/invites/actions.js`), always
+writing the signed-in account's own row via `currentOwnerId()` rather
+than taking an id - there's nothing here for one account to point at
+another's row with, unlike the invite-door actions beside it which
+already act globally because the door itself is shared. Blank clears it
+back to unset rather than storing an empty string.
+
+Shown on the Guest sign-in and landing screens
+(`app/(guest)/guest/page.js`), which previously always said "browsing
+{owner name}'s cellar" - now "browsing {Domaine name}" when one is set,
+falling back to the exact previous wording otherwise. Deliberately kept
+separate from who sees a guest's favorites: that sentence still names the
+actual person, since an estate name can't see anything - only "whose
+cellar is this" reads the Domaine name, not "who will see your pick."
+
+Also shown per-row in `/invites`' own Accounts list, since - per the
+original "Separate cellars per user" decision, "fully separate cellars...
+no household/shared-bottle concept" - every account is already its own
+fully separate estate today, so two rows there can correctly carry two
+different Domaine names.
+
+Schema comment on `User.domaineName` records why this lives on `User`
+rather than a real `Domaine` table (which doesn't exist yet - see
+FUTURE_CAPABILITIES.md): every User's cellar is already its own Domaine of
+one Cellarmaster as built, so a per-User column is correct for what
+exists today, with the column needing to move to a real `Domaine` table
+if Shared Cellars is ever built - the same kind of staged migration
+`ownerId` itself already went through.
+
+Verified with lint, a production build, and a local Postgres instance
+(no live database in this sandbox otherwise): the field saves and
+survives redisplay on `/invites`, and both guest screens correctly pick
+up the new name while keeping the person's own name for who sees a
+favorite.

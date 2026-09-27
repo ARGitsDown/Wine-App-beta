@@ -42,6 +42,23 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  // The estate's own name, as distinct from the person's (`name` above) -
+  // "Rucker Family Cellar," not "Andrew." Nullable: not every Cellarmaster
+  // bothers naming their estate, and a blank one falls back to the
+  // person's own name wherever this is shown (see ownerDisplayName in
+  // app/(guest)/guest/page.js).
+  //
+  // Lives on User rather than a real `Domaine` table because there isn't
+  // one yet - see FUTURE_CAPABILITIES.md's "Shared cellars, a.k.a.
+  // 'Domaine'" entry. Today, every User's cellar is already its own fully
+  // separate Domaine of one Cellarmaster (the original "Separate cellars
+  // per user" decision: "Fully separate cellars... No household/shared-
+  // bottle concept"), so naming it per-User is correct as built. If
+  // Shared Cellars is ever built, multiple Users would belong to one
+  // Domaine and share one name - this column would need to move there,
+  // the same kind of migration `ownerId` itself is already staged for in
+  // that entry.
+  domaineName   String?
   createdAt     DateTime  @default(now())
 
   // The three ownership roots. Everything else in this schema inherits its

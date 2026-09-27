@@ -14,10 +14,20 @@ const inputClass =
 // The name on the invite, in the owner's own words - a display name if
 // Google or the profile provided one, their email otherwise, and only
 // "the owner" if somehow neither exists (a row from before either was
-// required). Never null: both screens below use this to say whose cellar
-// is being browsed, and "browsing 's cellar" is worse than a generic noun.
+// required). Never null: used below for "who will see your favorites,"
+// which has to name the actual person - a Domaine name (below) can't see
+// anything.
 function ownerDisplayName(owner) {
   return owner?.name || owner?.email || "the owner";
+}
+
+// What to call the cellar itself. The estate's own name if one was set
+// (see the schema comment on User.domaineName) - already reads as a
+// place, so it stands alone rather than taking a possessive - falling
+// back to the person's own name otherwise, exactly as before this
+// existed.
+function cellarDisplayName(owner) {
+  return owner?.domaineName || `${ownerDisplayName(owner)}'s cellar`;
 }
 
 export default async function GuestPage({ searchParams }) {
@@ -27,9 +37,13 @@ export default async function GuestPage({ searchParams }) {
     // finding 8: the sign-in screen never said whose cellar this was, or
     // that picks are visible to them) - so this is fetched unconditionally
     // rather than only once a guest exists.
-    prisma.user.findFirst({ orderBy: { createdAt: "asc" }, select: { name: true, email: true } }),
+    prisma.user.findFirst({
+      orderBy: { createdAt: "asc" },
+      select: { name: true, email: true, domaineName: true },
+    }),
   ]);
   const ownerName = ownerDisplayName(owner);
+  const cellarName = cellarDisplayName(owner);
 
   if (!guest) {
     return (
@@ -37,9 +51,9 @@ export default async function GuestPage({ searchParams }) {
         <div>
           <h1 className="text-2xl font-semibold">Who&apos;s visiting?</h1>
           <p className="text-sm text-zinc-500">
-            You&apos;re browsing {ownerName}&apos;s cellar. Enter your name
-            to favorite anything you&apos;d like pulled for your next visit
-            — {ownerName} will see your name next to what you pick.
+            You&apos;re browsing {cellarName}. Enter your name to favorite
+            anything you&apos;d like pulled for your next visit —{" "}
+            {ownerName} will see your name next to what you pick.
           </p>
         </div>
         <form action={enterAsGuest} className="flex flex-col gap-3">
@@ -85,9 +99,9 @@ export default async function GuestPage({ searchParams }) {
         <div>
           <h1 className="text-2xl font-semibold">Hi, {guest.name}</h1>
           <p className="text-sm text-zinc-500">
-            Browsing {ownerName}&apos;s cellar. Favorite anything
-            you&apos;d like pulled for your next visit — {ownerName} can see
-            your name next to what you favorite.
+            Browsing {cellarName}. Favorite anything you&apos;d like pulled
+            for your next visit — {ownerName} can see your name next to
+            what you favorite.
           </p>
         </div>
         <form action={switchGuest}>

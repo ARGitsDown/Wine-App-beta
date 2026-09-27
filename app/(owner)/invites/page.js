@@ -1,22 +1,30 @@
 import { prisma } from "@/lib/prisma";
 import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
-import { revokeInvite } from "@/app/(owner)/invites/actions";
+import { currentOwnerId } from "@/lib/owner";
+import { revokeInvite, setDomaineName } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import BackButton from "@/app/components/BackButton";
 
 export const dynamic = "force-dynamic";
 
+const inputClass =
+  "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+const buttonClass =
+  "self-start rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
+
 function when(date) {
   return new Date(date).toLocaleDateString();
 }
 
 export default async function InvitesPage() {
-  const [invites, users] = await Promise.all([
+  const ownerId = await currentOwnerId();
+  const [me, invites, users] = await Promise.all([
+    prisma.user.findUnique({ where: { id: ownerId }, select: { domaineName: true } }),
     prisma.invite.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.user.findMany({
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, email: true, createdAt: true },
+      select: { id: true, name: true, email: true, domaineName: true, createdAt: true },
     }),
   ]);
 
@@ -24,8 +32,36 @@ export default async function InvitesPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
       <BackButton fallbackHref="/" />
 
+      {/* Your own setting, not an admin one - unlike everything else on
+          this page, which is about who else can get in. Above that
+          content rather than mixed into it, so the two don't read as one
+          category of thing. */}
+      <section className="flex flex-col gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Name your Domaine</h1>
+          <p className="text-sm text-zinc-500">
+            The estate&apos;s own name - distinct from your own name, which
+            still shows wherever this app says who you are. Blank uses
+            your name instead, wherever this would otherwise appear (right
+            now, just the guest sign-in screen).
+          </p>
+        </div>
+        <form action={setDomaineName} className="flex flex-wrap items-center gap-2">
+          <input
+            name="domaineName"
+            defaultValue={me?.domaineName ?? ""}
+            placeholder="e.g. Rucker Family Cellar"
+            maxLength={120}
+            className={`${inputClass} w-full max-w-xs`}
+          />
+          <button type="submit" className={buttonClass}>
+            Save
+          </button>
+        </form>
+      </section>
+
       <div>
-        <h1 className="text-2xl font-semibold">Who can sign in</h1>
+        <h2 className="font-medium">Who can sign in</h2>
         <p className="text-sm text-zinc-500">
           This cellar is invite-only. An address has to be on this list
           before it can sign in, whether with Google or by email link —
@@ -118,6 +154,14 @@ export default async function InvitesPage() {
                 {" — "}
                 {user.email || "not claimed yet"}
               </span>
+              {/* Each account is already its own fully separate cellar
+                  today (see the "Separate cellars per user" decision in
+                  FUTURE_CAPABILITIES.md), so this is that account's own
+                  estate name, not a shared one - two rows here can carry
+                  two different Domaine names, correctly. */}
+              {user.domaineName && (
+                <span className="block text-xs text-zinc-400">{user.domaineName}</span>
+              )}
             </li>
           ))}
         </ul>
