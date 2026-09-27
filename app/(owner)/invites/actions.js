@@ -55,7 +55,7 @@ export async function revokeInvite(id) {
 // shared, global thing. Blank clears a field back to unset rather than
 // leaving an empty string on file, which would render identically but
 // read as "set to nothing" instead of "never set."
-export async function setDomaineDetails(formData) {
+export async function setDomaineDetails(prevState, formData) {
   const name = String(formData.get("domaineName") || "").trim();
   const motto = String(formData.get("domaineMotto") || "").trim();
   const ownerId = await currentOwnerId();
@@ -65,4 +65,5 @@ export async function setDomaineDetails(formData) {
   });
   revalidatePath("/invites");
   revalidatePath("/guest");
+  return { success: true };
 }

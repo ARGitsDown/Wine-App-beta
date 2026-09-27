@@ -3073,3 +3073,19 @@ Verified with lint, a production build, and the same local-Postgres round
 trip #44 used: both fields save together, and the guest sign-in and
 landing screens correctly render "browsing Rucker Family Cellar —
 'Life's too short for bad wine'" with the motto italicized and quoted.
+
+## 46. "✓ Saved" on the Domaine form
+
+The plain `<form action={setDomaineDetails}>` from #44/#45 had no way to
+say a save worked short of a full page reload - the same gap `InviteForm`
+(this page's own sibling form) already solved. `setDomaineDetails` gained
+the `(prevState, formData)` signature `useActionState` needs and now
+returns `{ success: true }`; a new `DomaineDetailsForm.js` client
+component wraps it, matching `InviteForm.js`'s exact shape - a disabled/
+"Saving…" button while pending, a green `role="status"` "✓ Saved" line
+once it resolves. No fade-out timer, deliberately: `InviteForm`'s own
+confirmation doesn't get one either, so this stays consistent with the
+one other form on this page rather than picking its own convention.
+
+Verified with lint, a production build, and the same local-Postgres round
+trip: both fields save and "✓ Saved" appears immediately after.

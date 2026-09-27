@@ -1,17 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
 import { currentOwnerId } from "@/lib/owner";
-import { revokeInvite, setDomaineDetails } from "@/app/(owner)/invites/actions";
+import { revokeInvite } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
+import DomaineDetailsForm from "@/app/components/DomaineDetailsForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import BackButton from "@/app/components/BackButton";
 
 export const dynamic = "force-dynamic";
-
-const inputClass =
-  "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
-const buttonClass =
-  "self-start rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
 
 function when(date) {
   return new Date(date).toLocaleDateString();
@@ -57,25 +53,7 @@ export default async function InvitesPage() {
             alongside the name, never on its own.
           </p>
         </div>
-        <form action={setDomaineDetails} className="flex flex-col items-start gap-2">
-          <input
-            name="domaineName"
-            defaultValue={me?.domaineName ?? ""}
-            placeholder="e.g. Rucker Family Cellar"
-            maxLength={120}
-            className={`${inputClass} w-full max-w-xs`}
-          />
-          <input
-            name="domaineMotto"
-            defaultValue={me?.domaineMotto ?? ""}
-            placeholder="A motto (optional) - e.g. Life's too short for bad wine"
-            maxLength={200}
-            className={`${inputClass} w-full max-w-xs`}
-          />
-          <button type="submit" className={buttonClass}>
-            Save
-          </button>
-        </form>
+        <DomaineDetailsForm domaineName={me?.domaineName} domaineMotto={me?.domaineMotto} />
       </section>
 
       <div>
