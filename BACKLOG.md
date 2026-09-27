@@ -3143,3 +3143,16 @@ Full write-up, verification and what's still open: FUTURE_CAPABILITIES.md,
 `app/(owner)/layout.js`, `app/(owner)/invites/`, `app/(owner)/export/route.js`,
 `app/(owner)/research/page.js`, the four other owner list/detail pages,
 `app/(guest)/guest/page.js`, `app/components/InviteForm.js`.
+
+## 49. Change a member's role, or remove them
+
+On `/invites`' Members list: "Make Guest"/"Make Cellarmaster" and
+"Remove" on every row but your own, each behind a confirm that says what
+will happen (`ConfirmButton` gained a neutral `tone` for the role change,
+which isn't destructive). `changeMemberRole` and `removeMember` in
+`app/(owner)/invites/actions.js` are scoped to your own Domaine and
+exclude you in the query itself - so a Domaine can never lose its last
+Cellarmaster. Removal deletes the account and its invite together, so
+the person is signed out at once and can't simply sign back in; what
+they added stays in the cellar. Details and verification:
+FUTURE_CAPABILITIES.md, "Shared cellars", Phase 1.

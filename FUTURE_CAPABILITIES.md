@@ -614,9 +614,22 @@ empty Domaine; the pre-existing second account stayed separate. `npm run
 verify` clean with accounts on and off, and the full migration chain
 matches the schema from an empty database.
 
-**Still open:** changing an existing member's role, or removing a member
-(both need a hand on the database today - the Members list is
-read-only); inviting an address that already has an account into a
+**Changing a role and removing a member - done 2026-09-28**, same day, on
+the Members list. Both only reach members of your own Domaine and never
+your own row (enforced in the query, not just by the missing button),
+which is also what guarantees a Domaine always keeps a Cellarmaster: the
+person acting. A role change takes effect on the member's next request
+and keeps their invite's `access` in step, so the Invited list stays
+truthful. Removing someone deletes their account (one Domaine per User,
+so there's nowhere else for it to go) together with their invite in one
+transaction - otherwise their next sign-in would recreate the account -
+which also drops their sessions, so they're signed out immediately.
+What they added stays; its `ownerId` clears. Verified end to end:
+demote -> bounced to `/guest` on their next request, promote -> back in,
+remove -> account/invite/sessions/Guest row gone and a fresh sign-in
+refused, and a removed Cellarmaster's flight still in the cellar.
+
+**Still open:** inviting an address that already has an account into a
 different Domaine (it would need to leave its own - one Domaine per
 User); and the anonymous `/guest` link is still the original cellar's
 only, not per-Domaine (Phase 4 in "Separate cellars per user").

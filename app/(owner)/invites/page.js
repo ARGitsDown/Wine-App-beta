@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
 import { currentCellarmaster } from "@/lib/owner";
 import { inviteAccessLabel } from "@/lib/invite-access";
-import { revokeInvite } from "@/app/(owner)/invites/actions";
+import { changeMemberRole, removeMember, revokeInvite } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
 import DomaineDetailsForm from "@/app/components/DomaineDetailsForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
@@ -131,7 +131,7 @@ export default async function InvitesPage() {
                     confirmLabel="Yes, revoke"
                     warning={
                       invite.acceptedAt
-                        ? `${invite.email} can't sign in again after this. They keep any session they already have until it expires or they sign out${invite.access === "separate" ? ", and their own cellar is untouched." : "."}`
+                        ? `${invite.email} can't sign in again after this. They keep any session they already have until it expires or they sign out${invite.access === "separate" ? ", and their own cellar is untouched." : " - to take their access away now, remove them under Members."}`
                         : `${invite.email} won't be able to sign in.`
                     }
                     className="shrink-0 rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400"
@@ -145,39 +145,69 @@ export default async function InvitesPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="font-medium">Members</h2>
-        {/* Deliberately read-only. Removing a member is safe for the
-            cellar itself (it belongs to the Domaine; see Bottle.ownerId),
-            but a button that deletes a person's account belongs behind
-            more thought than a list row. Revoking an invite is the
-            reversible action. Only this Domaine's own members: a
-            separately-invited account has its own Domaine and its own
-            list. */}
+        {/* Only this Domaine's own members: a separately-invited account
+            has its own Domaine and its own list. Your own row has no
+            controls - changeMemberRole and removeMember refuse it too -
+            which is what guarantees a Domaine always keeps at least one
+            Cellarmaster: the person pressing the button. */}
         <ul className="flex flex-col gap-1.5">
-          {members.map((member) => (
-            <li
-              key={member.id}
-              className="flex flex-wrap items-baseline justify-between gap-x-2 rounded-lg border border-zinc-200 px-4 py-2.5 text-sm dark:border-zinc-800"
-            >
-              <span className="min-w-0">
-                {/* Their own name if they have one, else their address -
-                    never a stand-in like "Cellar owner", which in a
-                    shared Domaine would label every unnamed member as
-                    the owner. The seeded row before anyone claims it has
-                    neither. */}
-                <span className="font-medium">
-                  {member.name || member.email || "Not claimed yet"}
-                  {member.id === myId && " (you)"}
-                </span>
-                {member.name && member.email && (
-                  <span className="text-zinc-500">
-                    {" — "}
-                    {member.email}
+          {members.map((member) => {
+            const who = member.name || member.email || "Not claimed yet";
+            const isMe = member.id === myId;
+            const nextRole = member.role === "cellarmaster" ? "guest" : "cellarmaster";
+            return (
+              <li
+                key={member.id}
+                className="flex flex-col gap-2 rounded-lg border border-zinc-200 px-4 py-2.5 text-sm dark:border-zinc-800"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                  <span className="min-w-0">
+                    {/* Their own name if they have one, else their address -
+                        never a stand-in like "Cellar owner", which in a
+                        shared Domaine would label every unnamed member as
+                        the owner. The seeded row before anyone claims it
+                        has neither. */}
+                    <span className="font-medium">
+                      {who}
+                      {isMe && " (you)"}
+                    </span>
+                    {member.name && member.email && (
+                      <span className="text-zinc-500">
+                        {" — "}
+                        {member.email}
+                      </span>
+                    )}
                   </span>
+                  <span className="text-xs text-zinc-500">
+                    {ROLE_LABELS[member.role] ?? member.role}
+                  </span>
+                </div>
+                {!isMe && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ConfirmButton
+                      action={changeMemberRole.bind(null, member.id, nextRole)}
+                      label={`Make ${ROLE_LABELS[nextRole]}`}
+                      confirmLabel={`Yes, make ${ROLE_LABELS[nextRole]}`}
+                      tone="neutral"
+                      warning={
+                        nextRole === "guest"
+                          ? `${who} will only be able to browse and favorite - no adding, editing, scanning or Suggest. Takes effect on their next tap.`
+                          : `${who} will be able to add, edit and delete anything in this cellar, and invite or remove people.`
+                      }
+                      className="min-h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+                    />
+                    <ConfirmButton
+                      action={removeMember.bind(null, member.id)}
+                      label="Remove"
+                      confirmLabel="Yes, remove"
+                      warning={`${who}'s account is deleted and they're signed out. Everything they added stays in the cellar. They can only come back if invited again.`}
+                      className="min-h-11 rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400"
+                    />
+                  </div>
                 )}
-              </span>
-              <span className="text-xs text-zinc-500">{ROLE_LABELS[member.role] ?? member.role}</span>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       </section>
     </div>

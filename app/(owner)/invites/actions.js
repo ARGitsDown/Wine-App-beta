@@ -6,11 +6,11 @@ import { normalizeEmail } from "@/lib/invite-policy";
 import { INVITE_ACCESS_VALUES } from "@/lib/invite-access";
 import { currentCellarmaster, currentDomaineId } from "@/lib/owner";
 
-// The invite list is the whole of "invite-only", so two of these actions
-// are the only way into this app and the only way to close it again; the
-// third (setDomaineDetails) is unrelated to the door but is the other
-// thing this page is for - account-level, not wine, which is why all
-// three are kept beside the page they serve rather than in
+// The invite list is the whole of "invite-only", so inviteSomeone and
+// revokeInvite are the only way into this app and the only way to close
+// it again; changeMemberRole and removeMember manage who is already
+// inside; setDomaineDetails names the place. All account-level, not wine,
+// which is why they're kept beside the page they serve rather than in
 // app/actions.js.
 
 export async function inviteSomeone(prevState, formData) {
@@ -61,6 +61,79 @@ export async function revokeInvite(id) {
       ...(mine?.email ? { NOT: { email: mine.email } } : {}),
     },
   });
+  revalidatePath("/invites");
+}
+
+// The two roles a member can hold - see User.role in prisma/schema.prisma.
+const MEMBER_ROLES = new Set(["cellarmaster", "guest"]);
+
+// Both member actions below share two rules, enforced in the query itself
+// rather than checked first and trusted after:
+//   - Only a member of your own Domaine. The id arrives as plain data a
+//     caller controls, and every Domaine's Cellarmasters can reach these.
+//   - Never yourself. Which also means a Domaine can never be left with no
+//     Cellarmaster at all: whoever is acting is one, and stays one. The
+//     page doesn't offer either on your own row; this is what makes that
+//     more than a missing button.
+
+// Makes a member a Cellarmaster or a Guest. Takes effect on their very
+// next request - database sessions re-read the User row every time (see
+// the session callback in lib/auth.js) - so a new Guest is on /guest the
+// next time they tap anything, and lib/scoped-prisma.js refuses them in
+// the meantime. Their invite's access is kept in step, so the Invited
+// list keeps saying what that person actually has, not what they had on
+// day one. Their favorites identity (a Guest row) survives either way.
+export async function changeMemberRole(memberId, role) {
+  if (!MEMBER_ROLES.has(role)) return;
+  const me = await currentCellarmaster();
+  const member = await prisma.user.findFirst({
+    where: { id: memberId, domaineId: me.domaineId, NOT: { id: me.id } },
+    select: { id: true, email: true },
+  });
+  if (!member) return;
+
+  await prisma.$transaction([
+    prisma.user.updateMany({
+      where: { id: member.id, domaineId: me.domaineId, NOT: { id: me.id } },
+      data: { role },
+    }),
+    ...(member.email
+      ? [
+          prisma.invite.updateMany({
+            where: { email: member.email, domaineId: me.domaineId },
+            data: { access: role },
+          }),
+        ]
+      : []),
+  ]);
+  revalidatePath("/invites");
+}
+
+// Removes a member from the Domaine - which, with one Domaine per User,
+// means deleting their account. Their sessions go with it (cascade), so
+// they're signed out on their next request rather than whenever a
+// session would have expired; their invite goes too, in the same
+// transaction, or their next sign-in would simply recreate the account
+// and walk them back in. What they added to the cellar stays: it belongs
+// to the Domaine, and only its "added by" (ownerId) is cleared - see
+// Bottle.ownerId. Their own favorites, as a Guest, go with them.
+// Re-inviting the same address later works like any new invite.
+export async function removeMember(memberId) {
+  const me = await currentCellarmaster();
+  const member = await prisma.user.findFirst({
+    where: { id: memberId, domaineId: me.domaineId, NOT: { id: me.id } },
+    select: { id: true, email: true },
+  });
+  if (!member) return;
+
+  await prisma.$transaction([
+    ...(member.email
+      ? [prisma.invite.deleteMany({ where: { email: member.email, domaineId: me.domaineId } })]
+      : []),
+    prisma.user.deleteMany({
+      where: { id: member.id, domaineId: me.domaineId, NOT: { id: me.id } },
+    }),
+  ]);
   revalidatePath("/invites");
 }
 
