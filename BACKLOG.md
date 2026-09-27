@@ -2942,16 +2942,22 @@ tasting note →" link. The home Pairings card links straight to the one
 pairing when exactly one is planned for tonight, rather than to the
 whole list.
 
-**Left open, on purpose:** the review's closing "tradeoff" section (not
-one of its numbered findings) - whether a wine scanned under Flight
-should start already tasted rather than left-to-taste, for the workflow
-where wines are scanned *as* they're poured rather than from a sheet
-beforehand - is explicitly an owner call, not an engineering one, and
-nothing here builds toward either answer. Also not touched: Suggest's own
-"a flight is a queue of bottles you can open" line, which the review
-flagged as dated wording but which is still literally true in the one
-context it appears (a gap pick with no `Bottle` row at all, genuinely
-distinct from a flight-only bottle that has one).
+**The review's closing "tradeoff" (not one of its numbered findings),
+put to the owner directly:** whether a wine scanned under Flight should
+start already tasted rather than left-to-taste, for the workflow where
+wines are scanned *as* they're poured rather than from a sheet
+beforehand. **Decided: leave it as-is** - left-to-taste stays the
+default, on the reasoning that a tasting sheet scanned ahead of pouring
+(the flight becomes the evening's checklist) is the more common shape,
+and nothing here builds toward the other case. Revisit if scanning wines
+one at a time as they're poured turns out to be the more common real
+pattern.
+
+Also not touched: Suggest's own "a flight is a queue of bottles you can
+open" line, which the review flagged as dated wording but which is still
+literally true in the one context it appears (a gap pick with no
+`Bottle` row at all, genuinely distinct from a flight-only bottle that
+has one).
 
 `app/components/FlightLinkPanel.js`, `OrphanedFlightBottles.js`,
 `TonightToggle.js`, `app/(owner)/flights/page.js`,
