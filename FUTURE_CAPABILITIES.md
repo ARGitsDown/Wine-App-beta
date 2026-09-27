@@ -293,3 +293,52 @@ unit, a second house). Much smaller than separate cellars per user — a
 needed, since it's still one person's data. Genuinely easier once
 ownership exists, and independent of it, so it isn't bundled into the
 phases above.
+
+Reiterated by the owner 2026-09-27, alongside the shared-cellars ask
+below - explicitly the smaller and more independent of the two. Nothing
+about the scoping above has changed since it was first written; still
+just a column and a filter.
+
+## Shared cellars — multiple users per cellar, with roles — raised 2026-09-27
+
+Reopens a call this file made explicit above, in "Separate cellars per
+user": *"Fully separate cellars... No household/shared-bottle concept."*
+The owner now wants the opposite alongside it, not instead of it - framed
+broadly, "Cellar" standing in for the app as a whole rather than one
+specific list: several people with real accounts sharing access to the
+*same* cellar, rather than each account only ever seeing its own. Two
+roles were named, not one:
+
+- **Full access ("managers")** - add, edit, scan, delete, run Suggest and
+  Research, the works. Today's single owner, just more than one of them
+  per cellar.
+- **Guest-like** - browsing and favoriting, no editing. This already
+  exists in spirit as the anonymous, cookie-based Guest feature at
+  `/guest` (see `README.md`); what would be new is tying that same
+  restricted view to a real invited account instead of a typed name, so
+  it survives across devices and doesn't depend on a shared link.
+
+**Why this doesn't fit today's ownership model as built.** Phases 0-2
+above gave every ownership root - `Bottle`, `TastingFlight`,
+`SavedPairing` - a single `ownerId: String` pointing straight at `User`,
+and `lib/scoped-prisma.js` filters every query on that one column. That
+design assumes one cellar has exactly one owner, because that was exactly
+what it was asked to assume at the time. Several owners of the same
+cellar needs a level of indirection that isn't there: something like a
+`Cellar` entity that a `User` belongs to (possibly more than one, with a
+role per membership - a `CellarMembership(userId, cellarId, role)` join
+row), with `ownerId` on the three roots becoming `cellarId` rather than
+pointing at a person directly. Not a small migration - every one of the
+~100 scoped call sites inherits its correctness from `ownerId` meaning
+"this exact person," and that assumption would need re-examining wherever
+a role check (full access vs. guest-like) has to gate a *write*, not just
+filter a *read*. The invite list (`Invite`, flat and global today - see
+"Decided with the owner" point 1 above) would likely need to become
+per-cellar too, which is its own small design question.
+
+**Not scoped beyond this.** Logged because the owner asked for it to be
+on record, not because a plan exists yet. Open questions worth settling
+before this is picked up: how invites map to cellar membership (one
+global list, or per cellar); whether a person can belong to more than one
+cellar; and whether the guest role reuses `/guest`'s existing anonymous
+UI as-is or gets a real, restricted, account-based sign-in instead.
