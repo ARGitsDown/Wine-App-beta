@@ -274,15 +274,35 @@ export default async function BottleDetailPage({ params, searchParams }) {
         )}
       </div>
 
+      {/* Closed by default, matching the same fix Scan cards already got
+          (BACKLOG #16 - "every card was a full 14-field form"): this page
+          is reached from everywhere else in the app (Research, a flight
+          pick, a pairing), so every one of those visits used to open
+          straight onto all 14 fields before the thing you actually came
+          for - a note, the drinking window, a quick status change, all of
+          which are already visible above this section. A visual UX review
+          (2026-09-27) caught this by actually rendering the page, not by
+          reading the JSX: the form is exactly as functional read as a flat
+          list of inputs, but looks nothing like it once it's several
+          thousand pixels tall on a phone. */}
       <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <h2 className="mb-3 font-medium">Details</h2>
-        <BottleForm
-          action={updateBottle.bind(null, bottle.id)}
-          defaultValues={bottle}
-          submitLabel="Save changes"
-          regionOptions={regionOptions}
-          idPrefix="bottle-details"
-        />
+        <details className="group">
+          <summary className="-mx-1 -my-1 flex cursor-pointer list-none items-center gap-1.5 rounded px-1 py-1 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100">
+            <span className="inline-block text-zinc-400 transition-transform group-open:rotate-90">
+              &#9656;
+            </span>
+            Details
+          </summary>
+          <div className="mt-3">
+            <BottleForm
+              action={updateBottle.bind(null, bottle.id)}
+              defaultValues={bottle}
+              submitLabel="Save changes"
+              regionOptions={regionOptions}
+              idPrefix="bottle-details"
+            />
+          </div>
+        </details>
       </section>
 
       {/* Right beside Details rather than at the foot of the page, past

@@ -2964,3 +2964,53 @@ has one).
 `app/(owner)/bottles/[id]/page.js`, `app/(owner)/page.js`,
 `app/(owner)/pairings/page.js`, `app/(owner)/pairings/[id]/page.js`,
 `lib/pairings.js`, `app/actions.js`.
+
+## 43. A visual pass caught what code review couldn't - and a real data-loss bug behind it
+
+`ux-critic` reads JSX and Tailwind classes; it never renders the app. Asked
+whether that leaves a gap for design simplicity specifically, the answer
+was yes - so this stood up a local Postgres, seeded a realistic ~23-bottle
+cellar (every status, two flights, two pairings, a research proposal), and
+screenshotted all 14 screens at 375px with a real browser. Most of the app
+held up well. Two things didn't.
+
+**The bottle detail page opened onto a permanently-expanded 14-field
+form**, every single visit, before Tasting notes, Photos or Research -
+regardless of whether the reason for being there was to check a drinking
+window (already visible above, in the header) or add a two-second note.
+This is the exact defect BACKLOG #16 diagnosed and fixed on Scan cards
+("every card was a full 14-field form"); that fix never reached the one
+page every other screen in the app actually links to. Fixed the same way:
+`Details` is a `<details>` disclosure now, closed by default, with the
+same disclosure-triangle affordance Scan's own "Edit details" uses.
+Nothing above it changes - status, drinking window, and the Tasted/Delete/
+Add-to-a-tasting buttons were already there.
+
+**The Research diff table's rendering revealed a genuine data-loss bug in
+the accept path, not just a display glitch.** Seeding a proposal with only
+3 of 12 fields (an incomplete fixture, not realistic production data) made
+`researchChanges()` (`lib/research-fields.js`) show all 9 untouched fields
+as being wiped to "not set" - because it read a field *missing* from the
+proposal's JSON the same as one explicitly proposed as blank. Chasing why
+led to `applyResearchProposal` in `app/actions.js`, which does the
+identical thing on write: `data[key] = proposal.proposed[key] ?? null`
+for every `RESEARCH_FIELDS` key, whether or not the proposal actually has
+an opinion on it. Today `RESEARCH_TOOL`'s schema is `strict: true` with
+every field `required`, so this can't currently happen - but the code was
+one schema change or model hiccup away from silently blanking real bottle
+data on an "Accept" click, and the diff table would have shown exactly
+this scenario as normal before you ever clicked it. Both fixed the same
+way: a field absent from `proposed` now means "no opinion", not "propose
+clearing it" - `key in proposed`, not just truthiness. Verified by
+re-seeding the same incomplete proposal against the fix: the diff table
+correctly showed 1 real change (the field that actually differed) instead
+of 9 phantom ones, and accepting it left the other 8 fields' real values
+untouched in the database.
+
+Also verified, not touched: the Scan destination tiles, the Drink Tonight
+badge/toggle, and the Cellar list's control stack were all already correct
+- the last of those confirmed to be at the exact height BACKLOG #17
+measured and tuned it to, not a fresh problem.
+
+`app/(owner)/bottles/[id]/page.js`, `lib/research-fields.js`,
+`app/actions.js`.

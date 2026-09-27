@@ -1884,11 +1884,23 @@ export async function applyResearchProposal(id) {
 
   // Only the fields research is allowed to touch, taken from the shared
   // list rather than spreading the Json blob straight into an update -
-  // which would let an unexpected key through into the bottle row.
+  // which would let an unexpected key through into the bottle row. Only
+  // keys the proposal actually has an opinion on, too: RESEARCH_TOOL's
+  // schema is `strict: true` with every one of these `required`, so a key
+  // should never actually be missing - but defaulting an absent key to
+  // `null` here would mean the one time that assumption breaks, accepting
+  // a proposal silently blanks out real data rather than just leaving it
+  // alone (a visual UX review, 2026-09-27, caught the same gap in the
+  // diff display - see the comment on researchChanges).
   const data = {};
   for (const { key } of RESEARCH_FIELDS) {
-    data[key] = proposal.proposed[key] ?? null;
+    if (key in proposal.proposed) {
+      data[key] = proposal.proposed[key] ?? null;
+    }
   }
+  // Same reasoning for the estimated flag - it only means something once
+  // the proposal has actually addressed the window, one way or the other.
+  const proposesWindow = "drinkFrom" in proposal.proposed || "drinkTo" in proposal.proposed;
 
   // Both or neither: a bottle updated but with its proposal still pending
   // would come straight back into the review queue claiming changes that
@@ -1901,7 +1913,9 @@ export async function applyResearchProposal(id) {
         // The proposal already says whether its window was sourced or
         // judged, so carry that. Running it through the human-edit rule
         // instead would read "accepted a guess" as "confirmed a guess".
-        drinkWindowEstimated: windowEstimatedFromProposal(data, proposal),
+        ...(proposesWindow
+          ? { drinkWindowEstimated: windowEstimatedFromProposal(data, proposal) }
+          : {}),
         needsResearch: false,
       },
     }),
