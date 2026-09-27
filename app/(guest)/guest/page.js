@@ -30,6 +30,13 @@ function cellarDisplayName(owner) {
   return owner?.domaineName || `${ownerDisplayName(owner)}'s cellar`;
 }
 
+// The estate's tagline, if one was set - shown after cellarDisplayName
+// wherever that appears, in the owner's own words, never manufactured
+// when absent.
+function cellarMotto(owner) {
+  return owner?.domaineMotto || null;
+}
+
 export default async function GuestPage({ searchParams }) {
   const [guest, owner] = await Promise.all([
     getCurrentGuest(),
@@ -39,11 +46,12 @@ export default async function GuestPage({ searchParams }) {
     // rather than only once a guest exists.
     prisma.user.findFirst({
       orderBy: { createdAt: "asc" },
-      select: { name: true, email: true, domaineName: true },
+      select: { name: true, email: true, domaineName: true, domaineMotto: true },
     }),
   ]);
   const ownerName = ownerDisplayName(owner);
   const cellarName = cellarDisplayName(owner);
+  const motto = cellarMotto(owner);
 
   if (!guest) {
     return (
@@ -51,9 +59,16 @@ export default async function GuestPage({ searchParams }) {
         <div>
           <h1 className="text-2xl font-semibold">Who&apos;s visiting?</h1>
           <p className="text-sm text-zinc-500">
-            You&apos;re browsing {cellarName}. Enter your name to favorite
-            anything you&apos;d like pulled for your next visit —{" "}
-            {ownerName} will see your name next to what you pick.
+            You&apos;re browsing {cellarName}
+            {motto && (
+              <>
+                {" "}
+                — <em>&ldquo;{motto}&rdquo;</em>
+              </>
+            )}
+            . Enter your name to favorite anything you&apos;d like pulled
+            for your next visit — {ownerName} will see your name next to
+            what you pick.
           </p>
         </div>
         <form action={enterAsGuest} className="flex flex-col gap-3">
@@ -99,9 +114,15 @@ export default async function GuestPage({ searchParams }) {
         <div>
           <h1 className="text-2xl font-semibold">Hi, {guest.name}</h1>
           <p className="text-sm text-zinc-500">
-            Browsing {cellarName}. Favorite anything you&apos;d like pulled
-            for your next visit — {ownerName} can see your name next to
-            what you favorite.
+            Browsing {cellarName}
+            {motto && (
+              <>
+                {" "}
+                — <em>&ldquo;{motto}&rdquo;</em>
+              </>
+            )}
+            . Favorite anything you&apos;d like pulled for your next visit
+            — {ownerName} can see your name next to what you favorite.
           </p>
         </div>
         <form action={switchGuest}>

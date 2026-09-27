@@ -3056,3 +3056,20 @@ Verified with lint, a production build, and a local Postgres instance
 survives redisplay on `/invites`, and both guest screens correctly pick
 up the new name while keeping the person's own name for who sees a
 favorite.
+
+## 45. A motto for your Domaine
+
+`User.domaineMotto` (nullable String, same reasoning as `domaineName` in
+#44) joins the same form on `/invites` rather than getting a second one -
+`setDomaineName` renamed to `setDomaineDetails` since one form now saves
+two fields together, still writing only the signed-in account's own row.
+Shown wherever the Domaine name already is (both Guest screens, and
+`/invites`' own Accounts list), always alongside the name and never on
+its own - a tagline with nothing to sit under wouldn't mean anything, so
+the page's own copy says so and the Accounts list only ever renders the
+motto nested inside the "if a name is set" branch.
+
+Verified with lint, a production build, and the same local-Postgres round
+trip #44 used: both fields save together, and the guest sign-in and
+landing screens correctly render "browsing Rucker Family Cellar —
+'Life's too short for bad wine'" with the motto italicized and quoted.

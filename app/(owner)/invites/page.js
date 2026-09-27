@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
 import { currentOwnerId } from "@/lib/owner";
-import { revokeInvite, setDomaineName } from "@/app/(owner)/invites/actions";
+import { revokeInvite, setDomaineDetails } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import BackButton from "@/app/components/BackButton";
@@ -20,11 +20,21 @@ function when(date) {
 export default async function InvitesPage() {
   const ownerId = await currentOwnerId();
   const [me, invites, users] = await Promise.all([
-    prisma.user.findUnique({ where: { id: ownerId }, select: { domaineName: true } }),
+    prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { domaineName: true, domaineMotto: true },
+    }),
     prisma.invite.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.user.findMany({
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, email: true, domaineName: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        domaineName: true,
+        domaineMotto: true,
+        createdAt: true,
+      },
     }),
   ]);
 
@@ -43,15 +53,23 @@ export default async function InvitesPage() {
             The estate&apos;s own name - distinct from your own name, which
             still shows wherever this app says who you are. Blank uses
             your name instead, wherever this would otherwise appear (right
-            now, just the guest sign-in screen).
+            now, just the guest sign-in screen). A motto only ever shows
+            alongside the name, never on its own.
           </p>
         </div>
-        <form action={setDomaineName} className="flex flex-wrap items-center gap-2">
+        <form action={setDomaineDetails} className="flex flex-col items-start gap-2">
           <input
             name="domaineName"
             defaultValue={me?.domaineName ?? ""}
             placeholder="e.g. Rucker Family Cellar"
             maxLength={120}
+            className={`${inputClass} w-full max-w-xs`}
+          />
+          <input
+            name="domaineMotto"
+            defaultValue={me?.domaineMotto ?? ""}
+            placeholder="A motto (optional) - e.g. Life's too short for bad wine"
+            maxLength={200}
             className={`${inputClass} w-full max-w-xs`}
           />
           <button type="submit" className={buttonClass}>
@@ -158,9 +176,15 @@ export default async function InvitesPage() {
                   today (see the "Separate cellars per user" decision in
                   FUTURE_CAPABILITIES.md), so this is that account's own
                   estate name, not a shared one - two rows here can carry
-                  two different Domaine names, correctly. */}
+                  two different Domaine names, correctly. The motto never
+                  renders without the name (see the page's own intro
+                  text) - a tagline with nothing to sit under wouldn't
+                  mean anything. */}
               {user.domaineName && (
-                <span className="block text-xs text-zinc-400">{user.domaineName}</span>
+                <span className="block text-xs text-zinc-400">
+                  {user.domaineName}
+                  {user.domaineMotto && ` — "${user.domaineMotto}"`}
+                </span>
               )}
             </li>
           ))}

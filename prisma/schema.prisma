@@ -59,6 +59,12 @@ model User {
   // the same kind of migration `ownerId` itself is already staged for in
   // that entry.
   domaineName   String?
+  // The estate's tagline, e.g. "Life's too short for bad wine" - shown
+  // alongside domaineName wherever that appears, never on its own (a
+  // motto with no estate name to sit under wouldn't mean much). Same
+  // nullable-per-User reasoning and same future migration to a real
+  // `Domaine` table as domaineName above - see that field's comment.
+  domaineMotto  String?
   createdAt     DateTime  @default(now())
 
   // The three ownership roots. Everything else in this schema inherits its
