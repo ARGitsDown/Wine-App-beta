@@ -212,8 +212,11 @@ Staged so nothing is a leap, and each phase is independently shippable:
   client. What is not yet verified from a live account: the thing this
   phase was built to prove, which is next.
 - **Phase 3 — usage ledger and caps**, per the AI-cost section above.
-- **Phase 4 — what guests become.** Fold into accounts, or keep as the
-  deliberately-lighter "browse someone else's cellar" mode.
+  **Scoped 2026-09-27, not yet started** - see its own section below.
+- **Phase 4 — what guests become.** Turns out to be the same open question
+  as "Shared cellars," logged below - see that section rather than this
+  one; the two entries existed separately only because they were raised
+  eight days apart.
 
 ### Still open
 
@@ -226,6 +229,125 @@ Staged so nothing is a leap, and each phase is independently shippable:
 - ~~Whether renamed/hand-built flights and kept pairings need anything
   beyond a plain `ownerId`.~~ **Confirmed by Phase 2: no.** They're roots
   like `Bottle`, and the extension scopes all three identically.
+
+## Phase 3, scoped — usage ledger and caps — 2026-09-27
+
+Scoped on request, deliberately not started: the owner wanted this planned
+out while it's fresh, without picking it up yet. Builds on the AI-cost
+section above ("Every account would spend the owner's API key"), which
+already settled the shape - meter first, then cap, no billing, model
+choice as the biggest lever. This turns that into an actual schema and
+call graph.
+
+**Every call site, found by grep rather than assumed.** Six places in
+`app/actions.js` call `anthropic.messages.create` and get back a `usage`
+object: `extractWinesFromPhoto` (Scan), `getSuggestions` (Suggest),
+`runResearch` (Research), `estimateDrinkWindows` and
+`estimateWindowForBottle` (the bulk and single drinking-window
+estimators), and `extractBottlePhotoDetails` (reading an added photo).
+Matches BACKLOG #20's "six AI calls (not five)" - the same six effort
+already got wired through, so this reuses call sites already touched once
+for a related reason rather than finding them cold.
+
+**A ledger of individual rows, not a running counter.** The AI-cost
+section already used the word "ledger," and a per-call row is the safer
+shape: a running total updated in place would race under Research's own
+bulk path (several steps writing concurrently via `after()`, see BACKLOG
+#17's Research section), needs no lock or upsert-with-increment
+gymnastics, and keeps a real audit trail (which feature, which model, when)
+instead of only a number. The monthly total a cap check needs is a sum
+over rows in a date range, not a stored running value.
+
+```prisma
+model UsageEvent {
+  id                       Int      @id @default(autoincrement())
+  ownerId                  String
+  owner                    User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  feature                  String   // "suggest" | "scan" | "research" | "estimate-windows" | "photo-details"
+  model                    String   // the exact model id the call actually ran on
+  inputTokens              Int
+  outputTokens             Int
+  cacheCreationInputTokens Int
+  cacheReadInputTokens     Int
+  // Computed and stored at write time from the rate table in force that
+  // day, not recomputed later from raw tokens - a rate change (Anthropic
+  // repriced a model) must not silently rewrite last month's history.
+  costCents                Int
+  createdAt                DateTime @default(now())
+
+  @@index([ownerId, createdAt])
+}
+```
+
+**One helper, called from all six sites, that never breaks the feature it
+instruments.** `lib/usage.js`'s `recordUsage({ ownerId, feature, model,
+usage })` looks up that day's rate for `model` in a small rate-table
+constant (mirroring how `lib/effort.js` centralizes effort mapping), computes
+`costCents`, and writes the row - wrapped in its own try/catch that logs
+and swallows rather than throws, the same reasoning `insertBottle`'s own
+comment gives for why one scan card's database error can't take down the
+batch. A Suggest result the owner is staring at must never fail because
+the usage write behind it hiccuped. The rate table itself needs real,
+current numbers pulled from Anthropic's pricing page at build time - not
+invented here, since token prices drift and a wrong number baked into a
+planning doc would be worse than no number.
+
+**Attribution is just `currentOwnerId()` - already the account, no new
+concept.** Every one of the six call sites already runs inside a request
+that knows who's signed in (or, for the Research step route, already
+carries `ResearchJob.ownerId` on the plain client for exactly this
+reason - see Phase 2's writeup of that route above). Nothing here needs
+"whose spend is this" to mean anything more complicated than it already
+does elsewhere in the schema.
+
+**`UsageEvent` reads go through the plain `prisma` client, not the scoped
+`db` one - on purpose, and it inherits a gap Phase 2 already flagged.**
+`lib/scoped-prisma.js`'s whole point is that a signed-in account only ever
+sees its own rows; but the reason a cap system exists at all is so an
+owner can see *other* accounts' spend, which the scoped client is built
+to prevent. So this table is deliberately never wrapped in it, the same
+way `DrinkWindowEstimate` deliberately isn't (for the opposite reason - one
+is shared on purpose, this one is cross-account on purpose). That means
+whatever renders an oversight view - "N invited accounts, here's what each
+spent this month" - has to decide *who's allowed to open it*, and there is
+no answer today: Phase 2's own "Not covered" note already says "any
+account that can sign in can see the full invite list... There is no
+owner/admin role anywhere in this schema." Phase 3 doesn't need to invent
+a second version of that problem - it inherits Phase 2's, and both are
+worth settling together rather than twice.
+
+**Minimal UI, not a dashboard.** Two surfaces, both small: a line added to
+`/invites`' existing per-account rows ("$0.42 this month"), and a banner
+on Suggest/Scan/Research's own pages when the signed-in account is at or
+near its cap - reusing `lib/ai-errors.js`'s existing pattern for "this
+feature is unavailable right now," which every one of those pages already
+renders around a missing `ANTHROPIC_API_KEY`. A cap with nothing that ever
+shows anyone their own number is a surprise, not a limit.
+
+**Reset boundary: calendar month, UTC.** Simplest rule that matches the
+"monthly ceiling" language the AI-cost section already settled on; a
+rolling 30-day window is more precise and meaningfully harder to explain
+to the one person (an invited friend or family member) who'd ever ask why
+Suggest stopped working.
+
+**What this doesn't decide, on purpose - already flagged above under
+"Still open" and unchanged by this scoping pass:**
+
+- What happens at the cap itself: hard block, or degrade to the non-AI
+  features. Shapes `recordUsage`'s sibling guard function's return
+  contract (an error the caller shows, versus a quieter fallback), so
+  it's worth answering before writing that function, not after.
+- Whether the owner's own account is capped at all, or exempt by
+  default - `User.monthlySpendCapCents Int?`, nullable, with `null`
+  reading as "no cap," would let the owner stay unlimited without a
+  special case in the check itself: it's just an account whose column is
+  null.
+- Who sets a non-owner account's cap, and what the default is for a
+  newly-invited one - a per-invite field, or one global default applied
+  to everyone but the owner.
+- The owner/admin role question Phase 2 already raised, now shared by two
+  features (`/invites`'s edit/revoke powers, and whichever screen shows
+  cross-account spend) rather than one.
 
 ## The OAuth question, answered — 2026-09-21
 
@@ -342,3 +464,11 @@ before this is picked up: how invites map to cellar membership (one
 global list, or per cellar); whether a person can belong to more than one
 cellar; and whether the guest role reuses `/guest`'s existing anonymous
 UI as-is or gets a real, restricted, account-based sign-in instead.
+
+**This is also "Phase 4" from the separate-cellars phasing above**,
+originally worded as "what guests become... fold into accounts, or keep
+as the deliberately-lighter 'browse someone else's cellar' mode" - the
+same question this entry's own "guest-like" role restates almost exactly,
+just eight days later and with a name (managers/guest-like) attached. The
+phasing list now points here instead of carrying its own copy, so there's
+one open write-up of this question, not two drifting independently.
