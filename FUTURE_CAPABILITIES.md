@@ -421,65 +421,87 @@ below - explicitly the smaller and more independent of the two. Nothing
 about the scoping above has changed since it was first written; still
 just a column and a filter.
 
-## Shared cellars — multiple users per cellar, with roles — raised 2026-09-27
+## Shared cellars, a.k.a. "Domaine" — multiple Users per account, with roles — raised 2026-09-27
 
 Reopens a call this file made explicit above, in "Separate cellars per
 user": *"Fully separate cellars... No household/shared-bottle concept."*
 The owner now wants the opposite alongside it, not instead of it - framed
 broadly, "Cellar" standing in for the app as a whole rather than one
 specific list: several people with real accounts sharing access to the
-*same* cellar, rather than each account only ever seeing its own. Two
+*same* account, rather than each account only ever seeing its own. Two
 roles were named, not one:
 
 - **Full access ("managers")** - add, edit, scan, delete, run Suggest and
   Research, the works. Today's single owner, just more than one of them
-  per cellar.
+  per account.
 - **Guest-like** - browsing and favoriting, no editing. This already
   exists in spirit as the anonymous, cookie-based Guest feature at
   `/guest` (see `README.md`); what would be new is tying that same
   restricted view to a real invited account instead of a typed name, so
   it survives across devices and doesn't depend on a shared link.
 
+**Nomenclature, decided 2026-09-27: this account-level container is
+called a "Domaine."** Deliberately not "Cellar" - a domaine, in the wine
+sense, is the whole estate (vineyards, the winery, the cellar, everything
+under one producer's name), which is exactly the right scope here: a
+Domaine holds the cellar, but also the Flights, Tasting Notes, Wishlist
+and Pairings hanging off it - the entire footprint one wine collector's
+data occupies in this app, not one list within it. The word also does
+double duty in the software sense (a tenant, a workspace, a distinct
+"domain" of data within the app), which is the exact concept this section
+was already reaching for with the placeholder name `Cellar` entity below.
+A person who belongs to a Domaine is a **User**; a User with the "full
+access" role above is styled a **Cellarmaster** of that Domaine - the
+app's own name, applied to the human role it was always implicitly
+describing rather than the generic "manager." Today's shipped
+model (Phases 0-2, `User`/`ownerId`) is unaffected by this - it remains
+exactly what it is, a Domaine of one Cellarmaster, with no separate
+Domaine row yet because nothing has needed to distinguish "the account"
+from "the person" until now. This naming applies going forward, to this
+entry and the one below it, not retroactively to shipped schema.
+
 **Why this doesn't fit today's ownership model as built.** Phases 0-2
 above gave every ownership root - `Bottle`, `TastingFlight`,
 `SavedPairing` - a single `ownerId: String` pointing straight at `User`,
 and `lib/scoped-prisma.js` filters every query on that one column. That
-design assumes one cellar has exactly one owner, because that was exactly
-what it was asked to assume at the time. Several owners of the same
-cellar needs a level of indirection that isn't there: something like a
-`Cellar` entity that a `User` belongs to (possibly more than one, with a
-role per membership - a `CellarMembership(userId, cellarId, role)` join
-row), with `ownerId` on the three roots becoming `cellarId` rather than
+design assumes one Domaine has exactly one Cellarmaster, because that was
+exactly what it was asked to assume at the time. Several Cellarmasters of
+the same Domaine needs a level of indirection that isn't there: a
+`Domaine` entity that a `User` belongs to (possibly more than one, with a
+role per membership - a `DomaineMembership(userId, domaineId, role)` join
+row), with `ownerId` on the three roots becoming `domaineId` rather than
 pointing at a person directly. Not a small migration - every one of the
 ~100 scoped call sites inherits its correctness from `ownerId` meaning
 "this exact person," and that assumption would need re-examining wherever
-a role check (full access vs. guest-like) has to gate a *write*, not just
+a role check (Cellarmaster vs. guest-like) has to gate a *write*, not just
 filter a *read*. The invite list (`Invite`, flat and global today - see
 "Decided with the owner" point 1 above) would likely need to become
-per-cellar too, which is its own small design question.
+per-Domaine too, which is its own small design question.
 
 **Not scoped beyond this.** Logged because the owner asked for it to be
 on record, not because a plan exists yet. Open questions worth settling
-before this is picked up: how invites map to cellar membership (one
-global list, or per cellar); whether a person can belong to more than one
-cellar; and whether the guest role reuses `/guest`'s existing anonymous
+before this is picked up: how invites map to Domaine membership (one
+global list, or per Domaine); whether a person can belong to more than one
+Domaine; and whether the guest role reuses `/guest`'s existing anonymous
 UI as-is or gets a real, restricted, account-based sign-in instead.
 
 **This is also "Phase 4" from the separate-cellars phasing above**,
 originally worded as "what guests become... fold into accounts, or keep
 as the deliberately-lighter 'browse someone else's cellar' mode" - the
 same question this entry's own "guest-like" role restates almost exactly,
-just eight days later and with a name (managers/guest-like) attached. The
-phasing list now points here instead of carrying its own copy, so there's
-one open write-up of this question, not two drifting independently.
+just eight days later and with a name (Cellarmaster/guest-like) attached.
+The phasing list now points here instead of carrying its own copy, so
+there's one open write-up of this question, not two drifting
+independently.
 
 ## Sharing a single Flight or Tasting Notes — raised 2026-09-27
 
 Narrower than either multi-person idea already above. Both of those are
-about several people all seeing (or co-owning) the *whole* cellar; this is
-about handing one specific thing - a saved Flight, or a bottle's Tasting
-Notes - to someone else's view, named for two different audiences: other
-people who have their own Cellarmaster account ("members"), and people
+about several people all seeing (or co-owning) the *whole* Domaine; this
+is about handing one specific thing - a saved Flight, or a bottle's
+Tasting Notes - to someone else's view, named for two different
+audiences: other people who have their own Cellarmaster account
+("members" - a User of some Domaine, their own or another's), and people
 who don't ("non-members").
 
 **Closest existing precedent: the Guest link.** `/guest` already does the
@@ -489,23 +511,43 @@ this is a scoped variant of that same mechanism (a Flight-shaped or
 Notes-shaped guest link) or a genuinely separate share primitive is the
 first thing to settle.
 
+**Decided 2026-09-27: copying a shared Flight or Tasting Notes into one's
+own Domaine is itself a feature, not just a possibility to weigh.** A
+member who receives a shared Flight can copy it in as a new
+`TastingFlight` (and its picks) of their own; shared Tasting Notes copy in
+onto the recipient's own matching bottle if they own one, or otherwise
+land as freestanding notes not yet attached to any bottle they hold. A
+snapshot at the moment of copying, not a live link back to the sender's
+original - the same reasoning `PairingPick.wineLabel` already uses
+elsewhere in this schema (a snapshot so the copy doesn't move or vanish
+if the original does). This answers what was previously the first open
+question below; what's still open is *how* the recipient reaches that
+copy action (reviewing a share before accepting it, versus one tap that
+copies immediately).
+
 **Not scoped beyond this.** Logged because the owner asked for it to be on
 record, not because a plan exists yet. Open questions worth settling
 before it's picked up:
 
-- What "share" actually grants - read-only viewing; the ability to
-  comment (no existing analog anywhere in this app); or, for a member
-  recipient, the ability to copy it into their *own* cellar (a snapshot,
-  not a live link back to the original)?
+- Whether copying is reviewed first (see a preview, then choose to copy)
+  or happens the moment a share is opened - and, for a bottle a Tasting
+  Note is copied onto, what happens when the recipient doesn't already
+  own a matching bottle (create a new wishlist/flight-status bottle for
+  it, or hold the note unattached until they do)?
+- Whether "share" also grants read-only viewing or commenting without
+  copying, alongside the copy action, or whether copying *is* the whole
+  mechanism - no separate "just look at this" mode.
 - For a member recipient specifically: does this mean an in-app
   notification or inbox ("X shared a flight with you")? That's a
   member-to-member social feature with no analog today - every other
   feature in this app is one person's private tool, even Shared cellars
-  above is one cellar shared among trusted co-owners, not sharing *out* to
-  an arbitrary other member.
+  above is one Domaine shared among trusted Cellarmasters, not sharing
+  *out* to an arbitrary other member.
 - For a non-member: a link like the guest link, scoped to one flight or
   one bottle's notes - does it ask for a name the way guest favoriting
-  does, or stay fully anonymous?
+  does, or stay fully anonymous? And can a non-member copy at all, or is
+  copying a members-only capability since it needs a Domaine to copy
+  *into*?
 - The actual data boundary of a shared Flight: its picks name real
   bottles (producer, region, vintage) - does sharing the flight reveal
   those bottles' details to someone who otherwise can't browse the rest
