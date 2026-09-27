@@ -943,9 +943,16 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
             />
           )}
 
+          {/* Used to be two blurbs - this one above the picker, a second
+              below the button - saying overlapping things about where a
+              batch lands. One, up here before the tiles it's actually
+              about, covers both: what to scan and tap where it goes, then
+              that the whole batch follows that choice and any card can
+              still be moved afterward. */}
           <p className={`text-sm text-zinc-500 ${finished || pendingFlight ? "" : "-mt-3"}`}>
-            A bottle label, a shelf, or a whole tasting sheet. Tap where the
-            wines should land.
+            A bottle label, a shelf, or a whole tasting sheet — tap where the
+            wines should land below. Everything in the batch lands there; any
+            single wine can be moved afterward on its own card.
           </p>
 
           <fieldset>
@@ -1008,11 +1015,6 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
             <ScanIcon className="h-5 w-5" />
             Take or choose photos
           </button>
-
-          <p className="-mt-2 text-sm text-zinc-500">
-            Everything in a batch lands there; any single wine can be moved
-            afterward on its own card.
-          </p>
         </>
       ) : (
         /* Once cards are stacking up, the picker shrinks to a strip rather
