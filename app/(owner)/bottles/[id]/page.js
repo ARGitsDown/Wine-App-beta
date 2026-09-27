@@ -259,48 +259,10 @@ export default async function BottleDetailPage({ params, searchParams }) {
         />
       </section>
 
-      <section className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <h2 className="font-medium">Photos</h2>
-        {bottle.photoUrl || bottle.photos.length > 0 ? (
-          <div className="flex flex-wrap gap-3">
-            {bottle.photoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={bottle.photoUrl}
-                alt={`Label photo for ${bottle.producer}`}
-                className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
-              />
-            )}
-            {bottle.photos.map((photo) => (
-              <div key={photo.id} className="flex flex-col items-center gap-1">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo.url}
-                  alt={`Additional photo for ${bottle.producer}`}
-                  className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
-                />
-                <ConfirmButton
-                  action={deleteBottlePhoto.bind(null, photo.id)}
-                  label="Remove"
-                  confirmLabel="Remove photo"
-                  className="text-xs text-zinc-500 underline underline-offset-2"
-                  confirmClassName="text-xs font-medium text-red-600 underline underline-offset-2 dark:text-red-400"
-                />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-500">No photos yet.</p>
-        )}
-        <AddPhotoPanel bottle={bottle} regionOptions={regionOptions} />
-      </section>
-
-      <ResearchPanel
-        bottle={bottle}
-        proposal={bottle.researchProposal}
-        regionOptions={regionOptions}
-      />
-
+      {/* Right beside Details rather than at the foot of the page, past
+          Photos and Research - every kind of note about this wine (Your
+          notes and Critic notes live inside Details above; dated tasting
+          notes are here) reads as one place to look, not two. */}
       <section className="flex flex-col gap-4">
         <h2 className="font-medium">Tasting notes</h2>
 
@@ -381,6 +343,48 @@ export default async function BottleDetailPage({ params, searchParams }) {
           </button>
         </form>
       </section>
+
+      <section className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <h2 className="font-medium">Photos</h2>
+        {bottle.photoUrl || bottle.photos.length > 0 ? (
+          <div className="flex flex-wrap gap-3">
+            {bottle.photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={bottle.photoUrl}
+                alt={`Label photo for ${bottle.producer}`}
+                className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+              />
+            )}
+            {bottle.photos.map((photo) => (
+              <div key={photo.id} className="flex flex-col items-center gap-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo.url}
+                  alt={`Additional photo for ${bottle.producer}`}
+                  className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+                />
+                <ConfirmButton
+                  action={deleteBottlePhoto.bind(null, photo.id)}
+                  label="Remove"
+                  confirmLabel="Remove photo"
+                  className="text-xs text-zinc-500 underline underline-offset-2"
+                  confirmClassName="text-xs font-medium text-red-600 underline underline-offset-2 dark:text-red-400"
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500">No photos yet.</p>
+        )}
+        <AddPhotoPanel bottle={bottle} regionOptions={regionOptions} />
+      </section>
+
+      <ResearchPanel
+        bottle={bottle}
+        proposal={bottle.researchProposal}
+        regionOptions={regionOptions}
+      />
     </div>
   );
 }
