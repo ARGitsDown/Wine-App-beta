@@ -6,7 +6,7 @@
 // Reaching this page at all means the address was allowed through: an
 // uninvited one is refused earlier, during the send step (see
 // isAllowedToSignIn in lib/auth.js, called before sendVerificationRequest
-// ever runs), and lands back on /signin with an error rather than here. So
+// ever runs), and lands on /signin/error rather than here. So
 // this page can say the link is on its way without hedging - there is
 // nothing left to have gone wrong that it needs to leave room for.
 //

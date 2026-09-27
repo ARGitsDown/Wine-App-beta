@@ -57,6 +57,10 @@ const PAGES = [
   { path: "/guest" },
   { path: "/signin" },
   { path: "/signin/check-email" },
+  // Where a refused sign-in lands - most of all, someone who was never
+  // invited, so it can't need an account to render any more than /signin
+  // can. AccessDenied is the case that matters, so it's the one opened.
+  { path: "/signin/error?error=AccessDenied" },
   // A route handler, so it is NOT covered by the guard in the owner
   // layout - layouts do not wrap route handlers. It carries its own check,
   // and this asserts it, because the version without one returned the

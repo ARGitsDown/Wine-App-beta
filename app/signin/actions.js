@@ -1,12 +1,34 @@
 "use server";
 
+import { redirect } from "next/navigation";
+import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/lib/auth";
+
+// Auth.js's server-side signIn() *throws* a refusal rather than
+// redirecting the way its own HTTP endpoints do - so an uninvited address
+// typed into the email form used to surface as the app's generic "That
+// didn't work, try again" error boundary, which is both wrong ("again"
+// fails the same way) and silent about why. This routes it exactly where
+// Auth.js itself would: sign-in-step errors (kind "signIn") back to
+// /signin's own ?error message, everything else - AccessDenied above all
+// - to /signin/error. Anything that isn't an AuthError is rethrown
+// untouched, and that includes the redirect a *successful* signIn()
+// throws to send the browser on its way.
+async function signInOrExplain(provider, options) {
+  try {
+    await signIn(provider, options);
+  } catch (error) {
+    if (!(error instanceof AuthError)) throw error;
+    const page = error.kind === "signIn" ? "/signin" : "/signin/error";
+    redirect(`${page}?error=${encodeURIComponent(error.type)}`);
+  }
+}
 
 // Its own file rather than app/actions.js: everything there is about
 // wine, and these are the only actions in the app that are about the door
 // rather than the cellar.
 export async function signInWithGoogle() {
-  await signIn("google", { redirectTo: "/" });
+  await signInOrExplain("google", { redirectTo: "/" });
 }
 
 // Takes the raw FormData a plain form action receives, the same shape
@@ -17,7 +39,7 @@ export async function signInWithGoogle() {
 // only be duplicating a check that runs server-side regardless.
 export async function signInWithEmail(formData) {
   const email = String(formData.get("email") || "").trim();
-  await signIn("resend", { email, redirectTo: "/" });
+  await signInOrExplain("resend", { email, redirectTo: "/" });
 }
 
 export async function signOutOfCellar() {

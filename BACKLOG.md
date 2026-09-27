@@ -3156,3 +3156,30 @@ Cellarmaster. Removal deletes the account and its invite together, so
 the person is signed out at once and can't simply sign back in; what
 they added stays in the cellar. Details and verification:
 FUTURE_CAPABILITIES.md, "Shared cellars", Phase 1.
+
+## 50. An in-app page for a refused sign-in
+
+A refused or failed sign-in used to land on Auth.js's own generic page,
+served from @auth/core outside this app - or, from the email form, on the
+app's crash screen ("That didn't work… trying again is worth a shot"),
+because Auth.js's server-side `signIn()` *throws* a refusal rather than
+redirecting, and nothing caught it. The "hasn't been invited" message on
+`/signin` itself never actually showed: Auth.js routes AccessDenied to its
+error page, not back to sign-in.
+
+Now `pages.error` is `/signin/error`, which explains the three cases in
+words: an address that can't sign in (never invited, or removed - kept
+deliberately indistinguishable, so the page doesn't tell a stranger who
+was once on the list), an expired or used link, and anything else
+("something went wrong on our side" - e.g. a bad email-provider key).
+The sign-in actions catch `AuthError` and redirect exactly where Auth.js
+would (sign-in-step errors to `/signin?error=`, the rest to
+`/signin/error`). `/signin`'s own alert now covers the one sign-in-step
+error worth naming - an address already linked to the other door.
+
+Verified with accounts on: an uninvited address via the real form, a
+removed member's link, an expired link and a bad email key each land on
+the right message; `npm run verify` covers the new page (16 pages).
+
+`app/signin/error/page.js`, `app/signin/actions.js`, `app/signin/page.js`,
+`lib/auth.js`, `scripts/smoke.mjs`.

@@ -53,18 +53,20 @@ export default async function SignInPage({ searchParams }) {
         </p>
       </div>
 
-      {/* Auth.js reports refusals by redirecting back here with ?error, so
-          the most likely failure - a real address that simply is not on
-          the list - has to say so in words rather than leaving someone to
-          conclude their account is broken. Worded for either door: it is
-          shown identically whichever one was tried. */}
+      {/* Only sign-in-step errors come back here (Auth.js's SignInError
+          kinds: a provider hiccup, a stale form). A refusal - an address
+          that isn't invited, or an expired link - goes to /signin/error
+          instead, which explains it properly; see that page. The one
+          sign-in-step error worth its own words is an address that
+          already signs in through the other door, because "try again"
+          would just fail the same way. */}
       {error && (
         <p
           role="alert"
           className="rounded-lg border border-amber-300 p-3 text-sm dark:border-amber-900"
         >
-          {error === "AccessDenied"
-            ? "That address hasn't been invited to this cellar. If you think it should have been, ask whoever runs it to add it."
+          {error === "OAuthAccountNotLinked"
+            ? "That address already signs in a different way. Use the same option you used the first time."
             : "That sign-in didn't complete. Please try again."}
         </p>
       )}
