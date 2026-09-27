@@ -3089,3 +3089,34 @@ one other form on this page rather than picking its own convention.
 
 Verified with lint, a production build, and the same local-Postgres round
 trip: both fields save and "✓ Saved" appears immediately after.
+
+## 47. Multiple Users per Domaine — Phase 0
+
+The schema half of FUTURE_CAPABILITIES.md's "Shared cellars" entry - a
+real `Domaine` model, `User.domaineId`/`role` (both NOT NULL, one Domaine
+per User, no join table). Nothing reads either column for scoping yet:
+`Bottle`/`TastingFlight`/`SavedPairing`'s own `ownerId` still points at
+`User` directly, and `lib/scoped-prisma.js` is untouched - deliberately a
+later phase, staged the same way the original ownership work itself was.
+
+The backfill is the part worth being careful about: one new Domaine per
+*existing* User, never merging two people's already-separate cellars
+into one. `domaineName`/`domaineMotto` (#44/#45) moved off `User` onto
+the new `Domaine.name`/`motto` in the same migration, which meant
+updating the four places that read/wrote them - required to keep the app
+buildable, not extra scope. A new `currentDomaineId()` (`lib/owner.js`)
+is the seam this phase adds, mirroring `currentOwnerId()`'s own
+uncached-on-purpose reasoning.
+
+Verified against a real backfill scenario, not an empty database: seeded
+a pre-existing named Domaine the way an already-migrated production
+database would have it, ran the migration, and confirmed the name/motto
+landed on the new `Domaine` row correctly, `domaineId`/`role` backfilled,
+the migration's own scratch correlation column was gone afterward, and
+both `/invites` and `/guest` rendered exactly as before. Also confirmed
+lint and a production build clean, and that `Bottle`/`TastingFlight`/
+`SavedPairing`'s foreign keys are untouched.
+
+`prisma/schema.prisma`, `prisma/migrations/20260928040000_domaine_and_membership/`,
+`lib/owner.js`, `app/(owner)/invites/actions.js`,
+`app/(owner)/invites/page.js`, `app/(guest)/guest/page.js`.

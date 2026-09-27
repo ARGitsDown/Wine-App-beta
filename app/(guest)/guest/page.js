@@ -22,19 +22,18 @@ function ownerDisplayName(owner) {
 }
 
 // What to call the cellar itself. The estate's own name if one was set
-// (see the schema comment on User.domaineName) - already reads as a
-// place, so it stands alone rather than taking a possessive - falling
-// back to the person's own name otherwise, exactly as before this
-// existed.
+// (see the schema comment on Domaine.name) - already reads as a place, so
+// it stands alone rather than taking a possessive - falling back to the
+// person's own name otherwise, exactly as before this existed.
 function cellarDisplayName(owner) {
-  return owner?.domaineName || `${ownerDisplayName(owner)}'s cellar`;
+  return owner?.domaine?.name || `${ownerDisplayName(owner)}'s cellar`;
 }
 
 // The estate's tagline, if one was set - shown after cellarDisplayName
 // wherever that appears, in the owner's own words, never manufactured
 // when absent.
 function cellarMotto(owner) {
-  return owner?.domaineMotto || null;
+  return owner?.domaine?.motto || null;
 }
 
 export default async function GuestPage({ searchParams }) {
@@ -46,7 +45,7 @@ export default async function GuestPage({ searchParams }) {
     // rather than only once a guest exists.
     prisma.user.findFirst({
       orderBy: { createdAt: "asc" },
-      select: { name: true, email: true, domaineName: true, domaineMotto: true },
+      select: { name: true, email: true, domaine: { select: { name: true, motto: true } } },
     }),
   ]);
   const ownerName = ownerDisplayName(owner);

@@ -42,30 +42,35 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  // The estate's own name, as distinct from the person's (`name` above) -
-  // "Rucker Family Cellar," not "Andrew." Nullable: not every Cellarmaster
-  // bothers naming their estate, and a blank one falls back to the
-  // person's own name wherever this is shown (see ownerDisplayName in
-  // app/(guest)/guest/page.js).
-  //
-  // Lives on User rather than a real `Domaine` table because there isn't
-  // one yet - see FUTURE_CAPABILITIES.md's "Shared cellars, a.k.a.
-  // 'Domaine'" entry. Today, every User's cellar is already its own fully
-  // separate Domaine of one Cellarmaster (the original "Separate cellars
-  // per user" decision: "Fully separate cellars... No household/shared-
-  // bottle concept"), so naming it per-User is correct as built. If
-  // Shared Cellars is ever built, multiple Users would belong to one
-  // Domaine and share one name - this column would need to move there,
-  // the same kind of migration `ownerId` itself is already staged for in
-  // that entry.
-  domaineName   String?
-  // The estate's tagline, e.g. "Life's too short for bad wine" - shown
-  // alongside domaineName wherever that appears, never on its own (a
-  // motto with no estate name to sit under wouldn't mean much). Same
-  // nullable-per-User reasoning and same future migration to a real
-  // `Domaine` table as domaineName above - see that field's comment.
-  domaineMotto  String?
   createdAt     DateTime  @default(now())
+
+  // Phase 0 of "Shared cellars" (FUTURE_CAPABILITIES.md): the estate a
+  // person belongs to, and what they can do there. One Domaine per User,
+  // decided rather than a many-to-many membership - simplest shape for
+  // the actual ask (a family/friends cellar with a couple of full-access
+  // people and some guest-like ones), and it means there is no "which
+  // Domaine is active" concept to build anywhere, ever. NOT NULL: every
+  // existing User was backfilled its own new Domaine in the migration
+  // that added this column, one each - never merged together, since two
+  // people's previously-separate cellars silently becoming one shared
+  // cellar would be exactly the kind of leak this schema's scoping exists
+  // to prevent.
+  //
+  // Nothing downstream reads either column yet. The ownership roots below
+  // (`Bottle.ownerId` etc.) still point at a User directly, and
+  // lib/scoped-prisma.js still scopes by that - moving them to point at
+  // domaineId instead, so a Domaine's members actually share one cellar,
+  // is deliberately a later phase, done to the ~100 already-scoped call
+  // sites deliberately separately from adding the column itself.
+  domaineId String
+  domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  // "cellarmaster" (full access - add, edit, scan, delete, run Suggest and
+  // Research) or "guest" (browse and favorite, no editing - see the
+  // Shared cellars entry's own "Guest-like" role, which is distinct from
+  // the existing anonymous /guest link and doesn't replace it). Every
+  // User backfilled by this migration is "cellarmaster", since they were
+  // each already the sole full-access person in their own cellar.
+  role      String
 
   // The three ownership roots. Everything else in this schema inherits its
   // owner through one of these by an existing foreign key - a tasting note
@@ -82,6 +87,26 @@ model User {
   // their sign-in records with them.
   accounts Account[]
   sessions Session[]
+}
+
+// The estate itself - "more expansive than just the cellar," per the
+// nomenclature decision in FUTURE_CAPABILITIES.md: this is the account-
+// level container a User belongs to, not a fourth ownership root. Nothing
+// hangs off it yet except its own members; the day the ownership roots
+// move from `ownerId: User` to `domaineId: Domaine` is the day a Domaine
+// actually becomes what its name implies.
+model Domaine {
+  id        String   @id @default(cuid())
+  // Both were on User until this migration - see that model's own
+  // members/role comment for why they moved. Nullable for the same
+  // reason they always were: not every Cellarmaster bothers naming their
+  // estate, and a blank one falls back to the person's own name wherever
+  // this is shown (see cellarDisplayName in app/(guest)/guest/page.js).
+  name      String?
+  motto     String?
+  createdAt DateTime @default(now())
+
+  members User[]
 }
 
 // Auth.js's own three tables, plus the invite list.

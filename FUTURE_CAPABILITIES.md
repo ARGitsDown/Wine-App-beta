@@ -421,7 +421,7 @@ below - explicitly the smaller and more independent of the two. Nothing
 about the scoping above has changed since it was first written; still
 just a column and a filter.
 
-## Shared cellars, a.k.a. "Domaine" — multiple Users per account, with roles — raised 2026-09-27
+## Shared cellars, a.k.a. "Domaine" — multiple Users per account, with roles — raised 2026-09-27, Phase 0 done 2026-09-28
 
 Reopens a call this file made explicit above, in "Separate cellars per
 user": *"Fully separate cellars... No household/shared-bottle concept."*
@@ -478,13 +478,6 @@ filter a *read*. The invite list (`Invite`, flat and global today - see
 "Decided with the owner" point 1 above) would likely need to become
 per-Domaine too, which is its own small design question.
 
-**Not scoped beyond this.** Logged because the owner asked for it to be
-on record, not because a plan exists yet. Open questions worth settling
-before this is picked up: how invites map to Domaine membership (one
-global list, or per Domaine); whether a person can belong to more than one
-Domaine; and whether the guest role reuses `/guest`'s existing anonymous
-UI as-is or gets a real, restricted, account-based sign-in instead.
-
 **This is also "Phase 4" from the separate-cellars phasing above**,
 originally worded as "what guests become... fold into accounts, or keep
 as the deliberately-lighter 'browse someone else's cellar' mode" - the
@@ -493,6 +486,84 @@ just eight days later and with a name (Cellarmaster/guest-like) attached.
 The phasing list now points here instead of carrying its own copy, so
 there's one open write-up of this question, not two drifting
 independently.
+
+### Decided with the owner, 2026-09-28
+
+Three of the open questions above, settled before picking this up rather
+than guessed at in a migration:
+
+1. **One Domaine per User, not several.** No `DomaineMembership` join
+   table, no "which Domaine is active" switcher to build anywhere -
+   `domaineId` (and `role`) live directly on `User`. Simplest shape for
+   the actual ask (a family/friends cellar, a couple of full-access
+   people and some guest-like ones); a person who somehow needed a second
+   Domaine would need a second account.
+2. **The anonymous `/guest` link stays exactly as it is, alongside the
+   new Guest-like role** - not replaced by it. `/guest` is still the
+   zero-friction way to share with a stranger or a one-off visitor; the
+   new role is for someone invited as a real member of the Domaine, tied
+   to their own sign-in.
+3. **This session builds Phase 0 only** - schema and membership, nothing
+   wired up yet - mirroring how "Separate cellars per user" itself was
+   staged, rather than sweeping the ~100 already-scoped call sites and
+   building role-gated writes and the invite-role UI in one pass.
+
+### Phase 0 — schema and membership. Done 2026-09-28.
+
+A real `Domaine` model, and `User.domaineId` (`onDelete: Cascade`) +
+`User.role` (`"cellarmaster"` | `"guest"`), both NOT NULL. Nothing reads
+either column yet - the ownership roots (`Bottle.ownerId` etc.) and
+`lib/scoped-prisma.js` are untouched on purpose, the same way the
+original Phase 0 added `ownerId` "backfilled with zero orphans... nothing
+reads it yet."
+
+**The backfill this time: one new Domaine per existing User, never
+merged.** Every User today is already its own fully separate cellar (the
+original "Separate cellars per user" decision), so the migration creates
+one `Domaine` row per existing `User`, sets that User's `domaineId` to
+point at it and `role` to `"cellarmaster"` - and never consolidates two
+existing Users into one shared Domaine. Silently merging two people's
+previously-separate cellars would be exactly the kind of leak this
+schema's own scoping exists to prevent; giving each of them their own new
+Domaine to invite someone else into later is the only backfill that
+can't do that by construction.
+
+**`domaineName`/`domaineMotto` moved off `User` onto `Domaine.name`/
+`motto`** in the same migration - the move both fields' own schema
+comments already said would happen "if Shared Cellars is ever built."
+Renamed without the redundant `domaine` prefix now that they live on a
+model already called `Domaine`. The four places that read/wrote them
+(`/invites`' own form and Accounts list, both Guest screens,
+`setDomaineDetails`) now go through the `domaine` relation instead -
+required to keep the app buildable, not scope creep, since leaving them
+pointed at dropped columns would have broken the very features built two
+sessions ago.
+
+`currentDomaineId()` (`lib/owner.js`) is the new seam this phase adds,
+matching `currentOwnerId()`'s own reasoning for staying uncached (a
+stale value here would serve one person's identity, or one Domaine's
+data, into another's request) - a one-line lookup from `currentOwnerId()`
+to that User's `domaineId`, used today only for account-level Domaine
+settings, not yet for scoping any bottle/flight/pairing.
+
+Verified against a real backfill, not an empty database: seeded a
+pre-existing named Domaine ("Rucker Family Cellar," with a motto) the way
+an already-migrated production database would have it, ran this migration
+against that data, and confirmed the name/motto survived onto the new
+`Domaine` row, `domaineId`/`role` backfilled correctly, the scratch
+correlation column the migration uses internally was gone afterward, and
+every page that reads Domaine data (`/invites`, `/guest`) rendered
+exactly as before. `Bottle`/`TastingFlight`/`SavedPairing`'s own foreign
+keys confirmed untouched.
+
+**Still open, unchanged by this phase:** how invites map to Domaine
+membership once a Domaine can hold more than one Cellarmaster (today's
+`Invite` table is still flat and global); and the later phase itself -
+moving the three ownership roots from `ownerId: User` to
+`domaineId: Domaine`, adding role-gated writes, and building the actual
+invite-a-Cellarmaster/invite-a-guest UI. None of the ~100 already-scoped
+call sites have changed; they're still correct for what's still true
+today, one Domaine per person.
 
 ## Sharing a single Flight or Tasting Notes — raised 2026-09-27
 

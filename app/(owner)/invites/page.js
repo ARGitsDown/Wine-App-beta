@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
-import { currentOwnerId } from "@/lib/owner";
+import { currentDomaineId } from "@/lib/owner";
 import { revokeInvite } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
 import DomaineDetailsForm from "@/app/components/DomaineDetailsForm";
@@ -14,11 +14,11 @@ function when(date) {
 }
 
 export default async function InvitesPage() {
-  const ownerId = await currentOwnerId();
+  const domaineId = await currentDomaineId();
   const [me, invites, users] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: ownerId },
-      select: { domaineName: true, domaineMotto: true },
+    prisma.domaine.findUnique({
+      where: { id: domaineId },
+      select: { name: true, motto: true },
     }),
     prisma.invite.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.user.findMany({
@@ -27,9 +27,8 @@ export default async function InvitesPage() {
         id: true,
         name: true,
         email: true,
-        domaineName: true,
-        domaineMotto: true,
         createdAt: true,
+        domaine: { select: { name: true, motto: true } },
       },
     }),
   ]);
@@ -53,7 +52,7 @@ export default async function InvitesPage() {
             alongside the name, never on its own.
           </p>
         </div>
-        <DomaineDetailsForm domaineName={me?.domaineName} domaineMotto={me?.domaineMotto} />
+        <DomaineDetailsForm domaineName={me?.name} domaineMotto={me?.motto} />
       </section>
 
       <div>
@@ -150,18 +149,20 @@ export default async function InvitesPage() {
                 {" — "}
                 {user.email || "not claimed yet"}
               </span>
-              {/* Each account is already its own fully separate cellar
-                  today (see the "Separate cellars per user" decision in
-                  FUTURE_CAPABILITIES.md), so this is that account's own
-                  estate name, not a shared one - two rows here can carry
-                  two different Domaine names, correctly. The motto never
-                  renders without the name (see the page's own intro
-                  text) - a tagline with nothing to sit under wouldn't
-                  mean anything. */}
-              {user.domaineName && (
+              {/* Each account has its own Domaine today (Phase 0 of Shared
+                  cellars - one per User, backfilled 1:1 rather than
+                  merged), so this is that account's own estate name, not
+                  a shared one - two rows here can carry two different
+                  Domaine names, correctly. Once a Domaine can hold more
+                  than one User, two rows could legitimately show the
+                  *same* name - that's the feature working, not a bug.
+                  The motto never renders without the name (see the
+                  page's own intro text) - a tagline with nothing to sit
+                  under wouldn't mean anything. */}
+              {user.domaine?.name && (
                 <span className="block text-xs text-zinc-400">
-                  {user.domaineName}
-                  {user.domaineMotto && ` — "${user.domaineMotto}"`}
+                  {user.domaine.name}
+                  {user.domaine.motto && ` — "${user.domaine.motto}"`}
                 </span>
               )}
             </li>

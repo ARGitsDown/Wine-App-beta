@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail } from "@/lib/invite-policy";
-import { currentOwnerId } from "@/lib/owner";
+import { currentDomaineId } from "@/lib/owner";
 
 // The invite list is the whole of "invite-only", so two of these actions
 // are the only way into this app and the only way to close it again; the
@@ -44,24 +44,29 @@ export async function revokeInvite(id) {
 
 // "Name your Domaine" (and give it a motto) - the estate's own name and
 // tagline, as distinct from the person's own `name` (see the schema
-// comments on User.domaineName/domaineMotto). One action for both fields
-// since they're one form - a motto with no name to sit under wouldn't
-// mean much, so there's no reason to save them separately. Never takes an
-// id: this always writes the signed-in account's own row via
-// currentOwnerId(), the same account this whole page is otherwise silent
-// about which one "you" are - so there is nothing here for one account to
-// aim at another's row with, unlike revokeInvite/inviteSomeone above,
-// which already act on the whole list because the door itself is a
-// shared, global thing. Blank clears a field back to unset rather than
-// leaving an empty string on file, which would render identically but
-// read as "set to nothing" instead of "never set."
+// comments on Domaine.name/motto). One action for both fields since
+// they're one form - a motto with no name to sit under wouldn't mean
+// much, so there's no reason to save them separately. Never takes an id:
+// this always writes the signed-in account's own Domaine via
+// currentDomaineId(), the same account this whole page is otherwise
+// silent about which one "you" are - so there is nothing here for one
+// account to aim at another's Domaine with, unlike revokeInvite/
+// inviteSomeone above, which already act on the whole list because the
+// door itself is a shared, global thing. Blank clears a field back to
+// unset rather than leaving an empty string on file, which would render
+// identically but read as "set to nothing" instead of "never set."
+//
+// One Domaine per User today (Phase 0 of Shared cellars), so "the
+// signed-in account's own Domaine" and "the signed-in account" are still
+// the same fact - this stays correct once a Domaine can hold more than
+// one Cellarmaster, since it was never keyed off a specific person's row.
 export async function setDomaineDetails(prevState, formData) {
   const name = String(formData.get("domaineName") || "").trim();
   const motto = String(formData.get("domaineMotto") || "").trim();
-  const ownerId = await currentOwnerId();
-  await prisma.user.update({
-    where: { id: ownerId },
-    data: { domaineName: name || null, domaineMotto: motto || null },
+  const domaineId = await currentDomaineId();
+  await prisma.domaine.update({
+    where: { id: domaineId },
+    data: { name: name || null, motto: motto || null },
   });
   revalidatePath("/invites");
   revalidatePath("/guest");
