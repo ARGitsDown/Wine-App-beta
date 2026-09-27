@@ -1926,7 +1926,7 @@ general box" state today, only "collapsed" and "everything open."
    next to the other string helpers it joins (`searchableText`,
    `includesInsensitive`).
 
-## 28. Pairings: tighter summaries — done; "Drink tonight" — still deferred
+## 28. Pairings: tighter summaries and "Drink tonight" — both done
 
 Raised by the owner, looking at both the pairings list and a kept pairing's
 detail page.
