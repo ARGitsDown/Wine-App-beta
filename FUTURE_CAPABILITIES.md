@@ -284,7 +284,7 @@ assume now:**
   runs research. Worth one measured pass of each before it ships -
   a wrong vintage saved from a scan costs more to find than it saved.
 - **Research's web search tool version has to follow the model down.**
-  Research sends `web_search_20260318` (`RESEARCH_WEB_SEARCH` in
+  Research sends `web_search_20260318` (`WEB_SEARCH_TOOL` in
   app/actions.js); Haiku 4.5 only takes the basic `web_search_20250305`.
   The downgraded Research call has to send the older tool version as
   well, or it fails outright instead of getting cheaper - so the tool
