@@ -212,25 +212,101 @@ Staged so nothing is a leap, and each phase is independently shippable:
   client. What is not yet verified from a live account: the thing this
   phase was built to prove, which is next.
 - **Phase 3 — usage ledger and caps**, per the AI-cost section above.
-  **Scoped 2026-09-27, not yet started** - see its own section below.
-- **Phase 4 — what guests become.** Turns out to be the same open question
-  as "Shared cellars," logged below - see that section rather than this
-  one; the two entries existed separately only because they were raised
-  eight days apart.
+  **Scoped 2026-09-27, shape decided 2026-09-28, not yet started** -
+  counted per Domaine, and a Domaine over its cap moves to cheaper
+  models rather than being blocked. See its own section below.
+- **Phase 4 — what guests become.** **Decided 2026-09-28, not yet
+  started:** a guest's access is chosen per section - Cellar, Tasting
+  Notes, Flights, Pairings, Wish List - when they're invited. See "Phase
+  4, decided" below.
 
 ### Still open
 
 - ~~Which OAuth library, and whether it's compatible with Next 16.~~
   **Verified 2026-09-21 against the live registry, not from memory.**
-- What happens at the usage cap: hard block, or degrade to the
-  non-AI features.
-- Whether an owner/admin role is worth adding to gate `/invites` - see
-  Phase 2's "not covered" note above.
+- ~~What happens at the usage cap: hard block, or degrade to the
+  non-AI features.~~ **Decided 2026-09-28: neither - it moves to cheaper
+  models.** See Phase 3's own section.
+- ~~Whether an owner/admin role is worth adding to gate `/invites`.~~
+  **Answered by Shared cellars Phase 1:** only a Cellarmaster reaches
+  `/invites`, and only for their own Domaine. What's still missing is one
+  level up - an *operator* of the whole app, for setting other Domaines'
+  caps (Phase 3, below).
 - ~~Whether renamed/hand-built flights and kept pairings need anything
   beyond a plain `ownerId`.~~ **Confirmed by Phase 2: no.** They're roots
   like `Bottle`, and the extension scopes all three identically.
 
-## Phase 3, scoped — usage ledger and caps — 2026-09-27
+## Phase 3, scoped — usage ledger and caps — 2026-09-27, shape decided 2026-09-28
+
+### Decided with the owner, 2026-09-28
+
+1. **Counted per Domaine, not per person.** A Domaine's Cellarmasters
+   share one cellar and now share one monthly allowance - the same unit
+   everything else in the app is scoped by since Shared cellars Phase 1.
+   Guest members can't make AI calls at all (lib/scoped-prisma.js and the
+   up-front checks in Scan and Suggest refuse them), so there is nothing
+   of theirs to count.
+2. **Over the cap, a Domaine moves to cheaper models - it is never
+   blocked.** Every AI feature keeps working, one rung down. Today's two
+   tiers are `REASONING_MODEL` (`claude-opus-5`: Suggest's "sommelier"
+   depth) and `EXTRACTION_MODEL` (`claude-sonnet-5`: Scan, Research,
+   drinking windows, photo details, Suggest's "standard" depth), both in
+   `lib/anthropic.js`. Over the cap, each drops one tier: Opus work runs
+   on Sonnet, and Sonnet work runs on Haiku 4.5
+   (`claude-haiku-4-5-20251001`). The swap belongs in one function next to
+   those constants (`modelFor(tier, overCap)`), not repeated at the six
+   call sites.
+
+**What that decision changes in the plan below:**
+
+- `UsageEvent` gains `domaineId` (the cap is summed over it) and keeps
+  `ownerId` as attribution, nullable with `SET NULL` exactly like
+  `Bottle.ownerId`, so removing a member doesn't erase the Domaine's
+  history of what it spent. The index becomes `@@index([domaineId,
+  createdAt])`. The Research step route already has `ResearchJob.domaineId`
+  for this, since Phase 1.
+- The cap lives on the Domaine: `Domaine.monthlySpendCapCents Int?`,
+  where `null` means no cap. Not on `User`, as the section below first
+  sketched.
+- The guard function's contract is now settled: it never throws or
+  refuses, it only returns which tier to use. The "banner when you're at
+  the cap" surface becomes a quieter note - "running on lighter models
+  until the 1st" - on Suggest, Scan and Research, rather than an
+  unavailable state.
+
+**Checks this decision creates, to make at build time rather than
+assume now:**
+
+- **Haiku's quality on Scan and Research has never been measured.**
+  BACKLOG #23 measured Research's effort levels on Sonnet, and #9 already
+  flagged the earlier lighter-model switch as not rigorously compared. A
+  Domaine over its cap would be the first place Haiku reads a label or
+  runs research. Worth one measured pass of each before it ships -
+  a wrong vintage saved from a scan costs more to find than it saved.
+- **Research's web search tool version has to follow the model down.**
+  Research sends `web_search_20260318` (`RESEARCH_WEB_SEARCH` in
+  app/actions.js); Haiku 4.5 only takes the basic `web_search_20250305`.
+  The downgraded Research call has to send the older tool version as
+  well, or it fails outright instead of getting cheaper - so the tool
+  version belongs in `modelFor`'s answer, not just the model id.
+- **Downgrading alone doesn't bound the spend** - Haiku is cheaper, not
+  free. Whether there's also a much higher hard ceiling (a runaway
+  loop, a leaked session) is the one question this decision leaves
+  open; the owner's answer was specifically about the normal case.
+
+**Still open:** who sets another Domaine's cap, and what a new one gets
+by default. A Domaine's own Cellarmasters can't be the ones to set it -
+they'd be raising their own limit on the app owner's API key - so this
+needs an app-level operator above any one Domaine. The obvious candidate
+is the address in `OWNER_EMAIL` (lib/auth.js), or failing that the
+original Domaine's Cellarmasters: uncapped themselves (`null`), and the
+only people who see and set everyone else's. A "separate" invite would
+then found a Domaine with a default cap rather than none.
+
+### The original scoping, 2026-09-27
+
+Kept as written; where it says `ownerId` for the cap, or "hard block,
+or degrade," the decisions above replace it.
 
 Scoped on request, deliberately not started: the owner wanted this planned
 out while it's fresh, without picking it up yet. Builds on the AI-cost
@@ -633,6 +709,61 @@ refused, and a removed Cellarmaster's flight still in the cellar.
 different Domaine (it would need to leave its own - one Domaine per
 User); and the anonymous `/guest` link is still the original cellar's
 only, not per-Domaine (Phase 4 in "Separate cellars per user").
+
+## Phase 4, decided — a guest's access, section by section — 2026-09-28
+
+**Decided with the owner:** inviting someone as a Guest offers a
+checkbox for each part of the Domaine they can see - **Cellar**,
+**Tasting Notes**, **Flights**, **Pairings** and **Wish List** - instead
+of today's fixed "browse the Cellar and favorite." Not yet started;
+recorded so building it starts from the decision rather than from
+scratch.
+
+**What each section maps to in the schema:**
+
+| Section | Rows it shows | Owner page it mirrors |
+|---|---|---|
+| Cellar | `Bottle` with status `inventory`, plus favoriting (today's `/guest`) | `/inventory` |
+| Tasting Notes | `Bottle` with status `consumed`, and its `TastingNote`s | `/consumed` |
+| Flights | `TastingFlight` + its `FlightPick`s | `/flights` |
+| Pairings | kept `SavedPairing`s + their `PairingPick`s | `/pairings` |
+| Wish List | `Bottle` with status `wishlist` | `/wishlist` |
+
+**The shape this points to, to confirm at build time:**
+
+- **Stored on the invite, copied to the member.** `Invite.guestSections
+  String[]` is chosen on the form, and `createUser` (lib/auth.js) copies
+  it to `User.guestSections`, the same way `access` becomes `role` today.
+  The member's own copy is what's enforced, so the Members list can
+  change it later without a new invite - the same place #49 put role
+  changes. Empty for Cellarmasters, who see everything.
+- **Every section read-only.** A Guest still never adds, edits, scans or
+  runs Suggest - that's the line between Guest and Cellarmaster, and it
+  also means a guest never triggers an AI call, which is what keeps
+  Phase 3's "guests have nothing to count" true.
+- **Read-only guest pages, not the owner pages with the buttons hidden.**
+  The owner pages are full of edit controls and Server Actions; hiding
+  them per role would put "is this person allowed to press this?" in
+  every component. Instead the `(guest)` route group grows a page per
+  section, each querying explicitly - the same way `/guest` already does
+  - and `lib/scoped-prisma.js` stays Cellarmaster-only. A section left
+  unticked is simply not linked, and its page refuses to render.
+- **Flights and Pairings reach into the Cellar.** A flight's picks are
+  bottles, and possibly bottles from a section the guest wasn't given.
+  The simplest honest rule: a pick shows the wine's name either way (it
+  is part of the flight), but only links through to the bottle when the
+  guest can see the section that bottle is in.
+
+**Still open:**
+
+- **Defaults.** Which boxes start ticked on a new Guest invite - Cellar
+  alone (today's behaviour, so nothing about an existing guest changes),
+  or everything?
+- **The anonymous `/guest` link.** Per-section access as decided is for
+  invited Guest *members*. Whether the no-account link gets the same
+  choice (set once per Domaine), or stays Cellar-only, isn't decided.
+- **Existing guest members** would be backfilled to Cellar only, which
+  is exactly what they can see today.
 
 ## Sharing a single Flight or Tasting Notes — raised 2026-09-27
 
