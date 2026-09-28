@@ -290,18 +290,30 @@ assume now:**
   well, or it fails outright instead of getting cheaper - so the tool
   version belongs in `modelFor`'s answer, not just the model id.
 - **Downgrading alone doesn't bound the spend** - Haiku is cheaper, not
-  free. Whether there's also a much higher hard ceiling (a runaway
-  loop, a leaked session) is the one question this decision leaves
-  open; the owner's answer was specifically about the normal case.
+  free - which is why decision 4 below adds a hard stop.
 
-**Still open:** who sets another Domaine's cap, and what a new one gets
-by default. A Domaine's own Cellarmasters can't be the ones to set it -
-they'd be raising their own limit on the app owner's API key - so this
-needs an app-level operator above any one Domaine. The obvious candidate
-is the address in `OWNER_EMAIL` (lib/auth.js), or failing that the
-original Domaine's Cellarmasters: uncapped themselves (`null`), and the
-only people who see and set everyone else's. A "separate" invite would
-then found a Domaine with a default cap rather than none.
+3. **The app owner sets every other Domaine's cap** (decided
+   2026-09-28). Not a Domaine's own Cellarmasters, who would be raising
+   their own limit on the owner's API key. "The app owner" is the account
+   whose email is `OWNER_EMAIL` (lib/auth.js), falling back to the
+   original Domaine's Cellarmasters when that isn't set. Their own
+   Domaine is uncapped (`null`); they alone see every Domaine's spend and
+   set its cap. A "separate" invite founds a Domaine with a default cap
+   rather than none.
+4. **A hard stop above the downgrade** (decided 2026-09-28). A second,
+   much higher ceiling - `Domaine.monthlyHardStopCents Int?` - past which
+   AI features for that Domaine stop until the month resets, for the
+   runaway cases (a loop, a leaked session) that a cheaper model only
+   slows down. Past the first cap, lighter models; past the second,
+   nothing, with the same "unavailable right now" state these pages
+   already show without an API key. It only matters when something is
+   wrong, so it should sit far enough above the first cap that normal use
+   never reaches it.
+
+**Still open:** the actual numbers - the default monthly cap for a new
+Domaine and how far above it the hard stop sits (for example, three
+times the cap) - best chosen once the ledger has a month of real spend
+to look at, rather than guessed now.
 
 ### The original scoping, 2026-09-27
 
@@ -756,9 +768,8 @@ scratch.
 
 **Still open:**
 
-- **Defaults.** Which boxes start ticked on a new Guest invite - Cellar
-  alone (today's behaviour, so nothing about an existing guest changes),
-  or everything?
+- ~~**Defaults.**~~ **Decided 2026-09-28: Cellar only**, matching
+  today's behaviour; the other four are opt-in per invite.
 - **The anonymous `/guest` link.** Per-section access as decided is for
   invited Guest *members*. Whether the no-account link gets the same
   choice (set once per Domaine), or stays Cellar-only, isn't decided.
