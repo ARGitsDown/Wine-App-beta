@@ -208,24 +208,19 @@ features like separate cellars per user.
   a backfilled guess, and a hand-built one needs no description at all. Only real owned bottles are saved into a
   flight - a gap suggestion in the same result isn't something to "pull
   from the cellar," and can already be added to the wishlist independently.
-- **Guest favoriting** (`/guest`) — a link you hand to friends and family
-  so they can browse your cellar (read-only) and favorite
-  bottles they'd like pulled for their next visit. The `/guest` chip on
-  the Cellar opens your phone's share sheet, or copies the link where
-  there isn't one, rather than making you retype it. Guests get the same
-  instant search and filtering as the Cellar (minus the rating filter and
-  the drink-soon sort, since your own scores and drinking windows aren't
-  shown to them) — a cellar worth browsing is usually one too big to
-  scroll. No account or password — a
-  guest just enters a name (reused if they type the same one again from a
-  new device), remembered via a cookie so their favorites persist across
-  visits. Favorites show up back on `/inventory` as a ❤️ with who picked
-  it. A guest sees only this page — no nav into the owner's Cellar,
-  Scan, or anything else — which is why the app's routes are split into
-  `app/(owner)` and `app/(guest)` route groups, each with its own header,
-  rather than sharing one. This is deliberately lightweight; everyone getting their own
-  separate cellar is a bigger, separate capability - see
-  [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md).
+- **Guests** (`/guest`) — someone invited from `/invites` as a Guest
+  signs in with their own address and lands here: a read-only view of the
+  Domaine's cellar where they can favorite bottles they'd like pulled for
+  their next visit. Favorites show up back on `/inventory` as a ❤️ with
+  who picked it. Guests get the same instant search and filtering as the
+  Cellar (minus the rating filter and the drink-soon sort, since your own
+  scores and drinking windows aren't shown to them). A guest sees only
+  this page — the owner pages send them back here, and the data layer
+  refuses them regardless — which is why the app's routes are split into
+  `app/(owner)` and `app/(guest)` route groups, each with its own header.
+  This used to be an open link anyone could use by typing a name; that
+  was retired in favor of invited guests (BACKLOG #51), so guest browsing
+  needs accounts switched on.
 - **Deleting asks first** — removing a bottle, one of its photos, or a
   saved flight takes a second click, and the confirmation says what else
   goes with it ("Also deletes 2 tasting notes and 2 guest favorites"),

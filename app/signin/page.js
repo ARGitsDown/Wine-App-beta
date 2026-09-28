@@ -110,12 +110,6 @@ export default async function SignInPage({ searchParams }) {
         </form>
       )}
 
-      <p className="text-sm text-zinc-500">
-        Browsing someone else&apos;s cellar as a guest?{" "}
-        <a href="/guest" className="underline underline-offset-2">
-          You don&apos;t need an account for that.
-        </a>
-      </p>
     </div>
   );
 }

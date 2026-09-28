@@ -3183,3 +3183,32 @@ the right message; `npm run verify` covers the new page (16 pages).
 
 `app/signin/error/page.js`, `app/signin/actions.js`, `app/signin/page.js`,
 `lib/auth.js`, `scripts/smoke.mjs`.
+
+## 51. Retire the anonymous guest link
+
+The owner's call, once invited Guests existed: `/guest` is no longer a
+URL anyone can open by typing a name. It's where a signed-in Guest
+member browses and favorites, and nobody else - a signed-out visitor is
+sent to `/signin`, a Cellarmaster to the app itself, and with accounts
+switched off the page says guest browsing needs an invite (there being
+nobody to invite yet).
+
+Gone with it: the name form, "Not you?", the `guestId` cookie and the
+two actions behind them (`enterAsGuest`, `switchGuest`),
+`anonymousGuestDomaineId`, the Cellar's "Guest link" share chip (now an
+"Invite a guest" link to `/invites`, shown once accounts are on), and
+the "you don't need an account" lines on `/signin` and `/signin/error`.
+Cookie guests' existing `Guest` rows and favorites were deliberately
+left in place, so names already shown next to a favorite still show;
+nothing can add to them.
+
+Verified with accounts on - signed-out visitor bounced to `/signin`,
+Guest member browsing and favoriting, Cellarmaster sent to `/`, the new
+invite link reaching `/invites` - and `npm run verify` clean in both
+modes, with the smoke test now treating `/guest` as a signed-in page.
+
+`lib/guest.js`, `lib/owner.js`, `app/actions.js`,
+`app/(guest)/guest/page.js`, `app/(owner)/inventory/page.js`,
+`app/components/GuestLinkButton.js` (deleted), `app/signin/page.js`,
+`app/signin/error/page.js`, `lib/scoped-prisma.js`, `scripts/smoke.mjs`,
+README.md, PROJECT.md, FUTURE_CAPABILITIES.md.

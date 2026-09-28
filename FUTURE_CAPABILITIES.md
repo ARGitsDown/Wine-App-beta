@@ -590,7 +590,10 @@ than guessed at in a migration:
    new Guest-like role** - not replaced by it. `/guest` is still the
    zero-friction way to share with a stranger or a one-off visitor; the
    new role is for someone invited as a real member of the Domaine, tied
-   to their own sign-in.
+   to their own sign-in. **Reversed 2026-09-28: the anonymous link was
+   retired** (BACKLOG #51) once invited Guests existed and Phase 4's
+   per-section access was decided for them - `/guest` is now for Guest
+   members only.
 3. **This session builds Phase 0 only** - schema and membership, nothing
    wired up yet - mirroring how "Separate cellars per user" itself was
    staged, rather than sweeping the ~100 already-scoped call sites and
@@ -719,8 +722,8 @@ refused, and a removed Cellarmaster's flight still in the cellar.
 
 **Still open:** inviting an address that already has an account into a
 different Domaine (it would need to leave its own - one Domaine per
-User); and the anonymous `/guest` link is still the original cellar's
-only, not per-Domaine (Phase 4 in "Separate cellars per user").
+User). ~~The anonymous `/guest` link is still the original cellar's
+only.~~ Moot - the anonymous link was retired 2026-09-28 (BACKLOG #51).
 
 ## Phase 4, decided — a guest's access, section by section — 2026-09-28
 
@@ -770,9 +773,9 @@ scratch.
 
 - ~~**Defaults.**~~ **Decided 2026-09-28: Cellar only**, matching
   today's behaviour; the other four are opt-in per invite.
-- **The anonymous `/guest` link.** Per-section access as decided is for
-  invited Guest *members*. Whether the no-account link gets the same
-  choice (set once per Domaine), or stays Cellar-only, isn't decided.
+- ~~**The anonymous `/guest` link.**~~ **Decided 2026-09-28: retired**
+  (BACKLOG #51), so per-section access only ever applies to invited
+  Guest members - there is no second kind of guest to design for.
 - **Existing guest members** would be backfilled to Cellar only, which
   is exactly what they can see today.
 
@@ -786,7 +789,9 @@ audiences: other people who have their own Cellarmaster account
 ("members" - a User of some Domaine, their own or another's), and people
 who don't ("non-members").
 
-**Closest existing precedent: the Guest link.** `/guest` already does the
+**Closest existing precedent: the Guest link** - retired 2026-09-28
+(BACKLOG #51), so this is history now, but the question it raised still
+stands for sharing a single thing with a non-member. `/guest` did the
 "non-member, no login, a link" half of this, but for the *whole* cellar
 (browsing plus favoriting), not one flight or one bottle's notes. Whether
 this is a scoped variant of that same mechanism (a Flight-shaped or

@@ -1,15 +1,13 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { auth, isAuthConfigured } from "@/lib/auth";
 import { resolveGuestView } from "@/lib/guest";
 import { getRegionOptions } from "@/lib/bottles";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
-import { enterAsGuest, switchGuest } from "@/app/actions";
 import { signOutOfCellar } from "@/app/signin/actions";
 import GuestBottleList from "@/app/components/GuestBottleList";
 
 export const dynamic = "force-dynamic";
-
-const inputClass =
-  "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 
 // The name on the invite, in the owner's own words - a display name if
 // Google or the profile provided one, their email otherwise, and only
@@ -36,17 +34,38 @@ function cellarMotto(domaine) {
   return domaine?.motto || null;
 }
 
+// Where an invited Guest member browses and favorites - and, since the
+// anonymous name-in-a-cookie link was retired (BACKLOG #51), only them.
+// See resolveGuestView in lib/guest.js.
 export default async function GuestPage({ searchParams }) {
-  // Which cellar, and as whom - see resolveGuestView for the three kinds
-  // of visitor this page serves since Domaines could be shared.
-  const { domaineId, guest, member } = await resolveGuestView();
+  // With accounts switched off there is nobody to invite, so there is no
+  // one this page is for. Said plainly rather than bounced, since the
+  // owner is the only person who could land here and deserves the reason.
+  if (!isAuthConfigured()) {
+    return (
+      <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-16">
+        <h1 className="text-2xl font-semibold">Guest browsing needs an invite</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Guests are people invited to a cellar with their own sign-in, and
+          accounts aren&apos;t switched on here yet — so there&apos;s nobody
+          this page can show a cellar to.
+        </p>
+      </div>
+    );
+  }
 
-  // Needed before a guest even has a name of their own (BACKLOG #29
-  // finding 8: the sign-in screen never said whose cellar this was, or
-  // that picks are visible to them) - so this is fetched unconditionally
-  // rather than only once a guest exists. "The owner" named here is the
-  // Domaine's founding Cellarmaster - the person a guest most likely
-  // knows it by.
+  const view = await resolveGuestView();
+  if (!view) {
+    // Signed out: the way in is signing in. A Cellarmaster: the whole
+    // app is theirs, and the owner pages are where it is.
+    const session = await auth();
+    redirect(session?.user?.id ? "/" : "/signin");
+  }
+  const { domaineId, guest } = view;
+
+  // "Who will see your favorites" has to name an actual person. "The
+  // owner" named here is the Domaine's founding Cellarmaster - the person
+  // a guest most likely knows it by.
   const domaine = await prisma.domaine.findUnique({
     where: { id: domaineId },
     select: {
@@ -65,40 +84,8 @@ export default async function GuestPage({ searchParams }) {
   const cellarName = cellarDisplayName(domaine, owner);
   const motto = cellarMotto(domaine);
 
-  if (!guest) {
-    return (
-      <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-8">
-        <div>
-          <h1 className="text-2xl font-semibold">Who&apos;s visiting?</h1>
-          <p className="text-sm text-zinc-500">
-            You&apos;re browsing {cellarName}
-            {motto && (
-              <>
-                {" "}
-                — <em>&ldquo;{motto}&rdquo;</em>
-              </>
-            )}
-            . Enter your name to favorite anything you&apos;d like pulled
-            for your next visit — {ownerName} will see your name next to
-            what you pick.
-          </p>
-        </div>
-        <form action={enterAsGuest} className="flex flex-col gap-3">
-          <input name="name" required placeholder="Your name" className={inputClass} />
-          <button
-            type="submit"
-            className="self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            Continue
-          </button>
-        </form>
-      </div>
-    );
-  }
-
-  // lib/scoped-prisma.js is for Cellarmasters, and most visitors here have
-  // no session at all - so this page scopes itself, by the Domaine
-  // resolveGuestView settled on above.
+  // lib/scoped-prisma.js is for Cellarmasters, so this page scopes itself,
+  // by the Domaine resolveGuestView settled on above.
   const [rows, regionOptions, filters] = await Promise.all([
     prisma.bottle.findMany({
       where: { status: "inventory", domaineId },
@@ -134,23 +121,13 @@ export default async function GuestPage({ searchParams }) {
             — {ownerName} can see your name next to what you favorite.
           </p>
         </div>
-        {/* A guest-role member is who their account says, so "Not you?"
-            (which only forgets a typed name) would be the wrong way out -
-            signing out is the right one, and the only one they have,
-            since the owner pages send them straight back here. */}
-        {member?.role === "guest" ? (
-          <form action={signOutOfCellar}>
-            <button type="submit" className="text-xs text-zinc-500 underline underline-offset-2">
-              Sign out
-            </button>
-          </form>
-        ) : (
-          <form action={switchGuest}>
-            <button type="submit" className="text-xs text-zinc-500 underline underline-offset-2">
-              Not you?
-            </button>
-          </form>
-        )}
+        {/* The only way out a Guest has, since the owner pages send them
+            straight back here. */}
+        <form action={signOutOfCellar}>
+          <button type="submit" className="text-xs text-zinc-500 underline underline-offset-2">
+            Sign out
+          </button>
+        </form>
       </div>
 
       <GuestBottleList

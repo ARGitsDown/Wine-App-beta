@@ -51,10 +51,12 @@ const PAGES = [
   { path: "/research", owner: true },
   { path: "/estimate-windows", owner: true },
   { path: "/invites", owner: true },
-  // Public by design and it must stay that way: a guest browsing someone
-  // else's cellar never signs in, and the sign-in page cannot sit behind
-  // the thing it exists to get you through.
-  { path: "/guest" },
+  // Since the anonymous guest link was retired (BACKLOG #51), /guest is
+  // for signed-in Guest members only - so with accounts on it must send a
+  // signed-out visitor to /signin, exactly like an owner page.
+  { path: "/guest", owner: true },
+  // Public by design and it must stay that way: the sign-in page cannot
+  // sit behind the thing it exists to get you through.
   { path: "/signin" },
   { path: "/signin/check-email" },
   // Where a refused sign-in lands - most of all, someone who was never

@@ -2,10 +2,10 @@ import Link from "next/link";
 import { getBottles, getRegionOptions } from "@/lib/bottles";
 import { db } from "@/lib/scoped-prisma";
 import { currentDomaineId } from "@/lib/owner";
+import { isAuthConfigured } from "@/lib/auth";
 import { createBottle } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import FilterableBottleList from "@/app/components/FilterableBottleList";
-import GuestLinkButton from "@/app/components/GuestLinkButton";
 import ScanAndAddRow from "@/app/components/ScanAndAddRow";
 import { flightName, isOpenFlight } from "@/lib/flights";
 
@@ -42,15 +42,19 @@ export default async function CellarPage({ searchParams }) {
       {/* Browsing comes before adding here, which is the opposite of the
           Wishlist and deliberately so: a wishlist is added to constantly and
           browsed rarely, a cellar of hundreds is the reverse. Everything
-          above the list earns its room - the guest link is a chip in the
-          heading row rather than two lines of prose about a feature used a
-          few times a year. */}
+          above the list earns its room - sharing the cellar is one small
+          link in the heading row rather than two lines of prose about a
+          feature used a few times a year. It used to copy an open /guest
+          link; since that was retired (BACKLOG #51), sharing means inviting
+          someone as a Guest, so it goes where invites are made - and only
+          once accounts are on, since until then nobody can be invited. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h1 className="text-2xl font-semibold">Cellar</h1>
-        <span className="flex items-center gap-2 text-sm text-zinc-500">
-          Guest link
-          <GuestLinkButton />
-        </span>
+        {isAuthConfigured() && (
+          <Link href="/invites" className="text-sm text-zinc-500 underline underline-offset-2">
+            Invite a guest
+          </Link>
+        )}
       </div>
 
       {/* Scan and hand entry on one line (BACKLOG #26) - Scan is still the

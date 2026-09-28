@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 const MESSAGES = {
   AccessDenied: {
     title: "This address can't sign in here",
-    body: "Cellarmaster is invite-only, and that address isn't on the list — it was never invited, or its access has been taken away. If you think it should be, ask whoever runs the cellar to invite it.",
+    body: "Cellarmaster is invite-only — guests included — and that address isn't on the list: it was never invited, or its access has been taken away. If you think it should be, ask whoever runs the cellar to invite it.",
     retry: "Try a different address",
   },
   Verification: {
@@ -53,14 +53,6 @@ export default async function SignInErrorPage({ searchParams }) {
       >
         {message.retry}
       </Link>
-      {/* The same way out /signin offers: someone refused an account may
-          only ever have wanted to browse, which needs none. */}
-      <p className="text-sm text-zinc-500">
-        Just here to browse a cellar as a guest?{" "}
-        <Link href="/guest" className="underline underline-offset-2">
-          You don&apos;t need an account for that.
-        </Link>
-      </p>
     </div>
   );
 }

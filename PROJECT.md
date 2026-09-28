@@ -49,10 +49,10 @@ rule them out. Two items originally listed here are since built — see
   Every way a bottle gets added now fills one in, `/estimate-windows`
   backfills the ones that predate it, and the Cellar sorts by "drink soon".
   See [`BACKLOG.md`](./BACKLOG.md) #4 and #7.
-- ~~Sharing or collaborating with other people~~ — partly built as guest
-  favoriting (`/guest`): no accounts, a friend just browses your inventory
-  and shortlists bottles for their next visit. Everyone getting their own
-  separate cellar is a bigger fork, tracked in
+- ~~Sharing or collaborating with other people~~ — built as shared
+  Domaines: invited Cellarmasters share one cellar, and invited Guests
+  browse it and shortlist bottles at `/guest`. (An earlier no-account
+  guest link was retired - BACKLOG #51.) What's still ahead is tracked in
   [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md) rather than here.
 - Price tracking / valuation
 - Offline support
