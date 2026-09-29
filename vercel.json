@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "claude/great-meitner-j2tbow": true,
+      "main": true
+    }
+  }
+}

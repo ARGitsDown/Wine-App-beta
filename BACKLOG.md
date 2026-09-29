@@ -3212,3 +3212,34 @@ modes, with the smoke test now treating `/guest` as a signed-in page.
 `app/components/GuestLinkButton.js` (deleted), `app/signin/page.js`,
 `app/signin/error/page.js`, `lib/scoped-prisma.js`, `scripts/smoke.mjs`,
 README.md, PROJECT.md, FUTURE_CAPABILITIES.md.
+
+## 52. Vercel's "Function Storage" limit: fewer deployments, smaller ones
+
+Vercel emailed that the Hobby team had used 100% of its 10 GB of
+Function Storage - the combined size of the server function bundles of
+every deployment it retains. Not traffic: every push to every branch
+made a preview deployment, all of them kept, each carrying a bundle
+dominated by an image library nothing here uses. Two changes:
+
+- **Only two branches deploy** (`vercel.json`): `"**": false` switches
+  every branch off - `**` rather than `*` so names with a slash, like
+  every `claude/...` branch, are covered - and the two `true` rules turn
+  back on `claude/great-meitner-j2tbow` and `main`. The first matters
+  most: it is the repo's default branch and where production builds from
+  (`main` is 207 commits behind it), so a blanket "no `claude/*`" rule,
+  the first idea, would have stopped production deploying at all. Vercel
+  deploys a branch if any rule matching it is `true`.
+- **`sharp` is left out of every server bundle** (`next.config.mjs`,
+  `outputFileTracingExcludes`). It was ~47 of ~63 MB of traced files per
+  deployment - two Linux builds of libvips plus a wasm fallback - for
+  Next's image optimizer, which this app never calls: photos are plain
+  `<img>` from Blob, and the icons use `next/og`, which doesn't use it.
+  Measured after: 15.1 MB of traced files, 0 of 26 traces referencing
+  it; `/icon` and `/apple-icon` still render; `npm run verify` clean.
+
+Not done here, and the owner's to do in the Vercel dashboard: deleting
+the preview deployments already retained, and a retention policy so old
+ones expire on their own. Community reports say the storage figure can
+lag hours after deletions on Hobby.
+
+`vercel.json` (new), `next.config.mjs`, README.md.

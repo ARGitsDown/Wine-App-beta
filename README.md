@@ -287,6 +287,14 @@ database) — set its connection string as `DATABASE_URL` in a `.env` file
 (see `.env.example`). On Vercel, `npm run build` runs `prisma migrate
 deploy` first, so schema changes apply automatically on every deploy.
 
+Only two branches deploy on Vercel: `claude/great-meitner-j2tbow` (the
+repo's default branch, which production builds from) and `main`.
+`vercel.json` turns every other branch off, because each preview
+deployment is kept and counts toward the Hobby plan's 10 GB of function
+storage (BACKLOG #52). If production moves to a different branch, add it
+to `git.deploymentEnabled` in `vercel.json` in the same change, or it
+won't deploy at all.
+
 The label-scanning feature needs an `ANTHROPIC_API_KEY` (also in
 `.env.example`) — without one, `/scan` shows a clear error and falls back to
 a manual add-bottle form, so it degrades gracefully rather than breaking the
