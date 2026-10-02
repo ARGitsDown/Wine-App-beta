@@ -1,38 +1,13 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth, isAuthConfigured } from "@/lib/auth";
-import { resolveGuestView } from "@/lib/guest";
+import { getGuestCellar, resolveGuestView } from "@/lib/guest";
 import { getRegionOptions } from "@/lib/bottles";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { signOutOfCellar } from "@/app/signin/actions";
 import GuestBottleList from "@/app/components/GuestBottleList";
 
 export const dynamic = "force-dynamic";
-
-// The name on the invite, in the owner's own words - a display name if
-// Google or the profile provided one, their email otherwise, and only
-// "the owner" if somehow neither exists (a row from before either was
-// required). Never null: used below for "who will see your favorites,"
-// which has to name the actual person - a Domaine name (below) can't see
-// anything.
-function ownerDisplayName(owner) {
-  return owner?.name || owner?.email || "the owner";
-}
-
-// What to call the cellar itself. The estate's own name if one was set
-// (see the schema comment on Domaine.name) - already reads as a place, so
-// it stands alone rather than taking a possessive - falling back to the
-// person's own name otherwise, exactly as before this existed.
-function cellarDisplayName(domaine, owner) {
-  return domaine?.name || `${ownerDisplayName(owner)}'s cellar`;
-}
-
-// The estate's tagline, if one was set - shown after cellarDisplayName
-// wherever that appears, in the owner's own words, never manufactured
-// when absent.
-function cellarMotto(domaine) {
-  return domaine?.motto || null;
-}
 
 // Where an invited Guest member browses and favorites - and, since the
 // anonymous name-in-a-cookie link was retired (BACKLOG #51), only them.
@@ -61,28 +36,11 @@ export default async function GuestPage({ searchParams }) {
     const session = await auth();
     redirect(session?.user?.id ? "/" : "/signin");
   }
-  const { domaineId, guest } = view;
 
-  // "Who will see your favorites" has to name an actual person. "The
-  // owner" named here is the Domaine's founding Cellarmaster - the person
-  // a guest most likely knows it by.
-  const domaine = await prisma.domaine.findUnique({
-    where: { id: domaineId },
-    select: {
-      name: true,
-      motto: true,
-      members: {
-        where: { role: "cellarmaster" },
-        orderBy: { createdAt: "asc" },
-        take: 1,
-        select: { name: true, email: true },
-      },
-    },
-  });
-  const owner = domaine?.members[0];
-  const ownerName = ownerDisplayName(owner);
-  const cellarName = cellarDisplayName(domaine, owner);
-  const motto = cellarMotto(domaine);
+  const { domaineId, guest, member } = view;
+  // The header (app/(guest)/layout.js) already names the cellar, so the
+  // page doesn't repeat it - just its motto, if it has one.
+  const { motto } = await getGuestCellar(domaineId);
 
   // lib/scoped-prisma.js is for Cellarmasters, so this page scopes itself,
   // by the Domaine resolveGuestView settled on above.
@@ -106,25 +64,32 @@ export default async function GuestPage({ searchParams }) {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Hi, {guest.name}</h1>
-          <p className="text-sm text-zinc-500">
-            Browsing {cellarName}
-            {motto && (
-              <>
-                {" "}
-                — <em>&ldquo;{motto}&rdquo;</em>
-              </>
-            )}
-            . Favorite anything you&apos;d like pulled for your next visit
-            — {ownerName} can see your name next to what you favorite.
+          {/* Their own name, or a plain welcome - never their email
+              address, which is all an email-link sign-in has on file and
+              read like a system record (BACKLOG #53). */}
+          <h1 className="text-2xl font-semibold">
+            {member.name ? `Hi, ${member.name}` : "Welcome"}
+          </h1>
+          {motto && (
+            <p className="text-sm text-zinc-500">
+              <em>&ldquo;{motto}&rdquo;</em>
+            </p>
+          )}
+          <p className="mt-1 text-sm text-zinc-500">
+            Favorite anything you&apos;d like opened on your next visit. The
+            people who run this cellar can see your name next to what you
+            favorite.
           </p>
         </div>
         {/* The only way out a Guest has, since the owner pages send them
-            straight back here. */}
+            straight back here - so a real button, not small grey text. */}
         <form action={signOutOfCellar}>
-          <button type="submit" className="text-xs text-zinc-500 underline underline-offset-2">
+          <button
+            type="submit"
+            className="min-h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+          >
             Sign out
           </button>
         </form>

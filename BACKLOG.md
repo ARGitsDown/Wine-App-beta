@@ -3243,3 +3243,64 @@ ones expire on their own. Community reports say the storage figure can
 lag hours after deletions on Hobby.
 
 `vercel.json` (new), `next.config.mjs`, README.md.
+
+## 53. The ux-critic's review of the sharing flows, all eight findings built
+
+Ran `ux-critic` over everything built for shared Domaines (#47-#52) and
+built every finding:
+
+1. **"Invite a guest" made the friend a Cellarmaster.** The form
+   preselected Cellarmaster, so the Cellar page's "Invite a guest" ->
+   type an email -> Invite gave a friend full edit access. Now nothing is
+   preselected unless the link asks (`/invites?access=guest`, which the
+   Cellar link uses); an unchosen form is refused in place.
+2. **A role change left its confirm open, offering the reverse.** After
+   "Yes, make Guest" the same box re-armed as "Yes, make Cellarmaster" -
+   it looked like nothing had happened, inviting the tap that undid it.
+   `ConfirmButton` gained `doneMessage`: the box closes when the action
+   finishes and says what happened ("Sam is now a Guest."). Its confirm
+   button now shows "Working…" and stops taking taps while the action
+   runs, and Cancel is a real 44px button - both for every caller.
+3. **Inviting someone sends nothing, but said they were all set.** The
+   success message now says Cellarmaster doesn't send anything, and a
+   Share button (new `ShareInviteButton`) drafts the message - share
+   sheet on a phone, clipboard elsewhere - with the sign-in link and
+   their address. Also on every "Waiting to sign in" row, for nudging.
+4. **No way to People or Sign out on a phone.** Both lived only in the
+   desktop header. Home gained "People & Domaine ->" and "Sign out" in
+   the export link's quiet style (phone only); the desktop link is now
+   "People", shown even with accounts off.
+5. **/invites opened on its least-used part.** Retitled "People";
+   reordered invite -> waiting -> members -> separate cellars -> Domaine
+   name; the long paragraphs became one line each; the name and motto
+   boxes got visible labels and 44px height. Dropped the now-false "what
+   an invite gives them is settled at first sign-in".
+6. **The same person appeared twice, with the weaker control first.**
+   Used invites no longer list (Members covers those people, and Remove
+   is what actually takes access away) - which also retired the "You"
+   row and the bootstrap invite's system note. Used "separate cellar"
+   invites get their own list, "Has their own cellar", whose Revoke now
+   says plainly that it locks them out of their own cellar.
+7. **"Cellarmaster" meant three things.** The guest header shows the
+   cellar's name, not the app's; sign-in says "Sign in with the address
+   you were invited with"; "A separate cellar of their own" sits below
+   an "Or, not sharing" divider rather than as a third role; the error
+   page lost the stale "guests included" and gained a line about picking
+   the right Google account. One rule for the cellar's display name now
+   lives in `lib/cellar-name.js`.
+8. **A guest's first visit.** "Welcome" rather than "Hi, sam@gmail.com";
+   the invite's "Who is this?" note, not the email, is the name the
+   Cellarmasters see beside a guest's favorites; a drawn, visible heart
+   instead of the 🤍 emoji; Sign out as a real button; "the people who run
+   this cellar can see your name"; and a "My favorites (n)" filter.
+
+Verified with accounts on in a production build, 26 checks covering each
+finding end to end (including the role change actually happening once,
+the drafted share text, and the guest's favorites filter), screenshots
+at 375px, and `npm run verify` clean with accounts on and off.
+
+`app/components/{ConfirmButton,InviteForm,DomaineDetailsForm,ShareInviteButton,GuestBottleList}.js`,
+`app/(owner)/invites/{page,actions}.js`, `app/(owner)/{page,layout}.js`,
+`app/(owner)/inventory/page.js`, `app/(guest)/{layout,guest/page}.js`,
+`app/signin/page.js`, `app/signin/error/page.js`, `lib/guest.js`,
+`lib/cellar-name.js` (new), `lib/invite-access.js`, README.md.

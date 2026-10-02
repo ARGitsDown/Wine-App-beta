@@ -11,6 +11,8 @@ import {
   ResearchIcon,
 } from "@/app/components/icons";
 import { getResearchCount } from "@/lib/bottles";
+import { isAuthConfigured } from "@/lib/auth";
+import { signOutOfCellar } from "@/app/signin/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -230,12 +232,28 @@ export default async function HomePage() {
         ))}
       </div>
 
-      <a
-        href="/export"
-        className="self-start text-sm text-zinc-500 underline underline-offset-2"
-      >
-        Export all your data (JSON backup) →
-      </a>
+      {/* The account-level links, in the same quiet style as the export
+          link. On a phone these were nowhere at all - the desktop header
+          that carries them is hidden below 640px and the tab bar has no
+          room to spare for things used a few times a year - so a phone
+          had no way to manage people and no way to sign out, which
+          matters most for someone signed in on a borrowed phone
+          (BACKLOG #53). Hidden on desktop, where the header has both. */}
+      <div className="flex flex-col items-start gap-3 text-sm text-zinc-500">
+        <a href="/export" className="underline underline-offset-2">
+          Export all your data (JSON backup) →
+        </a>
+        <Link href="/invites" className="underline underline-offset-2 sm:hidden">
+          People &amp; Domaine →
+        </Link>
+        {isAuthConfigured() && (
+          <form action={signOutOfCellar} className="sm:hidden">
+            <button type="submit" className="min-h-11 underline underline-offset-2">
+              Sign out
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

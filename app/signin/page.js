@@ -48,8 +48,7 @@ export default async function SignInPage({ searchParams }) {
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Cellarmaster</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Sign in to reach your cellar. This app is invite-only, so the
-          account you use has to be one that was invited.
+          Sign in with the address you were invited with.
         </p>
       </div>
 

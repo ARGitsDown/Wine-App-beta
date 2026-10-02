@@ -38,7 +38,7 @@ export async function inviteSomeone(prevState, formData) {
   const domaineId = await currentDomaineId();
   await prisma.invite.create({ data: { email, note, access, domaineId } });
   revalidatePath("/invites");
-  return { success: true, access };
+  return { success: true, access, email };
 }
 
 // Removing an invite shuts the door on the next request rather than

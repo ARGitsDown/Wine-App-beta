@@ -78,20 +78,21 @@ export default async function OwnerLayout({ children }) {
           <Suspense fallback={null}>
             <ResearchNavLink />
           </Suspense>
-          {/* Only once there is something to sign out of. An app with no
-              accounts showing a Sign out link would be offering to undo
-              something that never happened. */}
+          {/* People shows whether or not accounts are on - its page says
+              you can build the invite list ahead of time, so nothing
+              should hide the way there. Named the same as the page and as
+              Home's link (BACKLOG #53). Sign out only once there is
+              something to sign out of: an app with no accounts offering
+              it would be offering to undo something that never happened. */}
+          <Link href="/invites" className="ml-auto text-zinc-500 hover:underline">
+            People
+          </Link>
           {signedIn && (
-            <>
-              <Link href="/invites" className="ml-auto text-zinc-500 hover:underline">
-                Invites
-              </Link>
-              <form action={signOutOfCellar}>
-                <button type="submit" className="text-zinc-500 hover:underline">
-                  Sign out
-                </button>
-              </form>
-            </>
+            <form action={signOutOfCellar}>
+              <button type="submit" className="text-zinc-500 hover:underline">
+                Sign out
+              </button>
+            </form>
           )}
         </nav>
       </header>

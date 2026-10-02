@@ -208,7 +208,7 @@ features like separate cellars per user.
   a backfilled guess, and a hand-built one needs no description at all. Only real owned bottles are saved into a
   flight - a gap suggestion in the same result isn't something to "pull
   from the cellar," and can already be added to the wishlist independently.
-- **Guests** (`/guest`) — someone invited from `/invites` as a Guest
+- **Guests** (`/guest`) — someone invited from People (`/invites`) as a Guest
   signs in with their own address and lands here: a read-only view of the
   Domaine's cellar where they can favorite bottles they'd like pulled for
   their next visit. Favorites show up back on `/inventory` as a ❤️ with

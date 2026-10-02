@@ -46,12 +46,13 @@ export default async function CellarPage({ searchParams }) {
           link in the heading row rather than two lines of prose about a
           feature used a few times a year. It used to copy an open /guest
           link; since that was retired (BACKLOG #51), sharing means inviting
-          someone as a Guest, so it goes where invites are made - and only
+          someone as a Guest, so it goes where invites are made, with Guest
+          already chosen (the form otherwise starts unchosen) - and only
           once accounts are on, since until then nobody can be invited. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h1 className="text-2xl font-semibold">Cellar</h1>
         {isAuthConfigured() && (
-          <Link href="/invites" className="text-sm text-zinc-500 underline underline-offset-2">
+          <Link href="/invites?access=guest" className="text-sm text-zinc-500 underline underline-offset-2">
             Invite a guest
           </Link>
         )}

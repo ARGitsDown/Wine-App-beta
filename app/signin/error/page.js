@@ -23,7 +23,10 @@ export const dynamic = "force-dynamic";
 const MESSAGES = {
   AccessDenied: {
     title: "This address can't sign in here",
-    body: "Cellarmaster is invite-only — guests included — and that address isn't on the list: it was never invited, or its access has been taken away. If you think it should be, ask whoever runs the cellar to invite it.",
+    body: "Cellarmaster is invite-only, and that address isn't on the list: it was never invited, or its access has been taken away. If you think it should be, ask whoever runs the cellar to invite it.",
+    // The commonest real cause, so it gets its own line: someone with a
+    // work and a personal Google account who picked the uninvited one.
+    hint: "Have more than one Google account? Make sure you picked the one that was invited.",
     retry: "Try a different address",
   },
   Verification: {
@@ -47,6 +50,7 @@ export default async function SignInErrorPage({ searchParams }) {
     <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-16">
       <h1 className="text-2xl font-semibold">{message.title}</h1>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">{message.body}</p>
+      {message.hint && <p className="text-sm text-zinc-500">{message.hint}</p>}
       <Link
         href="/signin"
         className="flex min-h-11 w-full items-center justify-center rounded bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"

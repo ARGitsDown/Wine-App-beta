@@ -2,18 +2,44 @@
 
 import { useActionState } from "react";
 import { inviteSomeone } from "@/app/(owner)/invites/actions";
-import { INVITE_ACCESS_OPTIONS, inviteAccessLabel } from "@/lib/invite-access";
+import { SEPARATE_OPTION, SHARING_OPTIONS, inviteAccessLabel } from "@/lib/invite-access";
+import ShareInviteButton from "@/app/components/ShareInviteButton";
 
 const initial = { error: null, success: false };
+
+const optionClass =
+  "flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm has-[:checked]:border-zinc-900 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-zinc-900 dark:border-zinc-800 dark:has-[:checked]:border-zinc-100 dark:has-[:focus-visible]:outline-zinc-100";
+
+function AccessOption({ option, initialAccess }) {
+  return (
+    <label className={optionClass}>
+      <input
+        type="radio"
+        name="access"
+        value={option.value}
+        required
+        defaultChecked={option.value === initialAccess}
+        className="mt-0.5"
+      />
+      <span>
+        <span className="font-medium">{option.label}</span>
+        <span className="block text-xs text-zinc-500">{option.description}</span>
+      </span>
+    </label>
+  );
+}
 
 // Its own client component so the form can report a refused address
 // ("already invited", "that isn't an email") in place, rather than the
 // page having to reload to say so.
 //
-// Cellarmaster is preselected because it's what sharing a Domaine is
-// for; the choice is still right there above the button, one tap away,
-// and the invite list shows what each one gave afterwards.
-export default function InviteForm({ googleConfigured }) {
+// Nothing is preselected unless the link that opened the page asked for
+// something (`initialAccess`, from /invites?access=guest - the Cellar
+// page's "Invite a guest"). It used to preselect Cellarmaster, which made
+// "Invite a guest" -> type an email -> Invite hand a friend full edit
+// access (BACKLOG #53, finding 1). The riskier choice is never the one you
+// get by not choosing; an unchosen form is refused in place instead.
+export default function InviteForm({ googleConfigured, initialAccess, cellarName }) {
   const [state, formAction, pending] = useActionState(inviteSomeone, initial);
 
   return (
@@ -25,43 +51,32 @@ export default function InviteForm({ googleConfigured }) {
           required
           placeholder="their@email.com"
           aria-label="Email address to invite"
-          className="flex-1 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="min-h-11 flex-1 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         />
         <input
           type="text"
           name="note"
           placeholder="Who is this? (optional)"
           aria-label="A note about who this is"
-          className="flex-1 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="min-h-11 flex-1 rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         />
       </div>
 
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="mb-1.5 text-sm font-medium">What can they do?</legend>
-        {INVITE_ACCESS_OPTIONS.map((option) => (
-          <label
-            key={option.value}
-            className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm has-[:checked]:border-zinc-900 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-zinc-900 dark:border-zinc-800 dark:has-[:checked]:border-zinc-100 dark:has-[:focus-visible]:outline-zinc-100"
-          >
-            <input
-              type="radio"
-              name="access"
-              value={option.value}
-              defaultChecked={option.value === "cellarmaster"}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="font-medium">{option.label}</span>
-              <span className="block text-xs text-zinc-500">{option.description}</span>
-            </span>
-          </label>
+        <legend className="mb-1.5 text-sm font-medium">What can they do in your cellar?</legend>
+        {SHARING_OPTIONS.map((option) => (
+          <AccessOption key={option.value} option={option} initialAccess={initialAccess} />
         ))}
+        <p className="mt-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+          Or, not sharing
+        </p>
+        <AccessOption option={SEPARATE_OPTION} initialAccess={initialAccess} />
       </fieldset>
 
       <button
         type="submit"
         disabled={pending}
-        className="self-start rounded bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+        className="min-h-11 self-start rounded bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
       >
         {pending ? "Inviting…" : "Invite"}
       </button>
@@ -71,12 +86,21 @@ export default function InviteForm({ googleConfigured }) {
           {state.error}
         </p>
       )}
+      {/* "They can sign in now" was true and misleading: nothing is sent,
+          so an invite the owner doesn't pass on is never seen. Says so,
+          and hands them the message to send. */}
       {state?.success && (
-        <p role="status" className="text-sm text-green-700 dark:text-green-400">
-          {state.access === "separate"
-            ? "Invited. They'll get a Domaine of their own when they first sign in."
-            : `Invited as a ${inviteAccessLabel(state.access)}. They can sign in with that address now.`}
-        </p>
+        <div role="status" className="flex flex-col items-start gap-2 text-sm">
+          <p className="text-green-700 dark:text-green-400">
+            {state.access === "separate"
+              ? "Invited. They'll get a cellar of their own when they first sign in."
+              : `Invited as a ${inviteAccessLabel(state.access)}.`}{" "}
+            <span className="text-zinc-600 dark:text-zinc-400">
+              Cellarmaster doesn&apos;t send anything — let them know.
+            </span>
+          </p>
+          <ShareInviteButton email={state.email} cellarName={cellarName} />
+        </div>
       )}
       {/* Google-specific, so only shown when Google is actually a door
           someone might use - a caveat about a screen this address will
