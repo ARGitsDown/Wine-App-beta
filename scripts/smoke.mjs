@@ -51,6 +51,11 @@ const PAGES = [
   { path: "/research", owner: true },
   { path: "/estimate-windows", owner: true },
   { path: "/invites", owner: true },
+  // Every Domaine's AI spend, and where its limits are set - for the app
+  // owner only, but it is an owner-side route like the rest: a signed-out
+  // visitor must be bounced to /signin, and with accounts off the single
+  // owner is the app owner, so it renders.
+  { path: "/usage", owner: true },
   // Since the anonymous guest link was retired (BACKLOG #51), /guest is
   // for signed-in Guest members only - so with accounts on it must send a
   // signed-out visitor to /signin, exactly like an owner page.

@@ -221,6 +221,14 @@ features like separate cellars per user.
   This used to be an open link anyone could use by typing a name; that
   was retired in favor of invited guests (BACKLOG #51), so guest browsing
   needs accounts switched on.
+- **Monthly AI limits** — every Claude call is recorded and summed per
+  Domaine per calendar month. Past its cap, a Domaine's AI features keep
+  working on a lighter model; past a higher hard stop they pause until the
+  1st. Everyone in a Domaine sees its spend on the People page, a note
+  appears on Suggest, Scan and Research when it matters, and the app owner
+  (`OWNER_EMAIL`) sees every Domaine on `/usage` and sets their limits.
+  Starting values and the `.env` settings are in `.env.example`
+  (BACKLOG #54).
 - **Deleting asks first** — removing a bottle, one of its photos, or a
   saved flight takes a second click, and the confirmation says what else
   goes with it ("Also deletes 2 tasting notes and 2 guest favorites"),

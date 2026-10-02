@@ -4,6 +4,7 @@ import { currentDomaineId } from "@/lib/owner";
 import { getRegionOptions } from "@/lib/bottles";
 import ResearchProposalCard from "@/app/components/ResearchProposalCard";
 import ResearchQueue from "@/app/components/ResearchQueue";
+import AiLimitNotice from "@/app/components/AiLimitNotice";
 import { ResearchRunProvider, ResearchRunProgress } from "@/app/components/ResearchRun";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +93,7 @@ export default async function ResearchQueuePage() {
               accept it.
             </p>
           </div>
+          <AiLimitNotice bare />
           {/* Above the results rather than below them: a run fills "Ready
               to review" as it goes, so a bar living down beside the button
               that started it would be pushed further off-screen the better

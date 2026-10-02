@@ -3304,3 +3304,47 @@ at 375px, and `npm run verify` clean with accounts on and off.
 `app/(owner)/inventory/page.js`, `app/(guest)/{layout,guest/page}.js`,
 `app/signin/page.js`, `app/signin/error/page.js`, `lib/guest.js`,
 `lib/cellar-name.js` (new), `lib/invite-access.js`, README.md.
+
+## 54. Usage limits per Domaine
+
+The first of the Phase 3 plan in FUTURE_CAPABILITIES.md, built as decided:
+counted per Domaine, and a Domaine over its monthly cap moves to a
+lighter model rather than being blocked, with a higher hard stop above
+that for runaway use. The app owner sets every other Domaine's limits.
+
+- **The ledger** (`UsageEvent`, `lib/usage.js`): one row per Claude call,
+  written through a single `aiAccess()` / `ai.call()` door that all six
+  call sites now use. Cost is stored in micro-dollars - a drinking-window
+  call costs about 0.3 of a cent, which whole-cent rows would have summed
+  to nothing - from a rate table copied from the published prices.
+- **The tiers** (`lib/ai-models.js`): Opus work drops to Sonnet, Sonnet
+  work to Haiku 4.5. Haiku takes no adaptive thinking, no `effort` and
+  only the basic web search tool, so the request shape and Research's tool
+  version follow the model. If Haiku rejects a request, that call is
+  retried once on the normal model, loudly.
+- **The limits** (`Domaine.monthlySpendCapCents`/`monthlyHardStopCents`):
+  $5 and $15 by default, from `lib/usage-policy.js`, overridable in the
+  environment; the app owner's own Domaine is unlimited. Calendar months,
+  UTC.
+- **The screens**: a note on Suggest/Scan/Research/Estimate-windows when
+  it matters; the Domaine's own spend on the People page; `/usage` for the
+  app owner (every Domaine, per feature, with the limit form).
+- **Found while testing**: React resets an uncontrolled form after every
+  action, so a refused limit save wiped what had just been typed. The
+  form now keeps the typed values (`UsageLimitsForm`). And my first bulk
+  Research test never started a job - the button has a two-step confirm -
+  so the "paused" check beside it had passed vacuously; both are fixed.
+
+Verified against a stub of the Messages API, with exact costs checked by
+hand; 50 unit checks join `npm run verify`; `/usage` joins the smoke test
+(17 pages). **Not run against the live API**, and Haiku's quality on
+label reading and Research is still unmeasured - see FUTURE_CAPABILITIES.md
+"Built" for the full list of what is and isn't known.
+
+`prisma/schema.prisma`, `prisma/migrations/20260929000000_usage_ledger_and_caps/`,
+`lib/usage.js`, `lib/usage-pricing.js`, `lib/usage-policy.js`,
+`lib/ai-models.js`, `lib/anthropic.js`, `lib/suggest-model.js`,
+`lib/owner.js`, `lib/auth.js`, `app/actions.js`, `app/(owner)/usage/`,
+`app/components/{AiLimitNotice,AiUsageSummary,UsageLimitsForm}.js`,
+`app/(owner)/invites/page.js`, `scripts/usage.test.mjs`,
+`scripts/smoke.mjs`, `.env.example`, README.md.

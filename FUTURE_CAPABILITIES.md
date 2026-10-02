@@ -212,9 +212,10 @@ Staged so nothing is a leap, and each phase is independently shippable:
   client. What is not yet verified from a live account: the thing this
   phase was built to prove, which is next.
 - **Phase 3 — usage ledger and caps**, per the AI-cost section above.
-  **Scoped 2026-09-27, shape decided 2026-09-28, not yet started** -
+  **Scoped 2026-09-27, shape decided 2026-09-28, built 2026-10-02** -
   counted per Domaine, and a Domaine over its cap moves to cheaper
-  models rather than being blocked. See its own section below.
+  models rather than being blocked. See its own section below, and
+  "Built" within it for what was verified and what was not.
 - **Phase 4 — what guests become.** **Decided 2026-09-28, not yet
   started:** a guest's access is chosen per section - Cellar, Tasting
   Notes, Flights, Pairings, Wish List - when they're invited. See "Phase
@@ -236,7 +237,117 @@ Staged so nothing is a leap, and each phase is independently shippable:
   beyond a plain `ownerId`.~~ **Confirmed by Phase 2: no.** They're roots
   like `Bottle`, and the extension scopes all three identically.
 
-## Phase 3, scoped — usage ledger and caps — 2026-09-27, shape decided 2026-09-28
+## Phase 3 — usage ledger and caps — scoped 2026-09-27, decided 2026-09-28, built 2026-10-02
+
+### Built, 2026-10-02
+
+Every Claude call is now recorded, summed per Domaine per calendar month
+(UTC), and gated by two limits on the Domaine. Where the plan below says
+what would be built, this is what was, and where it differs.
+
+**The ledger.** `UsageEvent` (one row per call: Domaine, who pressed the
+button, feature, the model that actually ran, token counts, web searches,
+cost). `lib/usage.js` is the one door every call goes through:
+`aiAccess()` reads the month once, then `ai.call({ feature, tier, effort,
+request })` adds the model-dependent fields, sends the request and writes
+the row. All six call sites use it - Scan, Suggest, Research (single and
+bulk), the two drinking-window estimators, and photo-details - and
+`app/actions.js` no longer imports the Anthropic client at all. The bulk
+Research step has no session, so it passes the job's own `ownerId` and
+`domaineId` - the reason `ResearchJob` has carried them since Phase 1.
+
+**Differences from the plan:**
+
+- **Cost is stored in micro-dollars, not cents** (`costMicros`). A
+  drinking-window estimate costs about 0.3 of a cent, so rounding each row
+  to whole cents would have summed to nothing. The *limits* stay in cents
+  (`Domaine.monthlySpendCapCents`, `monthlyHardStopCents`), as planned.
+- **The rates** (`lib/usage-pricing.js`, as of 2026-09-25: Opus 5 $5/$25,
+  Sonnet 5 $2/$10, Haiku 4.5 $1/$5 per MTok, cache writes 1.25x/2x, reads
+  0.1x, web search $10 per 1,000) were taken from the claude-api skill's
+  model table, not from an invoice. A model it doesn't recognise is priced
+  as the dearest one and logged, so a new model id over-counts rather than
+  slips through free.
+- **The defaults are $5 a month with the hard stop at 3x ($15)**, in
+  `lib/usage-policy.js`, overridable with `USAGE_DEFAULT_CAP_CENTS` and
+  `USAGE_HARD_STOP_MULTIPLIER`. They are starting numbers chosen with no
+  real spend to look at, exactly as the plan said they'd be. The
+  migration gave every existing Domaine except the earliest account's
+  (the app owner's, left unlimited) those values; a newly founded Domaine
+  gets them in `createUser`. A Domaine that *joins* another keeps that
+  one's.
+- **The app owner** is the account whose email is `OWNER_EMAIL`, else any
+  Cellarmaster of the original Domaine (`isAppOwner` in `lib/owner.js`).
+  They alone see `/usage` (every Domaine's spend, per feature) and set its
+  limits; the action behind the form makes the same check, which is the
+  one that matters - replaying the owner's form from another Domaine's
+  session changes nothing (tested).
+
+**What the limits do.** Under the cap, nothing changes. At or over it,
+every feature keeps working one tier down: Suggest's "sommelier" runs on
+Sonnet instead of Opus, and everything that ran on Sonnet runs on Haiku
+4.5. At or over the hard stop, AI features return a message saying they're
+paused until the 1st and nothing is sent to Claude. Things that follow
+from that, each handled and tested:
+
+- Haiku 4.5 takes neither adaptive thinking nor an `effort` level, and
+  only the basic `web_search_20250305` tool, so the model's request shape
+  (`requestShape` in `lib/ai-models.js`) decides all three, and Research's
+  tool version follows the model down.
+- The month is read once per request, so a multi-turn loop (Scan, Suggest
+  and Research all loop) stays on one model throughout and never changes
+  the model under a cached prefix. A loop that crosses a limit midway
+  finishes on the tier it started on: at most one call overshoots.
+- **If the lighter model rejects a request outright (HTTP 400), that call
+  is retried once on the normal model** and logged loudly. Haiku has never
+  been run against these prompts and a feature that stops working is worse
+  than one that costs a little over its cap. Anything else - a rate limit,
+  an outage - is not retried on the dearer model.
+- Reads of the usage total fail open (an unreadable month counts as an
+  ordinary one) and writes of the ledger never throw: measuring must never
+  break what it measures. The hard stop is the one deliberate refusal.
+- A drinking-window answer already in the cache is served even when
+  paused - it costs nothing - and a bulk Research run is refused up front
+  with the reason rather than failing bottle by bottle.
+- Guests can't spend: `aiAccess()` refuses a guest-role member the same
+  way `lib/scoped-prisma.js` does.
+
+**What people see.** Nothing while under the cap. Over it, an amber note
+on Suggest, Scan, Research and Estimate-windows ("Running on lighter
+models until 1 November"), red at the hard stop. The People page shows the
+Domaine's own spend against its cap for every member of it - a cap nobody
+can see is a surprise, not a limit - and `/usage` is the app owner's table
+of every Domaine.
+
+**Verified** against a stub of the Messages API (so costs could be checked
+by hand) in a production build with accounts on, signing in through the
+real email-link callback: the request each tier sends (model, thinking,
+effort, web search version), exact ledger costs, the cap boundary (exactly
+at the cap is over it), the hard stop sending nothing, last month's spend
+not counting, the Haiku-rejection retry, the bulk step recording with no
+session, the operator page and its refusals, and the defaults for a new
+Domaine. 50 unit checks of the pricing and policy run in `npm run verify`.
+
+**Not verified, and worth knowing:**
+
+- **Nothing here has run against the live API.** The stub proves what this
+  app *sends* and records, not that Anthropic accepts it. In particular,
+  whether Haiku 4.5 accepts these prompts' `strict` tool schemas is
+  unconfirmed - the 400 retry above is the safety net for exactly that.
+- **Haiku's answer quality on label reading and Research is still
+  unmeasured** (BACKLOG #23 measured Research effort on Sonnet only). A
+  Domaine over its cap is the first place Haiku reads a label; a wrong
+  vintage saved from a scan costs more to find than it saved. Measure one
+  pass of each before relying on it.
+- **Costs are estimates** from the rate table; the invoice is the
+  authority. Calls made before this shipped aren't in the ledger.
+
+**Still open:** the numbers themselves, after a month of the `/usage`
+page; and whether Scan - the one feature where a wrong answer is saved
+without review - should be held on Sonnet even over the cap and paused
+instead (a trade-off the plan didn't ask about, found while building it).
+
+### The plan as scoped and decided
 
 ### Decided with the owner, 2026-09-28
 
@@ -313,7 +424,8 @@ assume now:**
 **Still open:** the actual numbers - the default monthly cap for a new
 Domaine and how far above it the hard stop sits (for example, three
 times the cap) - best chosen once the ledger has a month of real spend
-to look at, rather than guessed now.
+to look at, rather than guessed now. *(Built with $5 and 3x as starting
+values - see "Built" above.)*
 
 ### The original scoping, 2026-09-27
 

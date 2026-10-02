@@ -1,4 +1,5 @@
 import ScanPanel from "@/app/components/ScanPanel";
+import AiLimitNotice from "@/app/components/AiLimitNotice";
 import { normalizeScanIntent } from "@/lib/scan-intent";
 import { db } from "@/lib/scoped-prisma";
 import { flightName, isOpenFlight } from "@/lib/flights";
@@ -26,6 +27,9 @@ export default async function ScanPage({ searchParams }) {
     .map((flight) => ({ id: flight.id, name: flightName(flight) }));
 
   return (
-    <ScanPanel initialIntent={normalizeScanIntent(intent)} openFlights={openFlights} />
+    <>
+      <AiLimitNotice />
+      <ScanPanel initialIntent={normalizeScanIntent(intent)} openFlights={openFlights} />
+    </>
   );
 }

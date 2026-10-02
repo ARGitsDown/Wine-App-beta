@@ -95,6 +95,10 @@ model User {
   // The favorites identity of a guest-role member (see Guest.userId).
   guest Guest?
 
+  // Claude calls this person made - attribution only, like Bottle.ownerId.
+  // The cap is summed over the Domaine, not the person.
+  usageEvents UsageEvent[]
+
   // Created by 20260928040000_domaine_and_membership, which is why it's
   // declared here: without it, the next generated migration would drop it.
   @@index([domaineId])
@@ -118,12 +122,28 @@ model Domaine {
   motto     String?
   createdAt DateTime @default(now())
 
+  // What this Domaine may spend on Claude each calendar month (UTC) - see
+  // UsageEvent below and lib/usage.js. Both in cents, both nullable, and
+  // null means "no limit of this kind" (the app owner's own Domaine, by
+  // design - the owner pays for the app, so a cap on them would be a cap
+  // on themselves; see FUTURE_CAPABILITIES.md, Phase 3).
+  //
+  // Past the cap, AI features keep working on a lighter model (one tier
+  // down); past the hard stop they pause until the 1st. The hard stop is
+  // the runaway guard - a loop, a leaked session - and should sit far
+  // enough above the cap that ordinary use never reaches it. Only the app
+  // owner sets either, on /usage: a Domaine's own Cellarmasters would be
+  // raising their own limit on someone else's API key.
+  monthlySpendCapCents Int?
+  monthlyHardStopCents Int?
+
   members      User[]
   invites      Invite[]
   bottles      Bottle[]
   flights      TastingFlight[]
   pairings     SavedPairing[]
   researchJobs ResearchJob[]
+  usageEvents  UsageEvent[]
 }
 
 // Auth.js's own three tables, plus the invite list.
@@ -779,4 +799,52 @@ model PairingPick {
 
   @@index([pairingId])
   @@index([bottleId])
+}
+
+// One row per Claude call: what it cost this Domaine, and why. A ledger of
+// individual rows rather than a running counter, so concurrent writers
+// (Research's bulk steps run in parallel via after()) never race on one
+// number, and so "what did we spend, on what" is answerable afterwards.
+// The month's total is a sum over a date range, never a stored value.
+//
+// Read and written on the plain client, deliberately not through
+// lib/scoped-prisma.js: its whole job is to show a signed-in account only
+// its own Domaine, and this is the table the app owner reads *across*
+// Domaines. It is also written from the Research step route, which has no
+// session at all - the job row carries domaineId for exactly that reason.
+model UsageEvent {
+  id        Int     @id @default(autoincrement())
+  domaineId String
+  domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  // Who pressed the button. Attribution; null once that member is removed,
+  // so the Domaine's spending history survives them.
+  ownerId   String?
+  owner     User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  // "scan" | "suggest" | "research" | "estimate-windows" | "photo-details"
+  feature String
+  // The model the call actually ran on - the lighter one when the Domaine
+  // was over its cap, not the one the feature normally uses.
+  model   String
+  // True when this call ran one tier down because of the cap.
+  lighter Boolean @default(false)
+
+  inputTokens              Int @default(0)
+  outputTokens             Int @default(0)
+  cacheCreationInputTokens Int @default(0)
+  cacheReadInputTokens     Int @default(0)
+  webSearches              Int @default(0)
+
+  // Millionths of a US dollar, computed and stored at write time from the
+  // rate table in force that day (lib/usage-pricing.js) - not recomputed
+  // later from the tokens, so Anthropic repricing a model can't quietly
+  // rewrite last month. Micros rather than cents because most calls cost
+  // a fraction of one: a drinking-window estimate is about 0.3 cents, and
+  // rounding each row to whole cents would sum to nothing.
+  costMicros Int
+
+  createdAt DateTime @default(now())
+
+  @@index([domaineId, createdAt])
+  @@index([ownerId])
 }

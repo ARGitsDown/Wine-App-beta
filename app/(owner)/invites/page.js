@@ -3,11 +3,13 @@ import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
 import { currentCellarmaster } from "@/lib/owner";
 import { INVITE_ACCESS_VALUES, inviteAccessLabel } from "@/lib/invite-access";
 import { cellarDisplayName, founderDisplayName } from "@/lib/cellar-name";
+import { monthlyUsage } from "@/lib/usage";
 import { changeMemberRole, removeMember, revokeInvite } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
 import DomaineDetailsForm from "@/app/components/DomaineDetailsForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import ShareInviteButton from "@/app/components/ShareInviteButton";
+import AiUsageSummary from "@/app/components/AiUsageSummary";
 import BackButton from "@/app/components/BackButton";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +52,7 @@ export default async function PeoplePage({ searchParams }) {
   // Everything on this page is this Domaine's own: its name, the invites
   // sent from it, and who belongs to it.
   const { id: myId, domaineId } = await currentCellarmaster();
-  const [domaine, invites, members] = await Promise.all([
+  const [domaine, invites, members, usage] = await Promise.all([
     prisma.domaine.findUnique({
       where: { id: domaineId },
       select: { name: true, motto: true },
@@ -61,6 +63,7 @@ export default async function PeoplePage({ searchParams }) {
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true, email: true, role: true },
     }),
+    monthlyUsage(domaineId),
   ]);
 
   const founder = members.find((member) => member.role === "cellarmaster");
@@ -248,6 +251,8 @@ export default async function PeoplePage({ searchParams }) {
           </ul>
         </section>
       )}
+
+      <AiUsageSummary status={usage} />
 
       {/* The Domaine's own setting rather than about people - last,
           because it's set once and rarely touched again. */}

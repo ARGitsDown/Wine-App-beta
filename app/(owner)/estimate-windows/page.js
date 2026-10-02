@@ -1,5 +1,6 @@
 import { db } from "@/lib/scoped-prisma";
 import EstimateWindowsPanel from "@/app/components/EstimateWindowsPanel";
+import AiLimitNotice from "@/app/components/AiLimitNotice";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,8 @@ export default async function EstimateWindowsPage() {
           page afterward and can be corrected any time.
         </p>
       </div>
+
+      <AiLimitNotice bare />
 
       {/* The panel is rendered unconditionally, including its own empty
           state. A finished run leaves no bottle missing a window, so

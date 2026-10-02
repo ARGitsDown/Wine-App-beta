@@ -3,13 +3,13 @@
 import { prisma } from "@/lib/prisma";
 import { db } from "@/lib/scoped-prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
-import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
+import { aiAccess } from "@/lib/usage";
 import { aiErrorMessage } from "@/lib/ai-errors";
 import { cleanModelText, cleanModelFields } from "@/lib/model-text";
 import { currentCellarmaster, currentOwnerId } from "@/lib/owner";
-import { DEFAULT_EFFORT, outputConfig } from "@/lib/effort";
+import { DEFAULT_EFFORT } from "@/lib/effort";
 import { DEFAULT_DEPTH, normalizeDepth } from "@/lib/suggest-depth";
-import { depthConfig } from "@/lib/suggest-model";
+import { depthTier } from "@/lib/suggest-model";
 import { normalizeCharacter } from "@/lib/suggestion-character";
 import {
   wineLabelForBottle,
@@ -760,8 +760,12 @@ export async function extractWinesFromPhoto(
 ) {
   // Claude is called before anything touches the database, so
   // lib/scoped-prisma.js's own Cellarmaster check would only fire after
-  // the spend. See the same line in getSuggestions.
-  await currentCellarmaster();
+  // the spend - aiAccess makes it (and refuses a guest-role member) up
+  // front, and reads this Domaine's month: paused past its hard stop, a
+  // lighter model past its cap. See lib/usage.js, and the same line in
+  // getSuggestions.
+  const ai = await aiAccess();
+  if (ai.paused) return { error: ai.message };
 
   const messages = [
     {
@@ -790,17 +794,19 @@ export async function extractWinesFromPhoto(
     // possibly several in parallel for a multi-wine photo) then
     // record_wines, but this caps it in case the model keeps searching.
     for (let turn = 0; turn < 6; turn++) {
-      const response = await anthropic.messages.create({
-        model: EXTRACTION_MODEL,
-        max_tokens: 8192,
-        thinking: { type: "adaptive" },
+      const response = await ai.call({
+        feature: "scan",
+        tier: "extraction",
         // Not the owner's choice to make here: a scan runs unattended
         // across a batch of photos, and a producer read wrong is a wrong
         // bottle saved to the cellar rather than a slower answer.
-        output_config: outputConfig(DEFAULT_EFFORT),
-        system: LABEL_SYSTEM_PROMPT,
-        tools: [SEARCH_CELLAR_TOOL, WINES_TOOL],
-        messages,
+        effort: DEFAULT_EFFORT,
+        request: () => ({
+          max_tokens: 8192,
+          system: LABEL_SYSTEM_PROMPT,
+          tools: [SEARCH_CELLAR_TOOL, WINES_TOOL],
+          messages,
+        }),
       });
 
       const unusable = unusableResponseError(response, {
@@ -1210,8 +1216,10 @@ export async function getSuggestions(
   // A guest-role member can't reach this page, but a Server Action is its
   // own endpoint. The cellar isn't read until the model asks to browse it,
   // which is after the first (paid) call - so the check that
-  // lib/scoped-prisma.js would make then is made here, before it.
-  await currentCellarmaster();
+  // lib/scoped-prisma.js would make then is made here, before it, along
+  // with this Domaine's monthly allowance (lib/usage.js).
+  const ai = await aiAccess();
+  if (ai.paused) return { error: ai.message };
 
   // Normalized once, so the prompt, the API request and the copy handed
   // back for saving all describe the same three settings.
@@ -1231,28 +1239,32 @@ export async function getSuggestions(
     // several in parallel, exploring different filters) then
     // record_suggestions, but this caps it in case the model keeps browsing.
     for (let turn = 0; turn < 6; turn++) {
-      const response = await anthropic.messages.create({
-        // The owner's dial, and the only thing it moves. Constant for the
-        // whole loop, so it never invalidates the prefix cached below
-        // mid-run; across runs each model keeps its own cached copy of
-        // that prefix, since caches are keyed per model. Measured, that
-        // costs one cache write the first time a depth is used - $0.019 on
-        // Opus, $0.008 on Sonnet, against query costs of $0.03 to $0.19.
-        // Real, and far too small to keep the cheaper model off the table.
-        ...depthConfig(depth),
-        max_tokens: 8192,
-        thinking: { type: "adaptive" },
-        output_config: outputConfig(DEFAULT_EFFORT),
-        // Tools render before system, so one breakpoint here covers both.
-        // The request text and every browse result live in messages, after
-        // the prefix, so nothing volatile is inside it. The cache key
-        // varies by year and by the includeOutside/character steer, which
-        // is correct - a different steer is a different prompt.
-        system: [
-          { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
-        ],
-        tools: [BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL],
-        messages,
+      const response = await ai.call({
+        feature: "suggest",
+        // The owner's dial, and the only thing it moves: a tier, which
+        // becomes a model (lib/ai-models.js) - one tier down when this
+        // Domaine is over its monthly cap. Constant for the whole loop, so
+        // it never invalidates the prefix cached below mid-run; across
+        // runs each model keeps its own cached copy of that prefix, since
+        // caches are keyed per model. Measured, that costs one cache write
+        // the first time a model is used - $0.019 on Opus, $0.008 on
+        // Sonnet, against query costs of $0.03 to $0.19. Real, and far too
+        // small to keep the cheaper model off the table.
+        tier: depthTier(depth),
+        effort: DEFAULT_EFFORT,
+        request: () => ({
+          max_tokens: 8192,
+          // Tools render before system, so one breakpoint here covers both.
+          // The request text and every browse result live in messages,
+          // after the prefix, so nothing volatile is inside it. The cache
+          // key varies by year and by the includeOutside/character steer,
+          // which is correct - a different steer is a different prompt.
+          system: [
+            { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+          ],
+          tools: [BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL],
+          messages,
+        }),
       });
 
       const unusable = unusableResponseError(response, {
@@ -1360,8 +1372,12 @@ export async function getSuggestions(
 // above, which only ever draw on the model's training knowledge (plus the
 // user's own cellar). Anthropic runs the searches and feeds results back
 // within the same call; max_uses just bounds how many it can run.
+//
+// The tool's `type` is a version, and the newer one isn't available on
+// the lighter model a Domaine falls back to over its monthly cap - so it
+// comes from the model in play (`webSearchType` in lib/ai-models.js), not
+// from here.
 const WEB_SEARCH_TOOL = {
-  type: "web_search_20260318",
   name: "web_search",
   max_uses: 5,
 };
@@ -1487,7 +1503,13 @@ function describeBottleForResearch(bottle) {
 // Runs the web-search research call for one bottle and returns the model's
 // answer. Separated from the action that stores it so a single bottle and a
 // bulk pass share exactly one implementation of the expensive part.
-async function runResearch(bottle, effort = DEFAULT_EFFORT) {
+async function runResearch(bottle, effort = DEFAULT_EFFORT, who) {
+  // `who` is { id, domaineId } for the one caller with no session - a bulk
+  // step running from the research route, which passes the job's own owner
+  // and Domaine (see researchStep); everyone else is a signed-in member.
+  const ai = await aiAccess(who);
+  if (ai.paused) return { error: ai.message };
+
   const messages = [
     {
       role: "user",
@@ -1501,26 +1523,28 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT) {
     // "pause_turn", which just needs re-sending (with the paused turn
     // appended) to continue rather than a fresh tool_result.
     for (let turn = 0; turn < 4; turn++) {
-      const response = await anthropic.messages.create({
-        model: EXTRACTION_MODEL,
-        max_tokens: 8192,
-        thinking: { type: "adaptive" },
-        output_config: outputConfig(effort),
-        // Tools render before system, so one breakpoint here covers both -
-        // the same placement Suggest uses. Worth it here and nowhere else
-        // among the mechanical calls (BACKLOG #23): this prefix is ~1.6k
-        // tokens against Sonnet's 1024-token minimum, while the drinking-
-        // window prefix is only ~600 and would cache nothing at all. What
-        // pays for it is the shape of the traffic rather than the size of
-        // the prefix - this loop re-sends it up to four times per bottle,
-        // and the bulk queue now runs step after step server-side, so one
-        // entry serves a whole run. Everything volatile (the wine being
-        // described, every search result) is in messages, after the prefix.
-        system: [
-          { type: "text", text: RESEARCH_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
-        ],
-        tools: [WEB_SEARCH_TOOL, RESEARCH_TOOL],
-        messages,
+      const response = await ai.call({
+        feature: "research",
+        tier: "extraction",
+        effort,
+        request: (shape) => ({
+          max_tokens: 8192,
+          // Tools render before system, so one breakpoint here covers both -
+          // the same placement Suggest uses. Worth it here and nowhere else
+          // among the mechanical calls (BACKLOG #23): this prefix is ~1.6k
+          // tokens against Sonnet's 1024-token minimum, while the drinking-
+          // window prefix is only ~600 and would cache nothing at all. What
+          // pays for it is the shape of the traffic rather than the size of
+          // the prefix - this loop re-sends it up to four times per bottle,
+          // and the bulk queue now runs step after step server-side, so one
+          // entry serves a whole run. Everything volatile (the wine being
+          // described, every search result) is in messages, after the prefix.
+          system: [
+            { type: "text", text: RESEARCH_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+          ],
+          tools: [{ ...WEB_SEARCH_TOOL, type: shape.webSearchType }, RESEARCH_TOOL],
+          messages,
+        }),
       });
 
       const unusable = unusableResponseError(response, {
@@ -1652,6 +1676,13 @@ const BULK_RESEARCH_EFFORT = "low";
 export async function researchBottles(ids) {
   const { id: ownerId, domaineId } = await currentCellarmaster();
 
+  // A paused Domaine's job would only fail every bottle one by one - say
+  // so now, once, rather than as "N failed" at the end of a progress bar.
+  // Each step still checks for itself (runResearch), since a run can cross
+  // the hard stop partway through.
+  const ai = await aiAccess({ id: ownerId, domaineId });
+  if (ai.paused) return { error: ai.message };
+
   // De-duplicated because the same bottle twice in the queue is the same
   // question twice, validated because these become a row, and narrowed to
   // bottles this owner actually has - a foreign id dropped here reads
@@ -1727,7 +1758,7 @@ export async function runResearchJobStep(jobId, token) {
     ({ researched, failed, attempted } = await researchStep(
       slice,
       Date.now() + STEP_BUDGET_MS,
-      job.domaineId
+      { ownerId: job.ownerId, domaineId: job.domaineId }
     ));
   } catch (err) {
     console.error(`Research job ${job.id} step failed:`, err);
@@ -1811,13 +1842,13 @@ export async function getResearchJob(jobId) {
 // "don't start another after this point", not "stop at this point". The
 // first question always runs, whatever the clock says, so that a step can
 // never come back having consumed nothing.
-// `domaineId` comes from the job row, not a session - this runs from
+// `ownerId` and `domaineId` come from the job row, not a session - this runs from
 // app/api/research/step/route.js, a plain HTTP route with no cookies
 // attached (see ResearchJob.ownerId in prisma/schema.prisma), so it
 // filters explicitly through the plain client rather than through
 // lib/scoped-prisma.js, which would throw trying to read a session that
 // isn't there.
-async function researchStep(ids, deadline, domaineId) {
+async function researchStep(ids, deadline, { ownerId, domaineId }) {
   const bottles = await prisma.bottle.findMany({ where: { id: { in: ids }, domaineId } });
 
   // A bottle deleted since the queue was built has nothing left to
@@ -1856,7 +1887,7 @@ async function researchStep(ids, deadline, domaineId) {
     if (asked > 0 && Date.now() > deadline) break;
     asked += 1;
 
-    const result = await runResearch(group[0], BULK_RESEARCH_EFFORT);
+    const result = await runResearch(group[0], BULK_RESEARCH_EFFORT, { id: ownerId, domaineId });
     // Consumed either way: a wine whose search failed has had its turn,
     // and leaving it on the queue would mean a step that keeps retrying
     // the same broken question instead of getting to the rest.
@@ -2167,20 +2198,28 @@ export async function estimateDrinkWindows(bottleIds) {
     .join("\n");
   const keyByBottleId = new Map(toAsk.map(({ key, bottle }) => [bottle.id, key]));
 
+  // Only here, once everything the cache could answer already has been:
+  // those cost nothing, so a paused Domaine still gets them. See
+  // lib/usage.js.
+  const ai = await aiAccess();
+  if (ai.paused) return { error: ai.message };
+
   try {
-    const response = await anthropic.messages.create({
-      model: EXTRACTION_MODEL,
-      max_tokens: 8192,
-      thinking: { type: "adaptive" },
-      output_config: outputConfig(DEFAULT_EFFORT),
-      system: DRINK_WINDOW_SYSTEM_PROMPT,
-      tools: [DRINK_WINDOW_ESTIMATE_TOOL],
-      messages: [
-        {
-          role: "user",
-          content: `Estimate a drinking window for each of these wines:\n\n${listText}`,
-        },
-      ],
+    const response = await ai.call({
+      feature: "estimate-windows",
+      tier: "extraction",
+      effort: DEFAULT_EFFORT,
+      request: () => ({
+        max_tokens: 8192,
+        system: DRINK_WINDOW_SYSTEM_PROMPT,
+        tools: [DRINK_WINDOW_ESTIMATE_TOOL],
+        messages: [
+          {
+            role: "user",
+            content: `Estimate a drinking window for each of these wines:\n\n${listText}`,
+          },
+        ],
+      }),
     });
 
     const unusable = unusableResponseError(response, {
@@ -2250,20 +2289,27 @@ export async function estimateWindowForBottle(id) {
     };
   }
 
+  // After the cache, for the same reason as estimateDrinkWindows: a stored
+  // answer is free, so it is served even when the Domaine is paused.
+  const ai = await aiAccess();
+  if (ai.paused) return { error: ai.message };
+
   try {
-    const response = await anthropic.messages.create({
-      model: EXTRACTION_MODEL,
-      max_tokens: 2048,
-      thinking: { type: "adaptive" },
-      output_config: outputConfig(DEFAULT_EFFORT),
-      system: DRINK_WINDOW_SYSTEM_PROMPT,
-      tools: [DRINK_WINDOW_ESTIMATE_TOOL],
-      messages: [
-        {
-          role: "user",
-          content: `Estimate a drinking window for this wine:\n\nid ${bottle.id}: ${describeBottleForWindowEstimate(bottle)}`,
-        },
-      ],
+    const response = await ai.call({
+      feature: "estimate-windows",
+      tier: "extraction",
+      effort: DEFAULT_EFFORT,
+      request: () => ({
+        max_tokens: 2048,
+        system: DRINK_WINDOW_SYSTEM_PROMPT,
+        tools: [DRINK_WINDOW_ESTIMATE_TOOL],
+        messages: [
+          {
+            role: "user",
+            content: `Estimate a drinking window for this wine:\n\nid ${bottle.id}: ${describeBottleForWindowEstimate(bottle)}`,
+          },
+        ],
+      }),
     });
 
     const unusable = unusableResponseError(response, {
@@ -2391,6 +2437,9 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
   const bottle = await db.bottle.findUnique({ where: { id: bottleId } });
   if (!bottle) return { error: "That bottle no longer exists." };
 
+  const ai = await aiAccess();
+  if (ai.paused) return { error: ai.message };
+
   const messages = [
     {
       role: "user",
@@ -2408,14 +2457,16 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
   ];
 
   try {
-    const response = await anthropic.messages.create({
-      model: EXTRACTION_MODEL,
-      max_tokens: 4096,
-      thinking: { type: "adaptive" },
-      output_config: outputConfig(DEFAULT_EFFORT),
-      system: PHOTO_DETAILS_SYSTEM_PROMPT,
-      tools: [PHOTO_DETAILS_TOOL],
-      messages,
+    const response = await ai.call({
+      feature: "photo-details",
+      tier: "extraction",
+      effort: DEFAULT_EFFORT,
+      request: () => ({
+        max_tokens: 4096,
+        system: PHOTO_DETAILS_SYSTEM_PROMPT,
+        tools: [PHOTO_DETAILS_TOOL],
+        messages,
+      }),
     });
 
     const unusable = unusableResponseError(response, {

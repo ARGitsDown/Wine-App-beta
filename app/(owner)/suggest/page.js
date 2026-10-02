@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/scoped-prisma";
 import SuggestForm from "@/app/components/SuggestForm";
+import AiLimitNotice from "@/app/components/AiLimitNotice";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,8 @@ export default async function SuggestPage({ searchParams }) {
           </Link>
         )}
       </div>
+
+      <AiLimitNotice bare />
 
       {/* Says what has been loaded, because a form that fills itself in
           with no explanation looks like a bug. The link back matters as
