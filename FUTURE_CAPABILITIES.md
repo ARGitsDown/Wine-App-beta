@@ -284,9 +284,14 @@ Research step has no session, so it passes the job's own `ownerId` and
   session changes nothing (tested).
 
 **What the limits do.** Under the cap, nothing changes. At or over it,
-every feature keeps working one tier down: Suggest's "sommelier" runs on
-Sonnet instead of Opus, and everything that ran on Sonnet runs on Haiku
-4.5. At or over the hard stop, AI features return a message saying they're
+features keep working one tier down: Suggest's "sommelier" runs on Sonnet
+instead of Opus, and everything that ran on Sonnet runs on Haiku 4.5 -
+**except Scan, which stays on Sonnet and is only ever paused at the hard
+stop** (decided 2026-10-03; `holdTier` in `lib/usage.js`). Scan is the one
+feature that saves what it reads straight into the cellar with nobody
+reviewing it, so a cheaper, unmeasured model reading a label would cost
+more in bad data than it saved in money; every other lighter-tier answer
+is a suggestion or a proposal someone looks at. At or over the hard stop, AI features return a message saying they're
 paused until the 1st and nothing is sent to Claude. Things that follow
 from that, each handled and tested:
 
@@ -343,9 +348,11 @@ Domaine. 50 unit checks of the pricing and policy run in `npm run verify`.
   authority. Calls made before this shipped aren't in the ledger.
 
 **Still open:** the numbers themselves, after a month of the `/usage`
-page; and whether Scan - the one feature where a wrong answer is saved
-without review - should be held on Sonnet even over the cap and paused
-instead (a trade-off the plan didn't ask about, found while building it).
+page. ~~Whether Scan should be held on Sonnet even over the cap~~ -
+decided yes, 2026-10-03. One consequence worth watching: a Domaine's Scan
+spend now keeps growing past the cap, bounded only by the hard stop, so
+the hard stop is what actually limits it - keep it close enough to the
+cap to mean something.
 
 ### The plan as scoped and decided
 

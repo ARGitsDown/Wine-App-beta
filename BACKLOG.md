@@ -3329,6 +3329,11 @@ that for runaway use. The app owner sets every other Domaine's limits.
 - **The screens**: a note on Suggest/Scan/Research/Estimate-windows when
   it matters; the Domaine's own spend on the People page; `/usage` for the
   app owner (every Domaine, per feature, with the limit form).
+- **Scan is held on Sonnet over the cap** (decided 2026-10-03,
+  `holdTier` in `lib/usage.js`) and only paused at the hard stop: it is
+  the one feature that saves what it reads straight into the cellar with
+  no review, so a cheaper model's mistakes would land as bad data. The
+  Scan page shows no "lighter models" note until Scan itself is paused.
 - **Found while testing**: React resets an uncontrolled form after every
   action, so a refused limit save wiped what had just been typed. The
   form now keeps the typed values (`UsageLimitsForm`). And my first bulk

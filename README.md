@@ -223,8 +223,9 @@ features like separate cellars per user.
   needs accounts switched on.
 - **Monthly AI limits** — every Claude call is recorded and summed per
   Domaine per calendar month. Past its cap, a Domaine's AI features keep
-  working on a lighter model; past a higher hard stop they pause until the
-  1st. Everyone in a Domaine sees its spend on the People page, a note
+  working on a lighter model (Scan stays at full strength, since it saves
+  what it reads without review); past a higher hard stop they pause until
+  the 1st. Everyone in a Domaine sees its spend on the People page, a note
   appears on Suggest, Scan and Research when it matters, and the app owner
   (`OWNER_EMAIL`) sees every Domaine on `/usage` and sets their limits.
   Starting values and the `.env` settings are in `.env.example`

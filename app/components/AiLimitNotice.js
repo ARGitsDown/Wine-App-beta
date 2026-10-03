@@ -17,7 +17,7 @@ import { formatResetDate } from "@/lib/usage-policy";
 // says that first and plainly; at the hard stop they don't, so it says
 // that, and when they come back. Never throws: a page must not fail
 // because it couldn't draw a notice.
-export default async function AiLimitNotice({ bare = false }) {
+export default async function AiLimitNotice({ bare = false, feature }) {
   let status;
   try {
     const { domaineId } = await currentCellarmaster();
@@ -26,6 +26,10 @@ export default async function AiLimitNotice({ bare = false }) {
     return null;
   }
   if (status.state === "ok") return null;
+  // Scan is held on its normal model over the cap (holdTier in
+  // lib/usage.js), so "running on lighter models" would be false there:
+  // it only has something to say once Scan itself is paused.
+  if (feature === "scan" && status.state === "lighter") return null;
 
   const resets = formatResetDate(status.resetsAt);
   const stopped = status.state === "stopped";
@@ -47,8 +51,8 @@ export default async function AiLimitNotice({ bare = false }) {
       ) : (
         <>
           <span className="font-medium">Running on lighter models until {resets}.</span> This
-          cellar has used its monthly AI allowance, so Scan, Suggest and Research still work but
-          may be a little less thorough.
+          cellar has used its monthly AI allowance, so Suggest, Research and estimates still work
+          but may be a little less thorough. Scan still reads labels at full strength.
         </>
       )}{" "}
       <Link href="/invites#ai-use" className="underline underline-offset-2">

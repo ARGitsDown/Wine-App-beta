@@ -797,6 +797,12 @@ export async function extractWinesFromPhoto(
       const response = await ai.call({
         feature: "scan",
         tier: "extraction",
+        // Stays on Sonnet over the monthly cap, and is only ever paused at
+        // the hard stop: a scan saves what it reads straight into the
+        // cellar with nobody reviewing it first, so this is the one place
+        // a cheaper model's mistakes would land as bad data rather than as
+        // a slightly worse answer. See holdTier in lib/usage.js.
+        holdTier: true,
         // Not the owner's choice to make here: a scan runs unattended
         // across a batch of photos, and a producer read wrong is a wrong
         // bottle saved to the cellar rather than a slower answer.

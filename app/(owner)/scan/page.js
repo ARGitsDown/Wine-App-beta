@@ -28,7 +28,7 @@ export default async function ScanPage({ searchParams }) {
 
   return (
     <>
-      <AiLimitNotice />
+      <AiLimitNotice feature="scan" />
       <ScanPanel initialIntent={normalizeScanIntent(intent)} openFlights={openFlights} />
     </>
   );
