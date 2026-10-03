@@ -1,12 +1,10 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
-import Link from "next/link";
 import { completeTastingFlight, deleteTastingFlight } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import FlightBottlePicker from "@/app/components/FlightBottlePicker";
 import FlightPicksList from "@/app/components/FlightPicksList";
 import BackButton from "@/app/components/BackButton";
-import { ScanIcon } from "@/app/components/icons";
 import FlightTitle from "@/app/components/FlightTitle";
 
 export const dynamic = "force-dynamic";
@@ -148,24 +146,17 @@ export default async function FlightDetailPage({ params }) {
         </p>
       )}
 
-      {/* The other way in. Wines poured at an event were never in the cellar,
-          so picking from it can't find them; photographing the labels or the
-          tasting sheet can, and it happens here, in this flight, rather than
-          back out through Scan and a "which flight?" step afterward. */}
-      <Link
-        href={`/flights/${flight.id}/scan`}
-        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
-      >
-        <ScanIcon className="h-4 w-4" />
-        Add wines by photo
-      </Link>
-
       {/* Open to begin with on an empty flight, since adding bottles is the
-          only thing there is to do on one. */}
+          only thing there is to do on one. Beside it, the other way in:
+          wines poured at an event were never in the cellar, so picking from
+          it can't find them, while photographing the labels or the tasting
+          sheet can - here, in this flight, rather than back out through Scan
+          and a "which flight?" step afterward. */}
       <FlightBottlePicker
         flightId={flight.id}
         bottles={candidates}
         defaultOpen={flight.picks.length === 0}
+        photoHref={`/flights/${flight.id}/scan`}
       />
     </div>
   );

@@ -3609,6 +3609,12 @@ completing deletes, as before.
   (#37, #38). A hand-typed card saves through `createBottleInFlight`. If a
   link fails the wines are still saved, wait in the box on `/flights`, and the
   card says so. "Done" returns to the flight.
+- **One row, not two bars.** The first version put "Add wines by photo" as a
+  full-width bar above the "Add a bottle" panel, spending a second row on what
+  is one question. They now share a row, **Add a bottle** and **Add by photo**,
+  with the bottle search opening below (`FlightBottlePicker` takes a
+  `photoHref`; its collapsible became an `aria-expanded` button). On an empty
+  flight the search is still open to begin with.
 - **A race fixed on the way.** Appending picks was "last order + 1", a read
   then a write; three photos finishing together (the panel reads three at
   once) would write the same order. `appendFlightPicks` does it in a

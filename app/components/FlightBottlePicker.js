@@ -1,14 +1,23 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { addBottleToFlight } from "@/app/actions";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 import StatusBadge from "@/app/components/StatusBadge";
+import { ScanIcon } from "@/app/components/icons";
 
 // Searching happens in memory over the cellar the server already sent,
 // the same trade the filter bar makes: typing narrows the list instantly
 // instead of waiting on a round trip per keystroke.
-export default function FlightBottlePicker({ flightId, bottles, defaultOpen = false }) {
+//
+// `photoHref`, when given, puts the other way in - photographing the wines -
+// on the same row as the one that opens this picker, rather than as a second
+// full-width bar below it: the two answer the same question ("add something
+// to this flight") and the page is mostly a list, so a row each was spending
+// a screen's worth of height on what is one decision.
+export default function FlightBottlePicker({ flightId, bottles, defaultOpen = false, photoHref = null }) {
+  const panelId = useId();
   // Owned here, not by the server. Every add revalidates the flight page,
   // and an `open` prop recomputed from the new pick count snapped the panel
   // shut the moment you used it.
@@ -127,14 +136,36 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
       </div>
     );
 
+  const toggleClass =
+    "flex min-h-11 items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium dark:border-zinc-700";
+
   return (
-    <details
-      open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-      className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
-    >
-      <summary className="cursor-pointer font-medium">Add a bottle</summary>
-      <div className="mt-3">{body}</div>
-    </details>
+    <div className="flex flex-col gap-3">
+      <div className={photoHref ? "grid grid-cols-2 gap-2" : ""}>
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-expanded={open}
+          aria-controls={panelId}
+          className={`${toggleClass} ${photoHref ? "" : "w-full justify-start"}`}
+        >
+          <span aria-hidden="true" className="text-xs">
+            {open ? "\u25BE" : "\u25B8"}
+          </span>
+          Add a bottle
+        </button>
+        {photoHref && (
+          <Link href={photoHref} className={toggleClass}>
+            <ScanIcon className="h-4 w-4" />
+            Add by photo
+          </Link>
+        )}
+      </div>
+      {open && (
+        <div id={panelId} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+          {body}
+        </div>
+      )}
+    </div>
   );
 }
