@@ -10,6 +10,8 @@ import {
   moveFlightPick,
 } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
+import { wineDetailOrNone } from "@/lib/wine-origin";
+import { drinkWindowLabel } from "@/lib/drink-window";
 
 // The two taps on a wine that has not been tasted yet, as icons at the right
 // of its collapsed row so each wine costs one line or two rather than three
@@ -92,6 +94,10 @@ export default function FlightPicksList({ flightId, picks }) {
     <ol className="flex flex-col gap-2">
       {picks.map((pick, index) => {
         const expanded = expandedIds.has(pick.id);
+        const facts = [pick.bottle.wineColor, pick.bottle.abv != null ? `${pick.bottle.abv}% ABV` : null]
+          .filter(Boolean)
+          .join(" · ");
+        const windowLabel = drinkWindowLabel(pick.bottle);
         return (
           <li
             key={pick.id}
@@ -161,21 +167,40 @@ export default function FlightPicksList({ flightId, picks }) {
 
             {expanded && (
               <div className="flex flex-col gap-3 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                {/* Opening a wine shows the wine: what the cellar's own
+                    expanded row shows, so nobody has to leave the flight to
+                    find out what they are about to pour. The ordering and
+                    removal controls come after it. */}
+                <div className="flex gap-3">
+                  {pick.bottle.photoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={pick.bottle.photoUrl}
+                      alt={`Label photo for ${pick.bottle.producer}`}
+                      className="h-20 w-16 shrink-0 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+                    />
+                  )}
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+                    <p>{wineDetailOrNone(pick.bottle)}</p>
+                    {facts && <p className="text-zinc-500">{facts}</p>}
+                    {windowLabel && <p className="text-zinc-500">{windowLabel}</p>}
+                  </div>
+                </div>
+                {pick.bottle.criticNotes && (
+                  <p className="line-clamp-3 text-xs text-zinc-500">
+                    From the label or sheet: {pick.bottle.criticNotes}
+                  </p>
+                )}
                 {/* A pick added by hand has no argument attached to it -
                     only a place in the running order. */}
                 {pick.reason && (
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">{pick.reason}</p>
                 )}
-                {pick.originFlightOnly && (
-                  <p className="text-xs text-zinc-500">
-                    Never in your cellar - tasting it moves it to Tasting notes.
-                  </p>
-                )}
                 <Link
                   href={`/bottles/${pick.bottle.id}`}
                   className="self-start text-sm text-zinc-500 underline underline-offset-2"
                 >
-                  View full details →
+                  Photos, notes and editing →
                 </Link>
 
                 <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-3 text-xs text-zinc-400 dark:border-zinc-800">
@@ -213,33 +238,30 @@ export default function FlightPicksList({ flightId, picks }) {
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {pick.consumed ? (
-                    // Marking a pick tasted now moves the bottle somewhere
-                    // real - Cellar quantity down, or straight to Tasted for
-                    // a flight-only wine (BACKLOG #29 and #36) - so a
-                    // mis-tap needs a way back. Undo reverses exactly what
-                    // that tap did (unmarkFlightPickConsumed), not a
-                    // separate hand-rolled correction, and lands the bottle
-                    // back wherever it actually started either way.
+                {pick.consumed && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Marking a pick tasted moves the bottle somewhere real -
+                        Cellar quantity down, or straight to Tasting notes for
+                        a flight-only wine (BACKLOG #29 and #36) - so a mis-tap
+                        needs a way back. Undo reverses exactly what that tap
+                        did (unmarkFlightPickConsumed). */}
                     <form action={unmarkFlightPickConsumed.bind(null, pick.id)}>
                       <button type="submit" className={undoButtonClass}>
                         Undo
                       </button>
                     </form>
-                  ) : null}
-                  {/* The id, not the text: the note prefill then renders
-                      whichever of title/summary this flight actually has,
-                      instead of freezing a copy into the URL. Left visible
-                      either way - tasted or not is a separate question from
-                      whether there's a note to write. */}
-                  <Link
-                    href={`/bottles/${pick.bottle.id}?tastingFlight=${flightId}`}
-                    className="self-center text-sm text-zinc-500 underline underline-offset-2"
-                  >
-                    Log a tasting note →
-                  </Link>
-                </div>
+                    {/* The note icon is only on wines still to taste, since
+                        it also marks them tasted; this is the way to add one
+                        afterwards. The id, not the text: the prefill then
+                        names whichever of title/summary the flight has. */}
+                    <Link
+                      href={`/bottles/${pick.bottle.id}?tastingFlight=${flightId}`}
+                      className="text-sm text-zinc-500 underline underline-offset-2"
+                    >
+                      Add a tasting note →
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </li>

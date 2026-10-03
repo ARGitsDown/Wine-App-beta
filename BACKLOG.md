@@ -3642,6 +3642,15 @@ completing deletes, as before.
   says it was never in the cellar when its row is expanded. Icons are
   unlabelled on the row itself, so the key and each button's `aria-label`
   carry the meaning.
+- **Opening a wine shows the wine (owner, same day).** The expanded row now
+  leads with what the Cellar's own expanded row shows - variety and origin,
+  colour and ABV, the drinking window, a clamped line of label or sheet notes,
+  Suggest's reason when there is one, and a quiet "Photos, notes and editing"
+  link - followed by Order up/down and Remove from flight. Gone: the "never in
+  your cellar" note and the "Log a tasting note" link, both made redundant by
+  the ✎ icon on the row. Kept, because removing them would lose a path: Undo
+  on a tasted wine, and "Add a tasting note" on a tasted wine only (its ✎ icon
+  is gone once it is tasted, since that icon also marks tasted).
 - **Wording on the flight scan page.** It said wines "stay out of your cellar",
   and the card spinner said "checking your cellar" (true - Claude looks for
   existing matches - but it read as if the wines went there). The flow was
