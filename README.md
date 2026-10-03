@@ -220,9 +220,10 @@ or multiple locations in one cellar.
   cellar wine comes off its count by one, a flight-only wine moves to
   Tasting notes; the confirm says which), so nobody has to tap through every
   row. **Delete flight**, at the foot, throws one away without tasting.
-  Each untasted wine's row has two one-tap icons at its right, ✓ **Tasted**
-  and ✎ **Add note** (which also marks it tasted, and opens its note form
-  for this flight). The page header is three short rows - Back with a
+  Slide an untasted wine left - or tap the ‹ at its right edge - and two big
+  labelled buttons appear behind it, **Tasted** and **With note** (which also
+  marks it tasted, and opens its note form for this flight); the row itself
+  carries nothing but the name, so long names get the whole line. The page header is three short rows - Back with a
   Flight pill opposite it; the name with Rename; then Complete flight beside
   "2 of 8 tasted" and the date - so a long flight shows seven or so wines at
   once.

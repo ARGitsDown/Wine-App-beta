@@ -3642,6 +3642,20 @@ completing deletes, as before.
   says it was never in the cellar when its row is expanded. Icons are
   unlabelled on the row itself, so the key and each button's `aria-label`
   carry the meaning.
+- **Swipe to reveal, replacing the icons (owner, same day).** To give long
+  wine names the whole line, the two icon buttons came off the row. Sliding an
+  untasted wine left reveals two 88px labelled buttons the full height of the
+  row, **Tasted** and **With note** (the same two actions as before). A ‹ at
+  the row's right edge does the same on tap - the way in without a gesture,
+  and the hint that something is behind the row - and is the only
+  keyboard/screen-reader path, since the buttons are `inert` until revealed.
+  One row is open at a time; tapping the open row closes it. The gesture is
+  only tracked once it is clearly horizontal (`touch-action: pan-y` on the
+  row), so scrolling is untouched; checked with real touch events - a swipe
+  opens a row and a vertical drag still scrolls. Rows are at least 56px tall so
+  the revealed buttons are never short. Known cost: while a row is open it has
+  slid mostly out of view, so its name is partly hidden until you act or close
+  it (the iOS convention). The key line above the list says how to reveal.
 - **Opening a wine shows the wine (owner, same day).** The expanded row now
   leads with what the Cellar's own expanded row shows - variety and origin,
   colour and ABV, the drinking window, a clamped line of label or sheet notes,

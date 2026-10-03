@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   markFlightPickConsumed,
@@ -13,14 +13,15 @@ import ConfirmButton from "@/app/components/ConfirmButton";
 import { wineDetailOrNone } from "@/lib/wine-origin";
 import { drinkWindowLabel } from "@/lib/drink-window";
 
-// The two taps on a wine that has not been tasted yet, as icons at the right
-// of its collapsed row so each wine costs one line or two rather than three
-// (a ✓ and a pencil, with a one-line key above the list; the real names are
-// in each button's aria-label). Equal weight: which one is wanted depends on
-// the wine, and both are one tap (see markFlightPickConsumed and
-// markFlightPickConsumedAndNote).
-const iconButtonClass =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-300 dark:border-zinc-700";
+// The two actions on a wine that has not been tasted yet - Tasted, and With
+// note (which also marks it tasted) - live behind the row, not on it, so the
+// name has the whole line. Slide the row left (or tap the ‹ at its right edge,
+// which is the way in for anyone who isn't swiping) and they are there, big
+// and labelled. See markFlightPickConsumed and markFlightPickConsumedAndNote.
+// How far a row slides to show its two actions: two 88px buttons, each the
+// full height of the row - far bigger than anything that could share a line
+// with a wine's name, and only there when asked for.
+const ACTION_W = 176;
 
 function CheckIcon() {
   return (
@@ -71,6 +72,60 @@ function tastedLabel(bottle) {
 // what actually makes the collapse worth doing.
 export default function FlightPicksList({ flightId, picks }) {
   const [expandedIds, setExpandedIds] = useState(new Set());
+  // Which row has its actions showing - one at a time - and, mid-gesture, how
+  // far the finger has dragged it. The gesture itself is only tracked once it
+  // is clearly horizontal, so vertical scrolling through a long flight is
+  // never fought over (the rows also say touch-action: pan-y).
+  const [openId, setOpenId] = useState(null);
+  const [drag, setDrag] = useState(null);
+  const gesture = useRef(null);
+  const justDragged = useRef(false);
+
+  function onPointerDown(event, pick) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    gesture.current = {
+      id: pick.id,
+      x: event.clientX,
+      y: event.clientY,
+      base: openId === pick.id ? -ACTION_W : 0,
+      horizontal: false,
+    };
+  }
+
+  function onPointerMove(event) {
+    const g = gesture.current;
+    if (!g) return;
+    const dx = event.clientX - g.x;
+    const dy = event.clientY - g.y;
+    if (!g.horizontal) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+        g.horizontal = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } else {
+        return;
+      }
+    }
+    g.last = Math.max(-ACTION_W, Math.min(0, g.base + dx));
+    setDrag({ id: g.id, x: g.last });
+  }
+
+  function onPointerUp() {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g || !g.horizontal) return;
+    // The click that follows a drag must not also expand the row.
+    justDragged.current = true;
+    setTimeout(() => {
+      justDragged.current = false;
+    }, 60);
+    setOpenId(g.last < -ACTION_W / 2 ? g.id : openId === g.id ? null : openId);
+    setDrag(null);
+  }
+
+  function onPointerCancel() {
+    gesture.current = null;
+    setDrag(null);
+  }
 
   function toggle(id) {
     setExpandedIds((prev) => {
@@ -87,8 +142,7 @@ export default function FlightPicksList({ flightId, picks }) {
     <>
     {anyUntasted && (
       <p className="flex flex-wrap gap-x-4 text-xs text-zinc-500">
-        <span>&#10003; Tasted</span>
-        <span>&#9998; Add note (also marks tasted)</span>
+        <span>Slide a wine left, or tap &lsaquo;, for Tasted or With note</span>
       </p>
     )}
     <ol className="flex flex-col gap-2">
@@ -98,6 +152,9 @@ export default function FlightPicksList({ flightId, picks }) {
           .filter(Boolean)
           .join(" · ");
         const windowLabel = drinkWindowLabel(pick.bottle);
+        const isOpen = !pick.consumed && openId === pick.id;
+        const dragging = drag?.id === pick.id;
+        const rowX = dragging ? drag.x : isOpen ? -ACTION_W : 0;
         return (
           <li
             key={pick.id}
@@ -107,62 +164,99 @@ export default function FlightPicksList({ flightId, picks }) {
                 : "border-zinc-200 dark:border-zinc-800"
             }`}
           >
-            <div className="flex items-center gap-1.5 pr-2">
-              <button
-                type="button"
-                onClick={() => toggle(pick.id)}
-                aria-expanded={expanded}
-                className="flex min-w-0 flex-1 items-start gap-1.5 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
-              >
-                <span aria-hidden="true" className="shrink-0 pt-0.5 text-zinc-400">
-                  {expanded ? "▾" : "▸"}
-                </span>
-                <span className="min-w-0 flex-1 font-medium">
-                  {index + 1}. {bottleHeader(pick.bottle)}
-                  {pick.bottle.type ? ` — ${pick.bottle.type}` : ""}
-                  {/* The one thing the dropped "Flight" pill said that a row
-                      still needs: a cellar wine with several bottles loses
-                      only one to "Tasted", which the icon alone cannot say. */}
-                  {!pick.consumed && !pick.originFlightOnly && pick.bottle.quantity > 1 && (
-                    <span className="ml-1.5 text-xs font-normal text-zinc-500">
-                      {pick.bottle.quantity} bottles
-                    </span>
-                  )}
-                </span>
-                {pick.consumed && (
-                  <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
-                    ✓ Tasted
-                  </span>
-                )}
-              </button>
-
-              {/* Where the flight is actually used - at the table, a bottle
-                  at a time - so tasting a wine is not behind an expand. A
-                  tasted wine's row stays a single line. */}
+            <div className={`relative overflow-hidden ${expanded ? "rounded-t-lg" : "rounded-lg"}`}>
               {!pick.consumed && (
-                <>
-                  <form action={markFlightPickConsumed.bind(null, pick.id)}>
+                <div
+                  className="absolute inset-y-0 right-0 flex"
+                  style={{ width: ACTION_W }}
+                  inert={!isOpen}
+                >
+                  <form
+                    action={markFlightPickConsumed.bind(null, pick.id)}
+                    className="flex h-full flex-1"
+                  >
                     <button
                       type="submit"
                       aria-label={`${tastedLabel(pick.bottle)}: ${bottleHeader(pick.bottle)}`}
-                      title="Tasted"
-                      className={iconButtonClass}
+                      className="flex h-full w-full flex-col items-center justify-center gap-1 bg-green-700 text-sm font-medium text-white"
                     >
                       <CheckIcon />
+                      Tasted
                     </button>
                   </form>
-                  <form action={markFlightPickConsumedAndNote.bind(null, pick.id)}>
+                  <form
+                    action={markFlightPickConsumedAndNote.bind(null, pick.id)}
+                    className="flex h-full flex-1"
+                  >
                     <button
                       type="submit"
                       aria-label={`Add a tasting note, and mark tasted: ${bottleHeader(pick.bottle)}`}
-                      title="Add note (also marks tasted)"
-                      className={iconButtonClass}
+                      className="flex h-full w-full flex-col items-center justify-center gap-1 bg-blue-700 text-sm font-medium text-white"
                     >
                       <PenIcon />
+                      With note
                     </button>
                   </form>
-                </>
+                </div>
               )}
+              <div
+                className="relative flex min-h-14 items-center gap-1.5 bg-background pr-1"
+                style={{
+                  transform: `translateX(${rowX}px)`,
+                  transition: dragging ? "none" : "transform 160ms ease-out",
+                  touchAction: "pan-y",
+                }}
+                onPointerDown={!pick.consumed ? (event) => onPointerDown(event, pick) : undefined}
+                onPointerMove={!pick.consumed ? onPointerMove : undefined}
+                onPointerUp={!pick.consumed ? onPointerUp : undefined}
+                onPointerCancel={!pick.consumed ? onPointerCancel : undefined}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (justDragged.current) return;
+                    if (isOpen) setOpenId(null);
+                    else toggle(pick.id);
+                  }}
+                  aria-expanded={expanded}
+                  className="flex min-w-0 flex-1 items-start gap-1.5 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                >
+                  <span aria-hidden="true" className="shrink-0 pt-0.5 text-zinc-400">
+                    {expanded ? "▾" : "▸"}
+                  </span>
+                  <span className="min-w-0 flex-1 font-medium">
+                    {index + 1}. {bottleHeader(pick.bottle)}
+                    {pick.bottle.type ? ` — ${pick.bottle.type}` : ""}
+                    {/* The one thing the dropped "Flight" pill said that a row
+                        still needs: a cellar wine with several bottles loses
+                        only one to "Tasted". */}
+                    {!pick.consumed && !pick.originFlightOnly && pick.bottle.quantity > 1 && (
+                      <span className="ml-1.5 text-xs font-normal text-zinc-500">
+                        {pick.bottle.quantity} bottles
+                      </span>
+                    )}
+                  </span>
+                  {pick.consumed && (
+                    <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
+                      ✓ Tasted
+                    </span>
+                  )}
+                </button>
+                {/* The way to the actions without a swipe: a tap target in
+                    its own right, and the hint that there is something
+                    behind the row. */}
+                {!pick.consumed && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(isOpen ? null : pick.id)}
+                    aria-expanded={isOpen}
+                    aria-label={`${isOpen ? "Hide" : "Show"} Tasted and With note for ${bottleHeader(pick.bottle)}`}
+                    className="flex h-11 w-8 shrink-0 items-center justify-center text-2xl leading-none text-zinc-400"
+                  >
+                    {isOpen ? "›" : "‹"}
+                  </button>
+                )}
+              </div>
             </div>
 
             {expanded && (
