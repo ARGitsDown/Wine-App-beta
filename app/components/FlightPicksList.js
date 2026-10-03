@@ -10,14 +10,32 @@ import {
   moveFlightPick,
 } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
-import StatusBadge from "@/app/components/StatusBadge";
 
-// The two taps on a wine that has not been tasted yet, shown on its collapsed
-// row. Equal weight, side by side: which one is wanted depends on the wine,
-// not on a default, and both are one tap (see markFlightPickConsumed and
+// The two taps on a wine that has not been tasted yet, as icons at the right
+// of its collapsed row so each wine costs one line or two rather than three
+// (a ✓ and a pencil, with a one-line key above the list; the real names are
+// in each button's aria-label). Equal weight: which one is wanted depends on
+// the wine, and both are one tap (see markFlightPickConsumed and
 // markFlightPickConsumedAndNote).
-const quickButtonClass =
-  "flex min-h-11 w-full items-center justify-center rounded-lg border border-zinc-300 px-2 text-sm font-medium dark:border-zinc-700";
+const iconButtonClass =
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-300 dark:border-zinc-700";
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
+function PenIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20h4L19 9l-4-4L4 16v4z" />
+      <path d="M13.5 6.5l4 4" />
+    </svg>
+  );
+}
 const undoButtonClass =
   "min-h-11 rounded-lg border border-zinc-300 px-3 text-sm dark:border-zinc-700";
 // 44px, not the 24px this used to be (BACKLOG #29) - reordering a flight is
@@ -61,8 +79,17 @@ export default function FlightPicksList({ flightId, picks }) {
     });
   }
 
+  const anyUntasted = picks.some((pick) => !pick.consumed);
+
   return (
-    <ol className="flex flex-col gap-3">
+    <>
+    {anyUntasted && (
+      <p className="flex flex-wrap gap-x-4 text-xs text-zinc-500">
+        <span>&#10003; Tasted</span>
+        <span>&#9998; Add note (also marks tasted)</span>
+      </p>
+    )}
+    <ol className="flex flex-col gap-2">
       {picks.map((pick, index) => {
         const expanded = expandedIds.has(pick.id);
         return (
@@ -74,59 +101,63 @@ export default function FlightPicksList({ flightId, picks }) {
                 : "border-zinc-200 dark:border-zinc-800"
             }`}
           >
-            <button
-              type="button"
-              onClick={() => toggle(pick.id)}
-              aria-expanded={expanded}
-              className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
-            >
-              <span aria-hidden="true" className="shrink-0 pt-0.5 text-zinc-400">
-                {expanded ? "▾" : "▸"}
-              </span>
-              <span className="min-w-0 flex-1 font-medium">
-                {index + 1}. {bottleHeader(pick.bottle)}
-                {pick.bottle.type ? ` — ${pick.bottle.type}` : ""}
-                {/* "Tasted" means something different for these than for
-                    a cellar wine here (Cellar quantity down vs. straight
-                    to Tasted, see markFlightPickConsumed) - the collapsed
-                    row said nothing about which was which until now (a
-                    UX review, 2026-09-27). */}
-                {pick.originFlightOnly && (
-                  <StatusBadge status="flight" className="ml-1.5 align-middle" />
-                )}
-              </span>
-              {pick.consumed && (
-                <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
-                  ✓ Tasted
+            <div className="flex items-center gap-1.5 pr-2">
+              <button
+                type="button"
+                onClick={() => toggle(pick.id)}
+                aria-expanded={expanded}
+                className="flex min-w-0 flex-1 items-start gap-1.5 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+              >
+                <span aria-hidden="true" className="shrink-0 pt-0.5 text-zinc-400">
+                  {expanded ? "▾" : "▸"}
                 </span>
-              )}
-            </button>
+                <span className="min-w-0 flex-1 font-medium">
+                  {index + 1}. {bottleHeader(pick.bottle)}
+                  {pick.bottle.type ? ` — ${pick.bottle.type}` : ""}
+                  {/* The one thing the dropped "Flight" pill said that a row
+                      still needs: a cellar wine with several bottles loses
+                      only one to "Tasted", which the icon alone cannot say. */}
+                  {!pick.consumed && !pick.originFlightOnly && pick.bottle.quantity > 1 && (
+                    <span className="ml-1.5 text-xs font-normal text-zinc-500">
+                      {pick.bottle.quantity} bottles
+                    </span>
+                  )}
+                </span>
+                {pick.consumed && (
+                  <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
+                    ✓ Tasted
+                  </span>
+                )}
+              </button>
 
-            {/* Where the flight is actually used - at the table, a bottle at a
-                time - so tasting a wine is not behind an expand. A tasted
-                wine's row stays a single line. */}
-            {!pick.consumed && (
-              <div className="grid grid-cols-2 gap-2 px-4 pb-3">
-                <form action={markFlightPickConsumed.bind(null, pick.id)}>
-                  <button
-                    type="submit"
-                    aria-label={`${tastedLabel(pick.bottle)}: ${bottleHeader(pick.bottle)}`}
-                    className={quickButtonClass}
-                  >
-                    {tastedLabel(pick.bottle)}
-                  </button>
-                </form>
-                <form action={markFlightPickConsumedAndNote.bind(null, pick.id)}>
-                  <button
-                    type="submit"
-                    aria-label={`Tasted, and add a tasting note: ${bottleHeader(pick.bottle)}`}
-                    className={quickButtonClass}
-                  >
-                    Tasted + note
-                  </button>
-                </form>
-              </div>
-            )}
+              {/* Where the flight is actually used - at the table, a bottle
+                  at a time - so tasting a wine is not behind an expand. A
+                  tasted wine's row stays a single line. */}
+              {!pick.consumed && (
+                <>
+                  <form action={markFlightPickConsumed.bind(null, pick.id)}>
+                    <button
+                      type="submit"
+                      aria-label={`${tastedLabel(pick.bottle)}: ${bottleHeader(pick.bottle)}`}
+                      title="Tasted"
+                      className={iconButtonClass}
+                    >
+                      <CheckIcon />
+                    </button>
+                  </form>
+                  <form action={markFlightPickConsumedAndNote.bind(null, pick.id)}>
+                    <button
+                      type="submit"
+                      aria-label={`Add a tasting note, and mark tasted: ${bottleHeader(pick.bottle)}`}
+                      title="Add note (also marks tasted)"
+                      className={iconButtonClass}
+                    >
+                      <PenIcon />
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
 
             {expanded && (
               <div className="flex flex-col gap-3 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
@@ -134,6 +165,11 @@ export default function FlightPicksList({ flightId, picks }) {
                     only a place in the running order. */}
                 {pick.reason && (
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">{pick.reason}</p>
+                )}
+                {pick.originFlightOnly && (
+                  <p className="text-xs text-zinc-500">
+                    Never in your cellar - tasting it moves it to Tasting notes.
+                  </p>
                 )}
                 <Link
                   href={`/bottles/${pick.bottle.id}`}
@@ -210,5 +246,6 @@ export default function FlightPicksList({ flightId, picks }) {
         );
       })}
     </ol>
+    </>
   );
 }

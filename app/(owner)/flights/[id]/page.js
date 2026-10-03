@@ -5,6 +5,7 @@ import ConfirmButton from "@/app/components/ConfirmButton";
 import FlightBottlePicker from "@/app/components/FlightBottlePicker";
 import FlightPicksList from "@/app/components/FlightPicksList";
 import BackButton from "@/app/components/BackButton";
+import StatusBadge from "@/app/components/StatusBadge";
 import FlightTitle from "@/app/components/FlightTitle";
 
 export const dynamic = "force-dynamic";
@@ -82,32 +83,41 @@ export default async function FlightDetailPage({ params }) {
   const untastedFlightOnly = untasted.filter((pick) => pick.originFlightOnly).length;
   const untastedCellar = untasted.length - untastedFlightOnly;
 
+  const tastedCount = flight.picks.length - untasted.length;
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      <BackButton fallbackHref="/flights" />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <FlightTitle flight={flight} />
-          {/* This page is the expansion - you clicked through to it, so the
-              theme is spelled out here rather than hidden behind a second
-              disclosure. Skipped when the summary IS the heading above, and
-              when a hand-built flight simply doesn't have one. */}
-          {flight.title && flight.summary && (
-            <p className="max-w-prose text-sm text-zinc-600 dark:text-zinc-400">
-              {flight.summary}
-            </p>
-          )}
-          <p className="text-sm text-zinc-500">
-            Saved {new Date(flight.createdAt).toLocaleDateString()}
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
+      {/* Three short rows, so the wines start as high as they can: Back (with
+          what kind of page this is, opposite it), the flight's name, then the
+          one thing to do with the flight as a whole beside how far along it
+          is. The purple Flight pill used to be on every wine, which this page
+          needs said once, not per row. */}
+      <div className="flex items-center justify-between gap-3">
+        <BackButton fallbackHref="/flights" />
+        <StatusBadge status="flight" />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FlightTitle flight={flight} />
+        {/* This page is the expansion - you clicked through to it, so the
+            theme is spelled out here rather than hidden behind a second
+            disclosure. Skipped when the summary IS the heading above, and
+            when a hand-built flight simply doesn't have one. */}
+        {flight.title && flight.summary && (
+          <p className="max-w-prose text-sm text-zinc-600 dark:text-zinc-400">
+            {flight.summary}
           </p>
-        </div>
-        {/* The way to finish sits at the top, beside the title, and it works
-            whether or not each wine was ticked off one by one: with wines
-            still untasted it marks them all tasted and then clears the
-            flight, so nobody has to tap through a dozen rows to be done.
-            An empty flight has nothing to complete, so it gets Delete here
-            instead. Throwing a flight away without tasting is Delete's job,
-            and it sits at the foot of the page. */}
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        {/* The way to finish sits up here and works whether or not each wine
+            was ticked off one by one: with wines still untasted it marks them
+            all tasted and then clears the flight, so nobody has to tap through
+            a dozen rows to be done. An empty flight has nothing to complete,
+            so it gets Delete here instead; throwing away a flight that was
+            never tasted is Delete's job, and for the rest it sits at the foot
+            of the page. */}
         {flight.picks.length === 0 ? (
           <ConfirmButton
             action={deleteTastingFlight.bind(null, flight.id)}
@@ -157,6 +167,11 @@ export default async function FlightDetailPage({ params }) {
             confirmClassName={neutralConfirmClass}
           />
         )}
+        <span className="text-sm text-zinc-500">
+          {flight.picks.length > 0 && `${tastedCount} of ${flight.picks.length} tasted \u00b7 `}
+          {flight.picks.length > 0 ? "" : "Saved "}
+          {new Date(flight.createdAt).toLocaleDateString()}
+        </span>
       </div>
 
       <FlightPicksList flightId={flight.id} picks={flight.picks} />

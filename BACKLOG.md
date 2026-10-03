@@ -3628,6 +3628,20 @@ completing deletes, as before.
   form tied to the flight); a tasted row stays one line, and Undo is still in
   the expanded row. A cost to know: two buttons add about 56px under each
   untasted wine, so a long untasted flight is taller than before.
+- **Compacted for a long flight (owner, same day).** Chosen from two contact
+  sheets (header and row options, with the wine counts that fit one phone
+  screen): a three-row header - Back with the purple Flight pill opposite it,
+  the name with Rename, then Complete flight beside "N of M tasted" and the
+  date - and the two actions as icons (✓ Tasted, ✎ Add note, which also marks
+  tasted) at the right of each untasted row, with a one-line key above the
+  list. The Flight pill is off every wine, since the page is already the
+  Flights area. About 4½ wines fit a phone screen before and about 7 now.
+  What the pill and the old "Tasted one - N left" label used to say moved:
+  a cellar wine with several bottles shows "N bottles" after its name (and the
+  icon's accessible name says "Tasted one - N left"), and a flight-only wine
+  says it was never in the cellar when its row is expanded. Icons are
+  unlabelled on the row itself, so the key and each button's `aria-label`
+  carry the meaning.
 - **Wording on the flight scan page.** It said wines "stay out of your cellar",
   and the card spinner said "checking your cellar" (true - Claude looks for
   existing matches - but it read as if the wines went there). The flow was

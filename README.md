@@ -220,8 +220,12 @@ or multiple locations in one cellar.
   cellar wine comes off its count by one, a flight-only wine moves to
   Tasting notes; the confirm says which), so nobody has to tap through every
   row. **Delete flight**, at the foot, throws one away without tasting.
-  On each untasted wine's row there are two one-tap buttons, **Tasted** and
-  **Tasted + note** (which marks it and opens its note form for this flight).
+  Each untasted wine's row has two one-tap icons at its right, ✓ **Tasted**
+  and ✎ **Add note** (which also marks it tasted, and opens its note form
+  for this flight). The page header is three short rows - Back with a
+  Flight pill opposite it; the name with Rename; then Complete flight beside
+  "2 of 8 tasted" and the date - so a long flight shows seven or so wines at
+  once.
 - **Guests** (`/guest`) — someone invited from People (`/invites`) as a Guest
   signs in with their own address and lands here: a read-only view of the
   Domaine's cellar where they can favorite bottles they'd like pulled for
