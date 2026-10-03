@@ -1,5 +1,6 @@
 import { plausibleWindow } from "../lib/drink-window.js";
 import { holdOwnersWindow } from "../lib/research-fields.js";
+import { BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL, SUGGESTION_PICK_SCHEMA, buildSuggestSystemPrompt } from "../lib/suggest-prompt.js";
 
 let pass = 0, fail = 0;
 const t = (name, got, want) => {
@@ -37,6 +38,15 @@ t("an estimated window may be improved", holdOwnersWindow(answer, { drinkFrom: 2
 t("no window at all: research fills it", holdOwnersWindow(answer, { drinkFrom: null, drinkTo: null, drinkWindowEstimated: false }), answer);
 t("other fields are never touched", holdOwnersWindow(answer, { drinkFrom: 2024, drinkTo: 2028, drinkWindowEstimated: false }).criticNotes, "x");
 t("the model's answer object is not mutated", (() => { const a = { ...answer }; holdOwnersWindow(a, { drinkFrom: 1, drinkTo: 2, drinkWindowEstimated: false }); return a; })(), answer);
+
+// --- the Suggest prompt and tools: shared by the app and by scripts/compare-suggest-models.mjs
+const props = SUGGESTIONS_TOOL.input_schema.properties;
+t("both Suggest tools stay strict", [BROWSE_CELLAR_TOOL.strict, SUGGESTIONS_TOOL.strict], [true, true]);
+t("the estimated-window rule is in the summary description", /estimate/.test(props.summary.description), true);
+t("...and in the pick's reason description", /estimate/.test(SUGGESTION_PICK_SCHEMA.properties.reason.description), true);
+t("prompt tells the model to browse with no filters first", /browse_cellar with no filters first/.test(buildSuggestSystemPrompt(2026, false, "balanced")), true);
+t("prompt carries the year it was given", /current year is 2031/.test(buildSuggestSystemPrompt(2031, false, "balanced")), true);
+t("outside-the-cellar changes the prompt", buildSuggestSystemPrompt(2026, true, "balanced") !== buildSuggestSystemPrompt(2026, false, "balanced"), true);
 
 console.log(`ai-guards: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

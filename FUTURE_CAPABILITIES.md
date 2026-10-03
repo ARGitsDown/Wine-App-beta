@@ -410,10 +410,11 @@ BACKLOG #55 has the detail:
   is never below the cap, nothing is negative.
 - **`/export` now includes** the Domaine's name and motto, its members and
   its invites (with their notes) - things a person typed.
-- **Not done, by decision:** the lighter-model quality measurement and the
-  comparison script (`scripts/compare-suggest-models.mjs` no longer loads
-  and is the obvious tool for it) are deferred; the role/access/feature
-  string constants are a backlog cleanup.
+- **Not done, by decision:** the lighter-model quality measurement is
+  deferred (the comparison script, `scripts/compare-suggest-models.mjs`,
+  loads again and has a Haiku arm - BACKLOG #57 - but has not been run
+  against a live key); the role/access/feature string constants are a
+  backlog cleanup.
 
 ### The plan as scoped and decided
 

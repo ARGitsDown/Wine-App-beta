@@ -3424,10 +3424,37 @@ new code serves traffic - the session callback reads `isAppOwner`.
   Scan and the estimators are held on Sonnet because of that doubt, and
   Suggest/Research drop to Haiku over the cap. A small fixed set of photos
   and bottles run on both tiers would settle whether that is acceptable.
-- **`scripts/compare-suggest-models.mjs` no longer loads** (deferred by the
-  owner). It imports from `lib/anthropic.js`, which has since lost the model
-  helpers; import from `../lib/ai-models.js`, and add a Haiku arm via
-  `requestShape("extraction", { lighter: true })`.
+- ~~**`scripts/compare-suggest-models.mjs` no longer loads**~~ - fixed in #57.
 - **Maybe, if it ever bites**: an index on `UsageEvent(createdAt)` if `/usage`
   gets slow across many Domaines; a ledger flag for "retried on the normal
   model" so `/usage` can show how often the lighter tier was refused.
+
+## 57. The model-comparison script works again, and can't drift from Suggest
+
+`scripts/compare-suggest-models.mjs` stopped loading when the model helpers
+moved out of `lib/anthropic.js` (which is `server-only`) in #54, and before
+that it had already been caught running a stale prompt (#23): its header
+said "re-sync by eye", and nobody had. Both fixed at the root.
+
+- **The prompt and tools are shared, not copied.** `BROWSE_CELLAR_TOOL`,
+  `SUGGESTIONS_TOOL` and `buildSuggestSystemPrompt` moved verbatim from
+  `app/actions.js` (a `"use server"` file, so the script could never import
+  them) to `lib/suggest-prompt.js`, which has no SDK, database or `@/` alias.
+  The app and the script now import the same objects. Six new checks in
+  `scripts/ai-guards.test.mjs` pin the strict flags, the estimated-window
+  rule in both field descriptions, and the prompt's browse-first line.
+- **Three arms, from `requestShape()`**: `opus` (reasoning), `sonnet`
+  (extraction) and `haiku` (extraction, lighter) - the three models Suggest
+  can really run on, with the request fields the app would send each
+  (Haiku gets no thinking and no effort). All three run by default.
+- **Still copied**: the `browse_cellar` query itself (Prisma and the scoped
+  client in the app, plain `pg` here). The script header says so.
+
+Checked against the stub API: it loads, sends the right model, thinking,
+effort and tools to each arm, and the full test suite and `npm run verify`
+pass. **Not run against a live key**, and the stub doesn't answer Suggest's
+tools, so the browse loop and its pg query were not exercised end to end.
+Running it - `node scripts/compare-suggest-models.mjs --models haiku,sonnet`
+against real keys - is the first step of the Haiku measurement in #56. It
+spends real money: all defaults is thirty calls.
+

@@ -1,53 +1,57 @@
 #!/usr/bin/env node
-// Runs the same Suggest request against Opus and Sonnet side by side, so
-// you can judge for yourself whether the heavier model is earning its cost
-// on this call - see BACKLOG #23 for the run this script produced and what
-// was decided from it.
+// Runs the same Suggest request against Opus, Sonnet and Haiku side by
+// side, so you can judge for yourself whether each model is earning its
+// place on this call - see BACKLOG #23 for the run this script first
+// produced and what was decided from it.
 //
-// That decision has since landed: Suggest no longer picks a model for you.
-// The owner's dial chooses one (lib/suggest-depth.js - "Standard" is
-// Sonnet and the default, "Master Sommelier" is Opus), so this script now
-// measures the two rungs of a live control rather than arguing about a
-// hardcoded choice. Still worth re-running whenever the system prompt, the
-// tool schemas or the models themselves change, since the whole basis of
-// that control is a measurement that can go stale.
+// The three arms are the three models Suggest can actually run on:
+//   opus   - "Master Sommelier" (lib/suggest-depth.js), the reasoning tier
+//   sonnet - "Standard", the default, and what "Master Sommelier" drops to
+//            when a Domaine is over its monthly cap
+//   haiku  - what "Standard" drops to over the cap (lib/usage.js). Its
+//            quality here has never been measured - BACKLOG #56 - which is
+//            the main reason to run this. It takes no thinking and no
+//            effort setting, so it gets none, exactly as in the app.
+// Each arm's request fields come from requestShape() in lib/ai-models.js,
+// the same function the app uses, so they cannot drift from the real thing.
 //
-// This is a standalone script, not part of the running app, because
-// getSuggestions lives in app/actions.js - a "use server" file, where every
-// export has to be an async Server Action callable from the browser, not a
-// plain function this script could import and call directly with a chosen
-// model. So the tool schemas, the system prompt, and the browse/record loop
-// below are copied from getSuggestions as it stands today. If that function
-// changes, re-sync this file by eye - there is no automated link between
-// them, deliberately: importing app/actions.js here would drag in every
-// other Server Action and Next's own module resolution, for one function.
+// What this script shares with the app, imported rather than copied: the
+// model tiers (lib/ai-models.js), the tool schemas and system prompt
+// (lib/suggest-prompt.js), the effort dial (lib/effort.js) and the
+// character steer (lib/suggestion-character.js). What it still copies is
+// the browse_cellar query below, because the app's version goes through
+// Prisma and the session-scoped client, which a plain node script can't
+// load; if that changes in app/actions.js, re-sync it by eye. It also does
+// not go through ai.call() - there is no session or Domaine here - so
+// nothing it does is counted in the usage ledger or held by a cap.
 //
-// What IS imported for real, not copied: the model ids (lib/anthropic.js),
-// the effort dial (lib/effort.js) and the character steer
-// (lib/suggestion-character.js) - none of those files have the "use server"
-// restriction, so there is no reason to fork them.
+// Still worth re-running whenever the system prompt, the tool schemas or
+// the models change, since the whole basis of the depth dial and the cap's
+// tier-down is a measurement that can go stale.
 //
 // Usage (reads .env the same way prisma.config.ts does):
 //   node scripts/compare-suggest-models.mjs
 //   node scripts/compare-suggest-models.mjs --runs 3
 //   node scripts/compare-suggest-models.mjs --query "salmon with a citrus glaze" --runs 2
-//   node scripts/compare-suggest-models.mjs --models opus
+//   node scripts/compare-suggest-models.mjs --models haiku,sonnet
 //   node scripts/compare-suggest-models.mjs --json out.json
 //
 // Needs a real ANTHROPIC_API_KEY in .env (not the stub key used for local
 // UI verification) and the same DATABASE_URL the app uses - it reads your
-// actual current cellar, the same way a live Suggest request would.
+// actual current cellar, the same way a live Suggest request would. It
+// spends real money: three models, five queries, two runs each is thirty
+// calls.
 
 import "dotenv/config";
 import Anthropic from "@anthropic-ai/sdk";
 import pg from "pg";
 import { writeFile } from "node:fs/promises";
-import { EXTRACTION_MODEL, REASONING_MODEL } from "../lib/anthropic.js";
-import { DEFAULT_EFFORT, normalizeEffort, outputConfig } from "../lib/effort.js";
+import { requestShape } from "../lib/ai-models.js";
+import { DEFAULT_EFFORT, normalizeEffort } from "../lib/effort.js";
+import { BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL, buildSuggestSystemPrompt } from "../lib/suggest-prompt.js";
 import {
   DEFAULT_CHARACTER,
   normalizeCharacter,
-  characterRule,
 } from "../lib/suggestion-character.js";
 import { getDatabaseUrl } from "../lib/database-url.js";
 
@@ -56,7 +60,7 @@ import { getDatabaseUrl } from "../lib/database-url.js";
 // ---------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { queries: [], runs: 2, models: ["sonnet", "opus"], json: null };
+  const args = { queries: [], runs: 2, models: ["sonnet", "opus", "haiku"], json: null };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--query") args.queries.push(argv[++i]);
@@ -101,78 +105,6 @@ const DEFAULT_QUERIES = [
     character: "avant-garde",
   },
 ];
-
-// ---------------------------------------------------------------------
-// Copied from app/actions.js (see header comment) - keep these three
-// blocks and buildSuggestSystemPrompt/browseCellar below in sync by hand.
-// ---------------------------------------------------------------------
-
-const BROWSE_CELLAR_TOOL = {
-  name: "browse_cellar",
-  description:
-    "Browse this user's current inventory - bottles they actually own and could open tonight, not their wishlist or already-consumed bottles - to find candidates for a pairing or tasting recommendation. One call with no filters returns the whole cellar, and that is normally what you want: a personal cellar fits comfortably in a single response, and reasoning across all of it at once is both better and cheaper than guessing which filters to try. Filters are for narrowing a cellar you have already seen, not for discovering what is in it - reach for a second call when you want one specific slice, not as a way of exploring. Returns `bottles` (at most 250, ordered by producer name), `totalMatching` (how many bottles actually matched your filters), and `truncated`. Each bottle carries its id (needed to reference it in your final answer), its producer, and whichever of bottling, vintage, type, variety, region, country, quantity, averageRating (the owner's own average score), drinkFrom/drinkTo (its drinking window) and drinkWindowEstimated are actually recorded. A field that is absent is simply not on file - for a drinking window that means no window has been recorded, NOT that the wine is unready. drinkWindowEstimated is true when the window is the app's own guess rather than something read from a source or typed by the owner. When `truncated` is true you are looking at an alphabetical slice rather than the cellar - narrow the filters and call again rather than choosing from what came back.",
-  input_schema: {
-    type: "object",
-    properties: {
-      type: { type: ["string", "null"], description: "Filter by the bottle's short type/style label, substring match (e.g. 'Pinot Noir', 'Sauvignon Blanc'). Null for no filter." },
-      region: { type: ["string", "null"], description: "Filter by region, substring match (e.g. 'Bordeaux', 'Oregon'). Null for no filter." },
-      country: { type: ["string", "null"], description: "Filter by country, substring match. Null for no filter." },
-      minVintage: { type: ["integer", "null"], description: "Only bottles from this vintage or later. Null for no minimum." },
-      maxVintage: { type: ["integer", "null"], description: "Only bottles from this vintage or earlier. Null for no maximum." },
-      readyToDrink: {
-        type: ["boolean", "null"],
-        description:
-          "True to only return bottles whose drinking window (if any is set) includes the current year - i.e. not too young and not past peak. Bottles with no drinking window set are always included, since most wines don't have one recorded. Null for no filter (browse everything regardless of window).",
-      },
-    },
-    required: ["type", "region", "country", "minVintage", "maxVintage", "readyToDrink"],
-    additionalProperties: false,
-  },
-  strict: true,
-};
-
-const SUGGESTION_PICK_SCHEMA = {
-  type: "object",
-  properties: {
-    bottleId: { type: ["integer", "null"], description: "The id of an existing inventory bottle returned by browse_cellar, if recommending something the user already owns. Null if this is a gap suggestion - something not currently owned that would be worth adding to the wishlist instead." },
-    pairingContext: { type: ["string", "null"], description: "For a pairing request only: which dish/course this wine goes with, in a few words (e.g. 'the grilled salmon'). Null for a tasting-flight request, or when there's only one dish and it's already obvious." },
-    reason: { type: "string", description: "Why this wine - the pairing logic, or how it fits the tasting theme and its place in the tasting order. A sentence or two." },
-    gapProducer: { type: ["string", "null"], description: "For a gap suggestion (bottleId null) only: a real, specific example producer for the style being suggested - not a vague placeholder. Null when bottleId is set." },
-    gapType: { type: ["string", "null"], description: "For a gap suggestion only: a short style/variety label, matching the app's `type` field convention (e.g. 'Sancerre', 'Riesling'). Null when bottleId is set." },
-    gapRegion: { type: ["string", "null"], description: "For a gap suggestion only. Null when bottleId is set." },
-    gapCountry: { type: ["string", "null"], description: "For a gap suggestion only. Null when bottleId is set." },
-  },
-  required: ["bottleId", "pairingContext", "reason", "gapProducer", "gapType", "gapRegion", "gapCountry"],
-  additionalProperties: false,
-};
-
-const SUGGESTIONS_TOOL = {
-  name: "record_suggestions",
-  description: "Record your final wine recommendations, after browsing the cellar as needed. For a tasting flight, list picks in suggested tasting order.",
-  input_schema: {
-    type: "object",
-    properties: {
-      mode: { type: "string", enum: ["pairing", "tasting"], description: "Which kind of request this was." },
-      title: { type: "string", description: "A short evocative name for this recommendation - a few words, the way a flight is named on a tasting menu ('The Many Faces of Pinot', 'Chalk and Sea Air', 'Three Ways with the Lamb'). Title Case, no trailing punctuation, and specific to these actual wines rather than a generic label like 'Tasting Flight' or 'Pairing Suggestions'. This is the heading on its own - do not restate the explanation here, that is what summary is for." },
-      summary: { type: "string", description: "The explanation behind the title: what the theme is, why these wines, and for a flight why they are in this order. Two to four sentences - this sits behind a 'Why these' disclosure, so it has room to be more than a caption." },
-      picks: { type: "array", description: "One entry per recommended wine.", items: SUGGESTION_PICK_SCHEMA },
-    },
-    required: ["mode", "title", "summary", "picks"],
-    additionalProperties: false,
-  },
-  strict: true,
-};
-
-function buildSuggestSystemPrompt(currentYear, includeOutside, character) {
-  const outsideRule = includeOutside
-    ? "They have asked to see wines beyond their own cellar for this request, so you may recommend wines they do not own wherever one would genuinely pair or fit better - not only as a fallback. Still prefer an owned bottle when it is a comparable match, since that is one they can open tonight; a wine they would have to go and buy has to earn its place by being clearly better for this. Record any such wine as a gap suggestion (bottleId null) with a real, specific producer, and say in its reason what it does that the owned options do not."
-    : "Recommend only wines from their cellar. If nothing currently owned is a strong match, say so honestly and propose a specific gap suggestion (a real producer/style/region, not a vague category) worth adding to their wishlist, rather than forcing a mediocre owned bottle into the recommendation.";
-
-  const steer = characterRule(character);
-  const steerRule = steer ? `${steer} ` : "";
-
-  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. A browse_cellar result with truncated true is a partial view - the first 40 matches by producer name, not the best 40 - so narrow the filters and browse again before deciding, and never call a pick the best in their cellar on the strength of a truncated browse. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. Each window also carries drinkWindowEstimated: true means the years are the app's own guess rather than anything anyone looked up, so treat them as approximate and don't claim where they came from; false means they were read from a source or entered by the owner. The flag only means anything when drinkFrom or drinkTo is actually set - for a bottle with no window at all, ignore it. Choose between bottles using an estimated window exactly as you would a sourced one, but never quote an estimated one back as established fact - write "estimated to be drinking now" or "roughly 2024-2028", not "drinking right in its window (2024-2028)". Every other screen marks an estimate as an estimate, and a recommendation that quietly promotes a guess to a fact is the one way this feature misleads. ${outsideRule} ${steerRule}For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
-}
 
 // The same filtering browseCellar() in app/actions.js does, just fed by a
 // plain SQL fetch (pg, not Prisma) instead - Prisma's generated client here
@@ -255,15 +187,21 @@ function unusableResponseError(response) {
 // The comparison run itself
 // ---------------------------------------------------------------------
 
-const MODEL_IDS = { opus: REASONING_MODEL, sonnet: EXTRACTION_MODEL };
+// An arm is a tier plus whether it is the over-cap one - what the app asks
+// requestShape() for; the model id and its request fields come back.
+const ARMS = {
+  opus: { tier: "reasoning", lighter: false },
+  sonnet: { tier: "extraction", lighter: false },
+  haiku: { tier: "extraction", lighter: true },
+};
 
 // One full call, exactly what getSuggestions in app/actions.js does,
-// parameterized by model instead of hard-coded to REASONING_MODEL - the
-// one deliberate difference from the real thing, since that's the whole
-// point of this script.
-async function runSuggestion({ anthropic, pool, model, request, character, effort, includeOutside }) {
+// parameterized by arm instead of by the owner's dial and the Domaine's
+// allowance - the one deliberate difference from the real thing, since
+// that's the whole point of this script.
+async function runSuggestion({ anthropic, pool, arm, request, character, effort, includeOutside }) {
+  const shape = requestShape(arm.tier, { lighter: arm.lighter, effort });
   const steer = normalizeCharacter(character);
-  const level = normalizeEffort(effort);
   const outside = Boolean(includeOutside);
   const systemPrompt = buildSuggestSystemPrompt(new Date().getFullYear(), outside, steer);
   const messages = [{ role: "user", content: request }];
@@ -274,10 +212,9 @@ async function runSuggestion({ anthropic, pool, model, request, character, effor
 
   for (let turn = 0; turn < 6; turn++) {
     const response = await anthropic.messages.create({
-      model,
+      model: shape.model,
       max_tokens: 8192,
-      thinking: { type: "adaptive" },
-      output_config: outputConfig(level),
+      ...shape.params,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       tools: [BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL],
       messages,
@@ -373,7 +310,8 @@ async function main() {
                      tells you which model answered, not whether either
                      answer is any good; the model doesn't repeat itself
                      exactly even on the same input.
-  --models a,b       Which models to test: opus, sonnet, or both (default).
+  --models a,b       Which models to test, any of opus, sonnet, haiku
+                     (default: all three).
   --json <path>      Also write the full set of results as JSON to this path.
 `);
     return;
@@ -405,21 +343,21 @@ async function main() {
     console.log("=".repeat(70));
 
     for (const modelKey of args.models) {
-      const model = MODEL_IDS[modelKey];
-      if (!model) {
-        console.error(`Unknown model "${modelKey}" - use "opus" or "sonnet".`);
+      const arm = ARMS[modelKey];
+      if (!arm) {
+        console.error(`Unknown model "${modelKey}" - use opus, sonnet or haiku.`);
         continue;
       }
-      console.log(`\n${modelKey.toUpperCase()} (${model}):`);
+      console.log(`\n${modelKey.toUpperCase()} (${requestShape(arm.tier, { lighter: arm.lighter }).model}):`);
       for (let run = 1; run <= args.runs; run++) {
         try {
           const result = await runSuggestion({
             anthropic,
             pool,
-            model,
+            arm,
             request: query.request,
             character: query.character ?? DEFAULT_CHARACTER,
-            effort: query.effort ?? DEFAULT_EFFORT,
+            effort: normalizeEffort(query.effort ?? DEFAULT_EFFORT),
             includeOutside: query.includeOutside ?? false,
           });
           printResult(`run ${run}/${args.runs}`, result);
