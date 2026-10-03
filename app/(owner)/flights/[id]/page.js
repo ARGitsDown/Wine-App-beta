@@ -17,6 +17,26 @@ const neutralConfirmClass =
 const dangerButtonClass =
   "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
 
+// Whether a tasted wine has a note from this tasting, and its rating. Notes
+// are not linked to flights, so "from this tasting" is a date test: a note
+// dated from the day before the flight was made onward. The day of slack is
+// because a note's date is a calendar day anchored at noon UTC
+// (lib/tasting-date.js) while the flight's own timestamp is exact, so an
+// evening flight made in a western time zone is already "tomorrow" in UTC.
+// Approximate on purpose: a wine tasted at an earlier tasting keeps no tag
+// here, and one noted the day before the flight was made would carry it.
+function noteInfoFor(flight, bottle) {
+  const day = 24 * 60 * 60 * 1000;
+  const startOfFlightDay = new Date(flight.createdAt);
+  startOfFlightDay.setUTCHours(0, 0, 0, 0);
+  const cutoff = startOfFlightDay.getTime() - day;
+  const mine = bottle.tastingNotes
+    .filter((note) => new Date(note.tastedAt).getTime() >= cutoff)
+    .sort((a, b) => new Date(b.tastedAt) - new Date(a.tastedAt) || b.id - a.id);
+  if (mine.length === 0) return null;
+  return { rating: mine.find((note) => note.rating != null)?.rating ?? null };
+}
+
 export default async function FlightDetailPage({ params }) {
   const { id } = await params;
   const flightId = Number(id);
@@ -27,7 +47,14 @@ export default async function FlightDetailPage({ params }) {
   const flight = Number.isInteger(flightId)
     ? await db.tastingFlight.findUnique({
         where: { id: flightId },
-        include: { picks: { include: { bottle: true }, orderBy: { order: "asc" } } },
+        include: {
+          picks: {
+            // The notes are read only to say, on a tasted wine, whether this
+            // tasting produced one and how it was rated (see noteInfoFor).
+            include: { bottle: { include: { tastingNotes: { select: { id: true, rating: true, tastedAt: true } } } } },
+            orderBy: { order: "asc" },
+          },
+        },
       })
     : null;
 
@@ -174,7 +201,14 @@ export default async function FlightDetailPage({ params }) {
         </span>
       </div>
 
-      <FlightPicksList flightId={flight.id} picks={flight.picks} />
+      <FlightPicksList
+        flightId={flight.id}
+        picks={flight.picks.map((pick) => {
+          const { tastingNotes, ...bottle } = pick.bottle;
+          void tastingNotes;
+          return { ...pick, bottle, noteInfo: pick.consumed ? noteInfoFor(flight, pick.bottle) : null };
+        })}
+      />
 
       {flight.picks.length === 0 && (
         <p className="text-sm text-zinc-500">

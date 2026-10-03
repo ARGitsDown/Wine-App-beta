@@ -3755,6 +3755,22 @@ Checked on a production build: the Source line on a wine's page, the form label,
 and the panel's border in both states. Existing data was not touched, since only
 the label changed.
 
-Proposed, not built: a "Noted" tag on tasted wines in a flight (contact sheet sent
-to the owner; to be chosen).
+### The "Note" tag on tasted wines (built, owner's choice 1A / 2A / 3C)
+
+A tasted wine in a flight whose tasting produced a note shows an outlined blue pill
+under "✓ Tasted": **✎ Note · ★ 4** with the rating, or **✎ Note · ☆** when the note
+has no rating. No pill when there is no note. Blue and outlined so it sits apart
+from the green "tasted" and the amber "needs a check"; it carries an `aria-label`
+("Has a tasting note, rated 4 of 5" / "not rated") since the glyphs are decorative.
+
+"From this tasting" is a date test, because notes are not linked to flights: a note
+dated from the day before the flight was made onward (a day of slack, since a note's
+date is a calendar day anchored at noon UTC while the flight's timestamp is exact).
+So a note from an earlier tasting of the same wine does not show, and one written
+the day before the flight was made would; the rating shown is the most recent rated
+note in that window. If this ever matters, the exact fix is a `consumedAt` on
+FlightPick, or a flight id on the note.
+
+Checked on a production build: a rated note, an unrated note, no note, only an old
+note, and an untasted wine.
 

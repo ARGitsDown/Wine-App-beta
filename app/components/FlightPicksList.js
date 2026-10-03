@@ -31,9 +31,9 @@ function CheckIcon() {
   );
 }
 
-function PenIcon() {
+function PenIcon({ size = 19 }) {
   return (
-    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M4 20h4L19 9l-4-4L4 16v4z" />
       <path d="M13.5 6.5l4 4" />
     </svg>
@@ -237,8 +237,37 @@ export default function FlightPicksList({ flightId, picks }) {
                     )}
                   </span>
                   {pick.consumed && (
-                    <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
-                      ✓ Tasted
+                    <span className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                        ✓ Tasted
+                      </span>
+                      {/* "Note" and, from the same note, how it was rated: a
+                          filled star and the number, or an empty star when
+                          the note has no rating. Blue and outlined so it
+                          sits apart from the green tasted and the amber
+                          needs-a-check. Only when this tasting produced a
+                          note (see noteInfoFor on the page). */}
+                      {pick.noteInfo && (
+                        <span
+                          aria-label={
+                            pick.noteInfo.rating != null
+                              ? `Has a tasting note, rated ${pick.noteInfo.rating} of 5`
+                              : "Has a tasting note, not rated"
+                          }
+                          className="inline-flex items-center gap-1 rounded-full border border-sky-600 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:border-sky-700 dark:text-sky-300"
+                        >
+                          <PenIcon size={11} />
+                          Note
+                          <span aria-hidden="true">&middot;</span>
+                          {pick.noteInfo.rating != null ? (
+                            <span aria-hidden="true">
+                              <span className="text-amber-500">&#9733;</span> {pick.noteInfo.rating}
+                            </span>
+                          ) : (
+                            <span aria-hidden="true" className="text-zinc-400">&#9734;</span>
+                          )}
+                        </span>
+                      )}
                     </span>
                   )}
                 </button>
