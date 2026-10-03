@@ -22,7 +22,11 @@ being true, that is a bug in this document - say so and it gets fixed.
    to spend time.
 3. **"Explain it back" beats "recognize it".** If you can only nod along,
    it is a `2`. The test is whether you could say it unprompted.
-4. **Ask for more.** To expand this file, ask for a new section on a topic
+4. **Print it.** `npm run print:learning` writes `LEARNING.pdf` with the
+   answers moved to an answer key at the back (so a printout can be used as
+   a real test); add `-- --with-answers` to keep them under each question.
+   Ask a Claude Code session to run it - the PDF is not kept in the repo.
+5. **Ask for more.** To expand this file, ask for a new section on a topic
    ("add a section on how caching works"), a harder quiz on one section,
    or a "teach me this from scratch" walkthrough of any file. Add what you
    got wrong to the log - that is the document's most useful part.

@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "compare-suggest": "node scripts/compare-suggest-models.mjs",
     "smoke": "node scripts/smoke.mjs",
+    "print:learning": "node scripts/print-learning.mjs",
     "verify": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && node scripts/ai-guards.test.mjs && node scripts/constants.test.mjs && bash scripts/verify.sh",
     "test:policy": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && node scripts/ai-guards.test.mjs && node scripts/constants.test.mjs"
   },
@@ -33,6 +34,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "marked": "^18.0.14",
     "playwright": "^1.56.1",
     "tailwindcss": "^4",
     "typescript": "6.0.3"

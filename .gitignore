@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Claude Code agent worktrees (scratch, not project deliverables)
 /.claude/worktrees/
+
+# Printable build product of LEARNING.md (npm run print:learning)
+/LEARNING.pdf
