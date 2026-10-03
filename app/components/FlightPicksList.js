@@ -158,11 +158,7 @@ export default function FlightPicksList({ flightId, picks }) {
         return (
           <li
             key={pick.id}
-            className={`rounded-lg border ${
-              pick.consumed
-                ? "border-zinc-200 opacity-60 dark:border-zinc-800"
-                : "border-zinc-200 dark:border-zinc-800"
-            }`}
+            className="rounded-lg border border-zinc-200 dark:border-zinc-800"
           >
             <div className={`relative overflow-hidden ${expanded ? "rounded-t-lg" : "rounded-lg"}`}>
               {!pick.consumed && (
@@ -211,6 +207,10 @@ export default function FlightPicksList({ flightId, picks }) {
                 onPointerUp={!pick.consumed ? onPointerUp : undefined}
                 onPointerCancel={!pick.consumed ? onPointerCancel : undefined}
               >
+                {/* A tasted row is dimmed by its name and "Tasted" alone, not
+                    the whole row: the "Note" pill beside them is a link
+                    someone came here to press, and dimming it read as
+                    disabled. */}
                 <button
                   type="button"
                   onClick={() => {
@@ -219,7 +219,9 @@ export default function FlightPicksList({ flightId, picks }) {
                     else toggle(pick.id);
                   }}
                   aria-expanded={expanded}
-                  className="flex min-w-0 flex-1 items-start gap-1.5 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                  className={`flex min-w-0 flex-1 items-start gap-1.5 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900 ${
+                    pick.consumed ? "opacity-60" : ""
+                  }`}
                 >
                   <span aria-hidden="true" className="shrink-0 pt-0.5 text-zinc-400">
                     {expanded ? "▾" : "▸"}
@@ -236,26 +238,32 @@ export default function FlightPicksList({ flightId, picks }) {
                       </span>
                     )}
                   </span>
-                  {pick.consumed && (
-                    <span className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                        ✓ Tasted
-                      </span>
-                      {/* "Note" and, from the same note, how it was rated: a
-                          filled star and the number, or an empty star when
-                          the note has no rating. Blue and outlined so it
-                          sits apart from the green tasted and the amber
-                          needs-a-check. Only when this tasting produced a
-                          note (see noteInfoFor on the page). */}
-                      {pick.noteInfo && (
-                        <span
-                          aria-label={
-                            pick.noteInfo.rating != null
-                              ? `Has a tasting note, rated ${pick.noteInfo.rating} of 5`
-                              : "Has a tasting note, not rated"
-                          }
-                          className="inline-flex items-center gap-1 rounded-full border border-sky-600 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:border-sky-700 dark:text-sky-300"
-                        >
+                </button>
+                {pick.consumed && (
+                  <div className="flex shrink-0 flex-col items-end">
+                    <span className="px-2 py-1 text-sm font-medium text-green-700 opacity-60 dark:text-green-400">
+                      ✓ Tasted
+                    </span>
+                    {/* "Note" and, from the same note, how it was rated: a
+                        filled star and the number, or an empty star when
+                        the note has no rating. Blue and outlined so it
+                        sits apart from the green tasted and the amber
+                        needs-a-check. Only when this tasting produced a
+                        note (see noteInfoFor on the page). A link to that
+                        note on the wine's page, already open to read or
+                        change; the padding is the tap target around a
+                        small pill. */}
+                    {pick.noteInfo && (
+                      <Link
+                        href={`/bottles/${pick.bottle.id}?flight=${flightId}&note=${pick.noteInfo.noteId}#note-${pick.noteInfo.noteId}`}
+                        aria-label={
+                          pick.noteInfo.rating != null
+                            ? `Open tasting note, rated ${pick.noteInfo.rating} of 5`
+                            : "Open tasting note, not rated"
+                        }
+                        className="-mt-0.5 flex min-h-8 items-center px-1.5"
+                      >
+                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-600 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:border-sky-700 dark:text-sky-300">
                           <PenIcon size={11} />
                           Note
                           <span aria-hidden="true">&middot;</span>
@@ -267,10 +275,10 @@ export default function FlightPicksList({ flightId, picks }) {
                             <span aria-hidden="true" className="text-zinc-400">&#9734;</span>
                           )}
                         </span>
-                      )}
-                    </span>
-                  )}
-                </button>
+                      </Link>
+                    )}
+                  </div>
+                )}
                 {/* The way to the actions without a swipe: a tap target in
                     its own right, and the hint that there is something
                     behind the row. */}

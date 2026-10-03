@@ -34,7 +34,10 @@ function noteInfoFor(flight, bottle) {
     .filter((note) => new Date(note.tastedAt).getTime() >= cutoff)
     .sort((a, b) => new Date(b.tastedAt) - new Date(a.tastedAt) || b.id - a.id);
   if (mine.length === 0) return null;
-  return { rating: mine.find((note) => note.rating != null)?.rating ?? null };
+  // The pill shows the first rating found, so it links to the note that
+  // carries it; with no rating anywhere, the newest.
+  const shown = mine.find((note) => note.rating != null) ?? mine[0];
+  return { noteId: shown.id, rating: shown.rating ?? null };
 }
 
 export default async function FlightDetailPage({ params }) {

@@ -3774,3 +3774,24 @@ FlightPick, or a flight id on the note.
 Checked on a production build: a rated note, an unrated note, no note, only an old
 note, and an untasted wine.
 
+
+### The "Note" pill is a way into the note (built)
+
+The pill on a tasted flight row is now a link, and brighter: the row's dimming used
+to cover it (it read as disabled), so only the wine's name and "✓ Tasted" are dimmed
+now and the pill is at full strength. Pressing it goes to
+`/bottles/{id}?flight={flight}&note={noteId}#note-{noteId}`: the wine's page,
+scrolled to that note, outlined, and already open as fields (text and rating filled)
+so it can be read where it sits and changed with a tap. It is not auto-focused,
+because on a phone that raises the keyboard over the text being read. Which note it
+opens is the one whose rating the pill shows (the newest note if none is rated).
+
+This also adds what was missing on the wine page: every tasting note now has an
+**Edit** button (text and rating; the date keeps its own inline editor), through a
+new `updateTastingNote` action that refuses an empty note and clears the rating when
+the field is left blank. After a save the note shows what was just saved instead of
+flashing the old text until the page refreshes.
+
+Checked on a production build: the pill's brightness and link, arriving on the note
+open with its text, saving text and rating, an empty note refused, Cancel, clearing a
+rating, and an unrated pill going to its own note.

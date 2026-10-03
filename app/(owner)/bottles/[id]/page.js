@@ -7,6 +7,7 @@ import {
   updateBottle,
   deleteBottle,
   unmarkFlightPickConsumed,
+  updateTastingNote,
   updateTastingNoteDate,
   updateEmptiedDate,
   updateAcquiredDate,
@@ -18,6 +19,7 @@ import AddToFlight from "@/app/components/AddToFlight";
 import BackButton from "@/app/components/BackButton";
 import TastedControls from "@/app/components/TastedControls";
 import TastingNoteForm from "@/app/components/TastingNoteForm";
+import TastingNoteBody from "@/app/components/TastingNoteBody";
 import { flightName as nameOfFlight, isOpenFlight } from "@/lib/flights";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
@@ -89,7 +91,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
   // `tastingFlight` (arriving to write a note about a flight wine) and `flight`
   // (any other link from a flight's page) both say which flight the person came
   // from; `flight` carries no note prefill.
-  const { pairedWith, tastingFlight, flight: flightParam } = await searchParams;
+  const { pairedWith, tastingFlight, flight: flightParam, note: noteParam } = await searchParams;
   const domaineId = await currentDomaineId();
   const [flightName, allFlights] = await Promise.all([
     flightNameFor(tastingFlight),
@@ -408,26 +410,36 @@ export default async function BottleDetailPage({ params, searchParams }) {
         )}
 
         <ul className="flex flex-col gap-3">
-          {bottle.tastingNotes.map((tastingNote) => (
-            <li
-              key={tastingNote.id}
-              className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-500">
-                <InlineDateEditor
-                  date={tastingNote.tastedAt}
-                  action={updateTastingNoteDate.bind(null, tastingNote.id)}
-                  name="tastedAt"
-                />
-                <span>
-                  {tastingNote.rating !== null
-                    ? `${tastingNote.rating} / 5 ★`
-                    : "No rating"}
-                </span>
-              </div>
-              <p className="mt-1">{tastingNote.note}</p>
-            </li>
-          ))}
+          {bottle.tastingNotes.map((tastingNote) => {
+            // Arriving from a flight row's "Note" pill (?note=id): this
+            // note is the reason for the visit, so it is scrolled to by
+            // its anchor, ringed, and opened ready to change.
+            const target = String(tastingNote.id) === noteParam;
+            return (
+              <li
+                key={tastingNote.id}
+                id={`note-${tastingNote.id}`}
+                className={`scroll-mt-20 rounded-lg border p-3 ${
+                  target
+                    ? "border-sky-500 ring-2 ring-sky-500/30"
+                    : "border-zinc-200 dark:border-zinc-800"
+                }`}
+              >
+                <TastingNoteBody
+                  note={tastingNote.note}
+                  rating={tastingNote.rating}
+                  action={updateTastingNote.bind(null, tastingNote.id)}
+                  startEditing={target}
+                >
+                  <InlineDateEditor
+                    date={tastingNote.tastedAt}
+                    action={updateTastingNoteDate.bind(null, tastingNote.id)}
+                    name="tastedAt"
+                  />
+                </TastingNoteBody>
+              </li>
+            );
+          })}
         </ul>
 
         {!noteOnTop && (

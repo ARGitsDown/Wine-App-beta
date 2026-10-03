@@ -561,6 +561,29 @@ export async function addTastingNote(bottleId, prevState, formData) {
   return { ok: true };
 }
 
+// Rewording a tasting note, or changing its rating, after it was saved.
+// The date has its own inline editor (updateTastingNoteDate); this is the
+// text and the stars. Scoped like the date update: a note id that isn't
+// this owner's matches nothing and throws, so it reads as a failed save.
+export async function updateTastingNote(noteId, prevState, formData) {
+  const note = String(formData.get("note") || "").trim();
+  if (!note) return { error: "A note can't be empty." };
+  const rating = parseOptionalRating(formData.get("rating"));
+
+  try {
+    const saved = await db.tastingNote.update({
+      where: { id: noteId },
+      data: { note, rating },
+      select: { bottleId: true },
+    });
+    revalidatePath(`/bottles/${saved.bottleId}`);
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to update tasting note:", err);
+    return { error: "Couldn't save that note. Please try again." };
+  }
+}
+
 // Correcting when a note happened, without reopening the note itself -
 // the date is the part you're most likely to get wrong, since until now it
 // was always stamped with whenever you happened to write the note down.
