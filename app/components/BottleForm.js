@@ -272,17 +272,17 @@ export default function BottleForm({
           </div>
         </div>
       </div>
-      {/* Named for whose words are in it, which is the only thing that
-          separates it from the two boxes below: Research writes the critic
-          and winemaker notes, a tasting note is about one evening, and this
-          is everything else the owner knows about the bottle. Where it came
-          from lives here - the one thing that has nowhere else to go, and
-          the reason the plain label "Notes" kept reading as a duplicate. */}
+      {/* Three kinds of writing about a wine, each named for what it is:
+          this one, Source (where it came from, what it cost, who gave it
+          to you); Critic & winemaker notes, which Research writes; and
+          Tasting notes, dated and about one evening. It was "Your notes",
+          then "Notes" in conversation, and a generic name kept reading as a
+          duplicate of the other two. The column is still `notes`; only what
+          it is called changed (BACKLOG #62). */}
       <label className={labelClass}>
-        Your notes
+        Source
         <span className="text-xs text-zinc-500">
-          Where it came from, what it cost, who gave it to you — anything in
-          your own words that isn&apos;t about one tasting.
+          Where it came from, what it cost, who gave it to you.
         </span>
         <AutoTextarea
           name="notes"

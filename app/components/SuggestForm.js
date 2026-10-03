@@ -503,7 +503,9 @@ export default function SuggestForm({ initial = null }) {
                             type: pick.gap.type,
                             region: pick.gap.region,
                             country: pick.gap.country,
-                            notes: pick.reason,
+                            // Prefixed because this field is the wine's Source: left bare, a
+                            // wishlist bottle would show a pairing argument as where it came from.
+                            notes: `Suggested because: ${pick.reason}`,
                           }}
                           submitLabel="Add to wishlist"
                           idPrefix={`suggest-gap-${index}`}

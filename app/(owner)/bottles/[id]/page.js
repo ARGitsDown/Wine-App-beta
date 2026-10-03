@@ -243,6 +243,14 @@ export default async function BottleDetailPage({ params, searchParams }) {
               {heading}
             </h1>
             {facts && <p className="mt-1 text-sm text-zinc-500">{facts}</p>}
+            {/* Source is otherwise only inside "Edit details"; a line of it
+                here means where a wine came from is something you can see. */}
+            {bottle.notes && (
+              <p className="mt-1 line-clamp-2 text-sm text-zinc-500">
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">Source:</span>{" "}
+                {bottle.notes}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={bottle.status} />
               {bottle.needsResearch && (
@@ -390,7 +398,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
 
       {/* Right beside Details rather than at the foot of the page, past
           Photos and Research - every kind of note about this wine (Your
-          notes and Critic notes live inside Details above; dated tasting
+          notes and Critic notes live inside Edit details above; dated tasting
           notes are here) reads as one place to look, not two. */}
       <section className="flex flex-col gap-4">
         <h2 className="font-medium">Tasting notes</h2>

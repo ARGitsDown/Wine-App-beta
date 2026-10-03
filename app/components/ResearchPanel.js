@@ -32,7 +32,16 @@ export default function ResearchPanel({ bottle, proposal, regionOptions }) {
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-amber-300 p-4 dark:border-amber-900">
+    <section
+      className={`flex flex-col gap-3 rounded-lg border p-4 ${
+        // Amber is this app's "needs a check" colour (BACKLOG #42), so it is
+        // only worn when there is something to check: a flagged bottle, or a
+        // proposal waiting for review. Otherwise this is an ordinary panel.
+        proposal || bottle.needsResearch
+          ? "border-amber-300 dark:border-amber-900"
+          : "border-zinc-200 dark:border-zinc-800"
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-medium">Research</h2>

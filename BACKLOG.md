@@ -3733,3 +3733,28 @@ the flight a wine is already in (and renaming the button "Add to a flight"); a
 "noted" tag on the flight page for wines that got a note; and the Research panel's
 amber border, which shows on every visit even when nothing needs checking.
 
+## 62. Three kinds of notes, named for what they are; Research panel colour
+
+A wine can carry three kinds of writing, and the form's generic "Your notes" read
+as a duplicate of the other two. They are now **Source** (where it came from, what
+it cost, who gave it to you), **Critic & winemaker notes** (written by Research,
+or from a label or sheet) and **Tasting notes** (dated, about one evening).
+
+- The field is still the `notes` column; only its label and hint changed
+  (BottleForm). The only writers are the form and Suggest: a gap wine added to the
+  wishlist arrives with Suggest's reason in it, which is now prefixed "Suggested
+  because: " so a wishlist wine does not show a pairing argument as where it came
+  from. Nothing else in the app reads or shows the field.
+- Source is now shown, two lines at most, under the wine's facts on its page, where
+  before it was visible only inside the closed "Edit details" form.
+- The Research panel's border is amber only when there is something to check
+  (the wine is flagged, or a proposal is waiting) and an ordinary neutral border
+  otherwise; amber is this app's "needs a check" colour (#42).
+
+Checked on a production build: the Source line on a wine's page, the form label,
+and the panel's border in both states. Existing data was not touched, since only
+the label changed.
+
+Proposed, not built: a "Noted" tag on tasted wines in a flight (contact sheet sent
+to the owner; to be chosen).
+
