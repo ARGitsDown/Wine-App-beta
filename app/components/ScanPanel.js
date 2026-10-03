@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createBottleWithNote,
+  createBottleInFlight,
   extractWinesFromPhoto,
   updateBottle,
   setBottleStatus,
@@ -104,7 +105,7 @@ function pendingLoss(photos) {
 // bottles, so the way to get a clean screen after a good scan was to reload
 // the page. Everything here is already saved - this clears the workspace and
 // keeps the wine.
-function DoneButton({ photos, onDone }) {
+function DoneButton({ photos, onDone, flightName = null }) {
   const { drafts, edits, any } = pendingLoss(photos);
   const className =
     "rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:focus-visible:outline-zinc-100";
@@ -112,7 +113,7 @@ function DoneButton({ photos, onDone }) {
   if (!any) {
     return (
       <button type="button" onClick={onDone} className={className}>
-        Done &mdash; clear the screen
+        {flightName ? "Done \u2014 back to the flight" : "Done \u2014 clear the screen"}
       </button>
     );
   }
@@ -124,8 +125,8 @@ function DoneButton({ photos, onDone }) {
   return (
     <ConfirmButton
       action={onDone}
-      label="Done &mdash; clear the screen"
-      confirmLabel="Clear it anyway"
+      label={flightName ? "Done \u2014 back to the flight" : "Done \u2014 clear the screen"}
+      confirmLabel={flightName ? "Leave anyway" : "Clear it anyway"}
       warning={`Loses ${parts.join(" and ")}. Wines already saved are kept.`}
       className={className}
       confirmClassName="rounded-lg bg-red-700 px-4 py-2.5 text-sm font-medium text-white dark:bg-red-800"
@@ -133,7 +134,7 @@ function DoneButton({ photos, onDone }) {
   );
 }
 
-function BatchProgress({ photos, onDone, flightPending }) {
+function BatchProgress({ photos, onDone, flightPending, flightName = null }) {
   const { total, done, failed, wines, unsaved, running } = batchProgress(photos);
   if (total === 0) return null;
 
@@ -177,16 +178,18 @@ function BatchProgress({ photos, onDone, flightPending }) {
           photo - nine interruptions to say the same thing nine times. */}
       {!running && (
         <div className="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
-          <DoneButton photos={photos} onDone={onDone} />
+          <DoneButton photos={photos} onDone={onDone} flightName={flightName} />
           <span className="text-xs text-zinc-500">
             {/* Done still doesn't lose anything, but for a flight wine it
                 isn't a no-op either - a UX review (2026-09-27) found the
                 old wording told you it was always safe to stop right here,
                 which is exactly wrong the one time there's a required next
                 step. */}
-            {flightPending
-              ? "Next: choose a flight for the wines waiting on one."
-              : "Everything above is already saved — this just puts the page away."}
+            {flightName
+              ? `Everything above is already in ${flightName} — this takes you back to it.`
+              : flightPending
+                ? "Next: choose a flight for the wines waiting on one."
+                : "Everything above is already saved — this just puts the page away."}
           </span>
         </div>
       )}
@@ -425,10 +428,22 @@ function DestinationPicker({ name, legend, status, onChange }) {
   );
 }
 
-export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFlights = [] }) {
+// `flight` ({ id, name }) puts the panel in its flight mode: opened from a
+// flight's own page (/flights/[id]/scan), every wine read goes straight into
+// that flight. There is then nothing to choose - no destination tiles, no
+// per-card "Saved to", no event name, no "which flight?" step afterward -
+// because the answer to all of them is already on the screen the person
+// came from. A wine you own and want in the Cellar too is added to the
+// flight from the flight's own picker instead; this path is for wines that
+// were never in the cellar (BACKLOG #36, #60).
+export default function ScanPanel({
+  initialIntent = DEFAULT_SCAN_INTENT,
+  openFlights = [],
+  flight = null,
+}) {
   const router = useRouter();
   const fileInputRef = useRef(null);
-  const [intent, setIntent] = useState(initialIntent);
+  const [intent, setIntent] = useState(flight ? "flight" : initialIntent);
   // Optional, and carried through to every wine's tasting note (see
   // extractWinesFromPhoto) - a wine tasted at an event is worth remembering
   // *where*, and typing "Chain Bridge Mexican Wine Fiesta 9/19" once per
@@ -617,7 +632,13 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
     try {
       const resized = await downscaleImage(photo.file);
       const base64 = await fileToBase64(resized);
-      const result = await extractWinesFromPhoto(base64, "image/jpeg", batchIntent, batchEventLabel);
+      const result = await extractWinesFromPhoto(
+        base64,
+        "image/jpeg",
+        batchIntent,
+        batchEventLabel,
+        flight?.id ?? null
+      );
       if (result.error) {
         // Still offer one blank manual-entry card, through the same
         // entry-card rendering as a successful extraction, rather than a
@@ -630,6 +651,9 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
       } else {
         updatePhoto(photo.id, {
           status: "ready",
+          // The wines saved but the link into the flight did not; they wait
+          // in the box on /flights, and the card for this photo says so.
+          linkError: Boolean(result.flightLinkError),
           entries: entriesFromScanResults(result.data, batchIntent),
         });
       }
@@ -681,6 +705,14 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
   // the previews. The counts are kept so the empty page can point at the
   // lists the batch landed in.
   function finishBatch() {
+    // Flight mode: every wine is already in the flight (each photo's wines
+    // were linked as it was read), so finishing is just going back to it.
+    if (flight) {
+      photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      setPhotos([]);
+      router.push(`/flights/${flight.id}`);
+      return;
+    }
     const counts = {};
     // Candidates for the flight step below: whichever cards actually ended
     // up at status "flight" - not derived from whichever picker was
@@ -826,7 +858,14 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      <h1 className="text-2xl font-semibold">Scan</h1>
+      <h1 className="text-2xl font-semibold">{flight ? "Add wines by photo" : "Scan"}</h1>
+      {flight && (
+        <p className="-mt-3 text-sm text-zinc-500">
+          Every wine read here goes straight into{" "}
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">{flight.name}</span>
+          , and stays out of your cellar. A bottle label, a shelf, or a whole tasting sheet.
+        </p>
+      )}
 
       {/* The file input is the point of this page, so it is a real button
           rather than the browser's 20px default - and the destination cards
@@ -900,12 +939,15 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
               about, covers both: what to scan and tap where it goes, then
               that the whole batch follows that choice and any card can
               still be moved afterward. */}
+          {!flight && (
           <p className={`text-sm text-zinc-500 ${finished || pendingFlight ? "" : "-mt-3"}`}>
             A bottle label, a shelf, or a whole tasting sheet — tap where the
             wines should land below. Everything in the batch lands there; any
             single wine can be moved afterward on its own card.
           </p>
+          )}
 
+          {!flight && (
           <fieldset>
             <legend className="sr-only">Where should these wines go?</legend>
             <div className="grid grid-cols-4 gap-2">
@@ -946,6 +988,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
               })}
             </div>
           </fieldset>
+          )}
 
           {/* The tooltip on each tile (title=option.hint above) is the only
               place the difference between Flight and Tasting Notes lived -
@@ -954,10 +997,13 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
               the one device this app is built for (a UX review,
               2026-09-27). This reads the same hint, live as the selection
               changes. */}
+          {!flight && (
           <p className="-mt-2 text-xs text-zinc-500">
             {SCAN_INTENTS.find((option) => option.value === intent)?.hint}
           </p>
+          )}
 
+          {!flight && (
           <label className="-mt-2 flex flex-col gap-1.5 text-sm text-zinc-500">
             Tasting or event name (optional)
             <input
@@ -968,6 +1014,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
               className="rounded-lg border border-zinc-300 px-3 py-2.5 text-base text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             />
           </label>
+          )}
 
           <button
             type="button"
@@ -991,10 +1038,11 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
           <span id="scan-intent-strip-label" className="text-xs text-zinc-500">
             Next photos go to{" "}
             <span className="font-medium text-zinc-700 dark:text-zinc-300">
-              {SCAN_INTENTS.find((i) => i.value === intent)?.short}
+              {flight ? flight.name : SCAN_INTENTS.find((i) => i.value === intent)?.short}
             </span>
           </span>
           <div className="flex items-center gap-2">
+            {!flight && (
             <div
               role="radiogroup"
               aria-labelledby="scan-intent-strip-label"
@@ -1023,6 +1071,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                 );
               })}
             </div>
+            )}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -1035,6 +1084,7 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
           {/* Same field as the full picker above, kept reachable here too -
               a batch can run long enough to span more than one tasting, and
               there's no way back to that first screen once photos exist. */}
+          {!flight && (
           <input
             type="text"
             value={eventLabel}
@@ -1043,15 +1093,18 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
             aria-label="Tasting or event name, carried into these wines' tasting notes"
             className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           />
+          )}
         </div>
       )}
 
       <BatchProgress
         photos={photos}
         onDone={finishBatch}
+        flightName={flight?.name ?? null}
         flightPending={
-          Boolean(pendingFlight) ||
-          photos.some((p) => p.entries.some((e) => e.kind === "saved" && e.bottle.status === "flight"))
+          !flight &&
+          (Boolean(pendingFlight) ||
+            photos.some((p) => p.entries.some((e) => e.kind === "saved" && e.bottle.status === "flight")))
         }
       />
 
@@ -1225,12 +1278,14 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                         </div>
                       )}
 
-                      <DestinationPicker
-                        name={`scan-status-${entry.localId}`}
-                        legend="Saved to"
-                        status={entry.bottle.status}
-                        onChange={(status) => changeDestination(photo, entry, status)}
-                      />
+                      {!flight && (
+                        <DestinationPicker
+                          name={`scan-status-${entry.localId}`}
+                          legend="Saved to"
+                          status={entry.bottle.status}
+                          onChange={(status) => changeDestination(photo, entry, status)}
+                        />
+                      )}
 
                       {entry.statusError && (
                         <p
@@ -1382,14 +1437,16 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                         </p>
                       )}
 
-                      <DestinationPicker
-                        name={`scan-status-${entry.localId}`}
-                        legend="Save to"
-                        status={entry.saveStatus}
-                        onChange={(status) =>
-                          updateEntry(photo.id, entry.localId, { saveStatus: status })
-                        }
-                      />
+                      {!flight && (
+                        <DestinationPicker
+                          name={`scan-status-${entry.localId}`}
+                          legend="Save to"
+                          status={entry.saveStatus}
+                          onChange={(status) =>
+                            updateEntry(photo.id, entry.localId, { saveStatus: status })
+                          }
+                        />
+                      )}
 
                       {/* Same dirty tracking as a saved card. A draft has
                           more to lose, not less: nothing here exists
@@ -1399,7 +1456,11 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                         onChange={() => markDirty(photo.id, entry.localId)}
                       >
                         <BottleForm
-                          action={createBottleWithNote.bind(null, entry.saveStatus)}
+                          action={
+                            flight
+                              ? createBottleInFlight.bind(null, flight.id)
+                              : createBottleWithNote.bind(null, entry.saveStatus)
+                          }
                           defaultValues={entry.extracted}
                           submitLabel="Save bottle"
                           includeTastingNote
@@ -1416,6 +1477,9 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
                           // kind of thing it actually is: a saved wine.
                           onResult={(result) => {
                             if (result.success && result.bottle) {
+                              if (result.flightLinked === false) {
+                                updatePhoto(photo.id, { linkError: true });
+                              }
                               updateEntry(photo.id, entry.localId, {
                                 kind: "saved",
                                 bottle: result.bottle,
@@ -1449,6 +1513,16 @@ export default function ScanPanel({ initialIntent = DEFAULT_SCAN_INTENT, openFli
 
             {photo.status !== "loading" && (
               <>
+                {photo.linkError && (
+                  <p
+                    role="alert"
+                    className="pl-0 text-xs text-amber-700 sm:pl-[6.5rem] dark:text-amber-400"
+                  >
+                    These wines were saved, but adding them to the flight
+                    didn&apos;t work. They&apos;re waiting on the Flights
+                    page, where you can put them in a flight.
+                  </p>
+                )}
                 {photo.removeError && (
                   <p
                     role="alert"

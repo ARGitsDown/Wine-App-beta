@@ -240,6 +240,32 @@ export async function createBottleWithNote(status, prevState, formData) {
   return { success: true, bottle };
 }
 
+// The hand-typed card in the scan panel, when it is scanning into a flight:
+// saves the wine with the Flight status and puts it in that flight, the same
+// two steps extractWinesFromPhoto does for a read photo. `flightLinked` is
+// false when the wine saved but the link did not, so the card can say so.
+export async function createBottleInFlight(flightId, prevState, formData) {
+  const flight = await db.tastingFlight.findUnique({
+    where: { id: Number(flightId) },
+    select: { id: true },
+  });
+  if (!flight) return { error: "That flight no longer exists." };
+
+  const result = await createBottleWithNote("flight", prevState, formData);
+  if (!result.success) return result;
+
+  let flightLinked = true;
+  try {
+    await appendFlightPicks(flight.id, [{ bottleId: result.bottle.id, originFlightOnly: true }]);
+    revalidatePath(`/flights/${flight.id}`);
+    revalidatePath("/flights");
+  } catch (err) {
+    console.error("Failed to add a hand-entered wine to the flight:", err);
+    flightLinked = false;
+  }
+  return { ...result, flightLinked };
+}
+
 export async function updateBottle(id, prevState, formData) {
   const data = bottleDataFromForm(formData);
   if (!data.producer) return { error: "Producer is required." };
@@ -758,7 +784,8 @@ export async function extractWinesFromPhoto(
   base64Image,
   mediaType,
   intent = DEFAULT_SCAN_INTENT,
-  rawEventLabel = null
+  rawEventLabel = null,
+  flightId = null
 ) {
   // Claude is called before anything touches the database, so
   // lib/scoped-prisma.js's own Cellarmaster check would only fire after
@@ -768,6 +795,20 @@ export async function extractWinesFromPhoto(
   // getSuggestions.
   const ai = await aiAccess();
   if (ai.paused) return { error: ai.message };
+
+  // Scanning from inside a flight (/flights/[id]/scan): the wines are poured
+  // there and go straight into that flight, so the destination is not a
+  // choice - whatever intent arrived, this is the Flight one. Checked here,
+  // before the paid call, so a flight deleted in another tab costs nothing.
+  let flight = null;
+  if (flightId != null) {
+    flight = await db.tastingFlight.findUnique({
+      where: { id: Number(flightId) },
+      select: { id: true },
+    });
+    if (!flight) return { error: "That flight no longer exists." };
+    intent = "flight";
+  }
 
   const messages = [
     {
@@ -924,7 +965,29 @@ export async function extractWinesFromPhoto(
           }
         }
         invalidateRegionOptions();
-        return { data: results };
+
+        // Linked as soon as this photo's wines exist, not when the batch is
+        // "finished": a wine saved with the Flight status and no flight is
+        // stranded (BACKLOG #37, #38), and the tab can close at any point.
+        // If the link fails the wines are still saved - they surface in the
+        // "waiting for a flight" box on /flights - and the caller is told.
+        let flightLinkError = false;
+        if (flight) {
+          try {
+            await appendFlightPicks(
+              flight.id,
+              results
+                .filter((result) => result.bottle)
+                .map((result) => ({ bottleId: result.bottle.id, originFlightOnly: true }))
+            );
+            revalidatePath(`/flights/${flight.id}`);
+            revalidatePath("/flights");
+          } catch (err) {
+            console.error("Failed to add scanned wines to the flight:", err);
+            flightLinkError = true;
+          }
+        }
+        return { data: results, flightLinkError };
       }
 
       const searchCalls = toolUses.filter((t) => t.name === "search_cellar");
@@ -2713,21 +2776,55 @@ export async function addBottlesToFlight(flightId, bottleIds) {
     return { data: { flightId, flightName, added: 0 } };
   }
 
-  const lastOrder = flight.picks.reduce((max, pick) => Math.max(max, pick.order), -1);
-  await db.flightPick.createMany({
-    data: toAdd.map((bottleId, index) => ({
-      flightId,
+  const added = await appendFlightPicks(
+    flightId,
+    toAdd.map((bottleId) => ({
       bottleId,
-      order: lastOrder + 1 + index,
-      reason: null,
       // See addBottleToFlight's own comment on originFlightOnly.
       originFlightOnly: ownedStatus.get(bottleId) === "flight",
-    })),
-  });
+    }))
+  );
 
   revalidatePath(`/flights/${flightId}`);
   revalidatePath("/flights");
-  return { data: { flightId, flightName, added: toAdd.length } };
+  return { data: { flightId, flightName, added } };
+}
+
+// Puts bottles at the end of a flight, in the order given, and says how many
+// went in. The one place a batch of picks is appended, because "last order
+// plus one" is a read followed by a write: two photos finishing at the same
+// moment (the scan panel reads three at once) each saw the same last order
+// and wrote the same numbers, leaving the flight's sequence to whatever
+// Postgres happened to return. The advisory lock makes the second wait for
+// the first, scoped to this flight and released when the transaction ends.
+//
+// The caller has already checked that the flight and the bottles are this
+// Domaine's - this goes through the plain client so it can hold a lock, and
+// so it checks nothing itself. Anything already in the flight is skipped
+// rather than refused, as before.
+async function appendFlightPicks(flightId, entries) {
+  if (entries.length === 0) return 0;
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(1, ${flightId}::int)`;
+    const existing = await tx.flightPick.findMany({
+      where: { flightId },
+      select: { bottleId: true, order: true },
+    });
+    const already = new Set(existing.map((pick) => pick.bottleId));
+    const fresh = entries.filter((entry) => !already.has(entry.bottleId));
+    if (fresh.length === 0) return 0;
+    const lastOrder = existing.reduce((max, pick) => Math.max(max, pick.order), -1);
+    await tx.flightPick.createMany({
+      data: fresh.map((entry, index) => ({
+        flightId,
+        bottleId: entry.bottleId,
+        order: lastOrder + 1 + index,
+        reason: null,
+        originFlightOnly: entry.originFlightOnly,
+      })),
+    });
+    return fresh.length;
+  });
 }
 
 export async function removeFlightPick(pickId) {
@@ -2851,6 +2948,26 @@ export async function unmarkFlightPickConsumed(pickId) {
   }
   revalidatePath(`/flights/${pick.flightId}`);
   revalidatePath("/flights");
+}
+
+// Finishing a flight, once every wine in it has been tasted. The same
+// removal as deleteTastingFlight - each tasted wine is already logged, so
+// the flight has nothing left to hold - under the word that matches what
+// the owner is doing, and refusing when it isn't true: a page left open
+// while a pick is un-tasted in another tab would otherwise "complete" a
+// flight that still has wines to pour. A refused call just re-renders the
+// page, which then offers Delete instead.
+export async function completeTastingFlight(id) {
+  const flight = await db.tastingFlight.findUnique({
+    where: { id },
+    select: { picks: { select: { consumed: true } } },
+  });
+  if (flight && flight.picks.length > 0 && flight.picks.every((pick) => pick.consumed)) {
+    await db.tastingFlight.delete({ where: { id } });
+    revalidatePath("/flights");
+    redirect("/flights");
+  }
+  revalidatePath(`/flights/${id}`);
 }
 
 export async function deleteTastingFlight(id) {

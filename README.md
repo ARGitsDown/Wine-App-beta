@@ -211,6 +211,12 @@ or multiple locations in one cellar.
   a backfilled guess, and a hand-built one needs no description at all. Only real owned bottles are saved into a
   flight - a gap suggestion in the same result isn't something to "pull
   from the cellar," and can already be added to the wishlist independently.
+  A flight's own page also has **Add wines by photo**: the scanner, opened
+  inside that flight, where every wine read goes straight into it (as a
+  flight-only wine, never counted in the cellar) with no destination to
+  choose and no "which flight?" step afterward. Once every wine in a flight
+  is tasted, the button that clears it is **Complete flight**; while some
+  are still to pour it stays **Delete flight**.
 - **Guests** (`/guest`) — someone invited from People (`/invites`) as a Guest
   signs in with their own address and lands here: a read-only view of the
   Domaine's cellar where they can favorite bottles they'd like pulled for

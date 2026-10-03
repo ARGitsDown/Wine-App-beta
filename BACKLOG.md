@@ -3585,5 +3585,39 @@ have to leave it to do that.
   `app/components/FlightBottlePicker.js`, `app/components/NewFlightForm.js`,
   `app/components/ScanPanel.js`, and `addBottlesToFlight` in `app/actions.js`.
 
-Neither item is built; both are recorded here only.
+### Built, 2026-10-03
+
+Both, with the owner's answers to the open questions: a flight scanned from
+inside is *only* that flight (no choice of Cellar or another flight), and
+completing deletes, as before.
+
+- **Complete flight.** On `/flights/[id]`, when there is at least one wine and
+  every pick is tasted, the control is a neutral **Complete flight** with a
+  confirm that says the wines are tasted and logged and only the flight is
+  cleared. Otherwise it stays the red **Delete flight**, whose warning about
+  flight-only wines is unchanged - which also closes the orphaning edge above,
+  since Complete is never offered while a wine is untasted. `completeTastingFlight`
+  re-checks on the server and does nothing if a wine was un-tasted in another
+  tab since the page loaded. It still deletes; keeping finished flights as a
+  record (`completedAt`, a "Finished" list) remains an option, not built.
+- **Add wines by photo.** A link on the flight page opens
+  `/flights/[id]/scan`, which is `ScanPanel` with its new `flight` prop: no
+  destination tiles, no per-card "Saved to", no event name, no flight step.
+  `extractWinesFromPhoto` takes the flight id, checks it before the paid call,
+  forces the Flight status and links each photo's wines into the flight as
+  soon as they are saved, not at "Done" - so a closed tab strands nothing
+  (#37, #38). A hand-typed card saves through `createBottleInFlight`. If a
+  link fails the wines are still saved, wait in the box on `/flights`, and the
+  card says so. "Done" returns to the flight.
+- **A race fixed on the way.** Appending picks was "last order + 1", a read
+  then a write; three photos finishing together (the panel reads three at
+  once) would write the same order. `appendFlightPicks` does it in a
+  transaction under a per-flight advisory lock, and `addBottlesToFlight` now
+  uses it too.
+
+Verified on a production build against the stub API: six wines from three
+simultaneous photos land in the flight with orders 0 to 5 and none in the
+cellar; Complete appears only when everything is tasted and refuses on a stale
+page; another Domaine's flight scan page is a 404; the ordinary Scan page is
+unchanged. Not tried with a real photo or a phone camera.
 

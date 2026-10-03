@@ -1,14 +1,20 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
-import { deleteTastingFlight } from "@/app/actions";
+import Link from "next/link";
+import { completeTastingFlight, deleteTastingFlight } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import FlightBottlePicker from "@/app/components/FlightBottlePicker";
 import FlightPicksList from "@/app/components/FlightPicksList";
 import BackButton from "@/app/components/BackButton";
+import { ScanIcon } from "@/app/components/icons";
 import FlightTitle from "@/app/components/FlightTitle";
 
 export const dynamic = "force-dynamic";
 
+const neutralButtonClass =
+  "rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700";
+const neutralConfirmClass =
+  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
 const dangerButtonClass =
   "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
 
@@ -67,6 +73,11 @@ export default async function FlightDetailPage({ params }) {
   // made, fixed there in BACKLOG #41).
   const originFlightOnlyCount = flight.picks.filter((pick) => pick.originFlightOnly).length;
 
+  // Finished: there is at least one wine and every one has been tasted. An
+  // empty flight is not finished, it is just unstarted (and Delete is the
+  // right word for putting one of those away).
+  const allTasted = flight.picks.length > 0 && flight.picks.every((pick) => pick.consumed);
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
       <BackButton fallbackHref="/flights" />
@@ -86,27 +97,46 @@ export default async function FlightDetailPage({ params }) {
             Saved {new Date(flight.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <ConfirmButton
-          action={deleteTastingFlight.bind(null, flight.id)}
-          label="Delete flight"
-          confirmLabel="Yes, delete"
-          warning={
-            originFlightOnlyCount > 0
-              ? `Deletes this flight and its ${flight.picks.length} pick${
-                  flight.picks.length === 1 ? "" : "s"
-                }. ${originFlightOnlyCount} of these wine${
-                  originFlightOnlyCount === 1 ? " was" : "s were"
-                } only ever in this flight and will have nowhere else to appear.${
-                  flight.picks.length > originFlightOnlyCount
-                    ? " The rest stay in your cellar."
-                    : ""
-                }`
-              : `Deletes this flight and its ${flight.picks.length} pick${
-                  flight.picks.length === 1 ? "" : "s"
-                }. The bottles themselves stay in your cellar.`
-          }
-          className={dangerButtonClass}
-        />
+        {/* Two different acts, so two different words. A flight whose every
+            wine has been tasted is finished: each wine is already logged, so
+            what is left to do is put the flight away, and a red "Delete" on a
+            flight that went well read as destroying something. One with wines
+            still to pour is being thrown away, which is what Delete says. */}
+        {allTasted ? (
+          <ConfirmButton
+            action={completeTastingFlight.bind(null, flight.id)}
+            label="Complete flight"
+            confirmLabel="Yes, complete it"
+            tone="neutral"
+            warning={`All ${flight.picks.length} wine${
+              flight.picks.length === 1 ? " is" : "s are"
+            } tasted and logged, with their notes. This clears the flight from your list.`}
+            className={neutralButtonClass}
+            confirmClassName={neutralConfirmClass}
+          />
+        ) : (
+          <ConfirmButton
+            action={deleteTastingFlight.bind(null, flight.id)}
+            label="Delete flight"
+            confirmLabel="Yes, delete"
+            warning={
+              originFlightOnlyCount > 0
+                ? `Deletes this flight and its ${flight.picks.length} pick${
+                    flight.picks.length === 1 ? "" : "s"
+                  }. ${originFlightOnlyCount} of these wine${
+                    originFlightOnlyCount === 1 ? " was" : "s were"
+                  } only ever in this flight and will have nowhere else to appear.${
+                    flight.picks.length > originFlightOnlyCount
+                      ? " The rest stay in your cellar."
+                      : ""
+                  }`
+                : `Deletes this flight and its ${flight.picks.length} pick${
+                    flight.picks.length === 1 ? "" : "s"
+                  }. The bottles themselves stay in your cellar.`
+            }
+            className={dangerButtonClass}
+          />
+        )}
       </div>
 
       <FlightPicksList flightId={flight.id} picks={flight.picks} />
@@ -117,6 +147,18 @@ export default async function FlightDetailPage({ params }) {
           you&apos;d pour them.
         </p>
       )}
+
+      {/* The other way in. Wines poured at an event were never in the cellar,
+          so picking from it can't find them; photographing the labels or the
+          tasting sheet can, and it happens here, in this flight, rather than
+          back out through Scan and a "which flight?" step afterward. */}
+      <Link
+        href={`/flights/${flight.id}/scan`}
+        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
+      >
+        <ScanIcon className="h-4 w-4" />
+        Add wines by photo
+      </Link>
 
       {/* Open to begin with on an empty flight, since adding bottles is the
           only thing there is to do on one. */}
