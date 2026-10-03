@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
 import { currentCellarmaster } from "@/lib/owner";
+import { ACCESS, ROLE } from "@/lib/roles";
 import { INVITE_ACCESS_VALUES, inviteAccessLabel } from "@/lib/invite-access";
 import { cellarDisplayName, founderDisplayName } from "@/lib/cellar-name";
 import { monthlyUsage } from "@/lib/usage";
@@ -66,10 +67,10 @@ export default async function PeoplePage({ searchParams }) {
     monthlyUsage(domaineId),
   ]);
 
-  const founder = members.find((member) => member.role === "cellarmaster");
+  const founder = members.find((member) => member.role === ROLE.CELLARMASTER);
   const cellarName = cellarDisplayName(domaine, founder);
   const waiting = invites.filter((invite) => !invite.acceptedAt);
-  const ownCellars = invites.filter((invite) => invite.acceptedAt && invite.access === "separate");
+  const ownCellars = invites.filter((invite) => invite.acceptedAt && invite.access === ACCESS.SEPARATE);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
@@ -159,7 +160,7 @@ export default async function PeoplePage({ searchParams }) {
           {members.map((member) => {
             const who = member.name || member.email || "Not claimed yet";
             const isMe = member.id === myId;
-            const nextRole = member.role === "cellarmaster" ? "guest" : "cellarmaster";
+            const nextRole = member.role === ROLE.CELLARMASTER ? ROLE.GUEST : ROLE.CELLARMASTER;
             return (
               <li key={member.id} className={rowClass}>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-2">
@@ -198,7 +199,7 @@ export default async function PeoplePage({ searchParams }) {
                       tone="neutral"
                       doneMessage={`${who} is now a ${ROLE_LABELS[member.role]}.`}
                       warning={
-                        nextRole === "guest"
+                        nextRole === ROLE.GUEST
                           ? `${who} will only be able to browse and favorite - no adding, editing, scanning or Suggest. Takes effect on their next tap.`
                           : `${who} will be able to add, edit and delete anything in this cellar, and invite or remove people.`
                       }

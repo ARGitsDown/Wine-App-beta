@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isAppOwner } from "@/lib/owner";
+import { ROLE } from "@/lib/roles";
 import { cellarDisplayName } from "@/lib/cellar-name";
 import { usageState, formatCents, formatMicros, formatResetDate, monthStartUTC, nextMonthStartUTC } from "@/lib/usage-policy";
 import { RATES_AS_OF } from "@/lib/usage-pricing";
@@ -69,7 +70,7 @@ export default async function UsagePage() {
 
   const rows = domaines
     .map((domaine) => {
-      const founder = domaine.members.find((member) => member.role === "cellarmaster");
+      const founder = domaine.members.find((member) => member.role === ROLE.CELLARMASTER);
       const spentMicros = spentBy.get(domaine.id)?._sum.costMicros ?? 0;
       return {
         domaine,

@@ -306,7 +306,7 @@ Research step has no session, so it passes the job's own `ownerId` and
 features keep working one tier down: Suggest's "sommelier" runs on Sonnet
 instead of Opus, and everything that ran on Sonnet runs on Haiku 4.5 -
 **except Scan, which stays on Sonnet and is only ever paused at the hard
-stop** (decided 2026-10-03; `holdTier` in `lib/usage.js`). Scan is the one
+stop** (decided 2026-10-03; `HELD_FEATURES` in `lib/usage-features.js`). Scan is the one
 feature that saves what it reads straight into the cellar with nobody
 reviewing it, so a cheaper, unmeasured model reading a label would cost
 more in bad data than it saved in money; every other lighter-tier answer

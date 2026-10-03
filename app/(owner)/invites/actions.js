@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail } from "@/lib/invite-policy";
 import { INVITE_ACCESS_VALUES } from "@/lib/invite-access";
+import { ROLE, ROLE_VALUES } from "@/lib/roles";
 import { currentCellarmaster, currentDomaineId } from "@/lib/owner";
 
 // The invite list is the whole of "invite-only", so inviteSomeone and
@@ -64,9 +65,6 @@ export async function revokeInvite(id) {
   revalidatePath("/invites");
 }
 
-// The two roles a member can hold - see User.role in prisma/schema.prisma.
-const MEMBER_ROLES = new Set(["cellarmaster", "guest"]);
-
 // Both member actions below share two rules, enforced in the query itself
 // rather than checked first and trusted after:
 //   - Only a member of your own Domaine. The id arrives as plain data a
@@ -91,7 +89,7 @@ async function keepingACellarmaster(domaineId, work) {
     await prisma.$transaction(
       async (tx) => {
         await work(tx);
-        const left = await tx.user.count({ where: { domaineId, role: "cellarmaster" } });
+        const left = await tx.user.count({ where: { domaineId, role: ROLE.CELLARMASTER } });
         if (left === 0) throw new LastCellarmasterError();
       },
       { isolationLevel: "Serializable" }
@@ -129,7 +127,7 @@ function actionableMember(memberId, me) {
 // list keeps saying what that person actually has, not what they had on
 // day one. Their favorites identity (a Guest row) survives either way.
 export async function changeMemberRole(memberId, role) {
-  if (!MEMBER_ROLES.has(role)) return;
+  if (!ROLE_VALUES.has(role)) return;
   const me = await currentCellarmaster();
   const where = actionableMember(memberId, me);
   const member = await prisma.user.findFirst({ where, select: { id: true, email: true } });

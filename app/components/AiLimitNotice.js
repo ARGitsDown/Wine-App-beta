@@ -2,6 +2,7 @@ import Link from "next/link";
 import { currentCellarmaster } from "@/lib/owner";
 import { monthlyUsage } from "@/lib/usage";
 import { formatResetDate } from "@/lib/usage-policy";
+import { HELD_FEATURES } from "@/lib/usage-features";
 
 // Says so when this cellar is past its monthly AI allowance, at the top of
 // the pages that spend it (Suggest, Scan, Research, Estimate windows).
@@ -27,10 +28,10 @@ export default async function AiLimitNotice({ bare = false, feature }) {
   }
   if (status.state === "ok") return null;
   // Scan and the drinking-window estimators are held on their normal model
-  // over the cap (holdTier in lib/usage.js), so "running on lighter models"
-  // would be false there: they only have something to say once they are
-  // paused.
-  if ((feature === "scan" || feature === "estimate-windows") && status.state === "lighter") {
+  // over the cap (HELD_FEATURES in lib/usage-features.js), so "running on
+  // lighter models" would be false there: they only have something to say
+  // once they are paused.
+  if (HELD_FEATURES.has(feature) && status.state === "lighter") {
     return null;
   }
 

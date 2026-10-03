@@ -70,8 +70,8 @@ already clears:
 - **The model split is centralized and reasoned** in `lib/ai-models.js`:
   `EXTRACTION_MODEL` for structured reading against a schema, `REASONING_MODEL`
   for open-ended judgment over the cellar, and `LIGHTER_MODEL` one tier down
-  for a Domaine over its cap. Scan and the drinking-window estimators pass
-  `holdTier: true` and stay at full strength until the hard stop, because
+  for a Domaine over its cap. Scan and the drinking-window estimators (`HELD_FEATURES` in
+  `lib/usage-features.js`) stay at full strength until the hard stop, because
   their answers are saved without review. The comments explain why.
 - **A null answer is deliberately not cached** in the drink-window path, with a
   comment saying the model having nothing this time shouldn't stop us asking

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { inviteSomeone } from "@/app/(owner)/invites/actions";
+import { ACCESS } from "@/lib/roles";
 import { SEPARATE_OPTION, SHARING_OPTIONS, inviteAccessLabel } from "@/lib/invite-access";
 import ShareInviteButton from "@/app/components/ShareInviteButton";
 
@@ -92,7 +93,7 @@ export default function InviteForm({ googleConfigured, initialAccess, cellarName
       {state?.success && (
         <div role="status" className="flex flex-col items-start gap-2 text-sm">
           <p className="text-green-700 dark:text-green-400">
-            {state.access === "separate"
+            {state.access === ACCESS.SEPARATE
               ? "Invited. They'll get a cellar of their own when they first sign in."
               : `Invited as a ${inviteAccessLabel(state.access)}.`}{" "}
             <span className="text-zinc-600 dark:text-zinc-400">

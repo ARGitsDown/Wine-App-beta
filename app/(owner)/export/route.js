@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { db } from "@/lib/scoped-prisma";
 import { currentDomaineId } from "@/lib/owner";
 import { auth, isAuthConfigured } from "@/lib/auth";
+import { ROLE } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export async function GET() {
     // Same reasoning, one step further: the layout's guest-role redirect
     // doesn't cover this file either, and a guest-role member is not
     // someone the whole cellar should be downloadable by.
-    if (session.user.role !== "cellarmaster") {
+    if (session.user.role !== ROLE.CELLARMASTER) {
       return Response.json({ error: "Only a Cellarmaster can export." }, { status: 403 });
     }
   }

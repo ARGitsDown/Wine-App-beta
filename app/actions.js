@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { db } from "@/lib/scoped-prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { aiAccess } from "@/lib/usage";
+import { FEATURE } from "@/lib/usage-features";
 import { aiErrorMessage } from "@/lib/ai-errors";
 import { cleanModelText, cleanModelFields } from "@/lib/model-text";
 import { currentCellarmaster, currentOwnerId } from "@/lib/owner";
@@ -796,14 +797,14 @@ export async function extractWinesFromPhoto(
     // record_wines, but this caps it in case the model keeps searching.
     for (let turn = 0; turn < 6; turn++) {
       const response = await ai.call({
-        feature: "scan",
-        tier: "extraction",
         // Stays on Sonnet over the monthly cap, and is only ever paused at
         // the hard stop: a scan saves what it reads straight into the
-        // cellar with nobody reviewing it first, so this is the one place
-        // a cheaper model's mistakes would land as bad data rather than as
-        // a slightly worse answer. See holdTier in lib/usage.js.
-        holdTier: true,
+        // cellar with nobody reviewing it first, so a cheaper model's
+        // mistakes would land as bad data rather than as a slightly worse
+        // answer. That is HELD_FEATURES in lib/usage-features.js, keyed on
+        // the feature name below.
+        feature: FEATURE.SCAN,
+        tier: "extraction",
         // Not the owner's choice to make here: a scan runs unattended
         // across a batch of photos, and a producer read wrong is a wrong
         // bottle saved to the cellar rather than a slower answer.
@@ -1106,7 +1107,7 @@ export async function getSuggestions(
     // record_suggestions, but this caps it in case the model keeps browsing.
     for (let turn = 0; turn < 6; turn++) {
       const response = await ai.call({
-        feature: "suggest",
+        feature: FEATURE.SUGGEST,
         // The owner's dial, and the only thing it moves: a tier, which
         // becomes a model (lib/ai-models.js) - one tier down when this
         // Domaine is over its monthly cap. Constant for the whole loop, so
@@ -1394,7 +1395,7 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT, who) {
     // appended) to continue rather than a fresh tool_result.
     for (let turn = 0; turn < 4; turn++) {
       const response = await ai.call({
-        feature: "research",
+        feature: FEATURE.RESEARCH,
         tier: "extraction",
         effort,
         request: (shape) => ({
@@ -2147,13 +2148,13 @@ export async function estimateDrinkWindows(bottleIds) {
 
   try {
     const response = await ai.call({
-      feature: "estimate-windows",
+      // Applied straight to the bottle and cached for every Domaine with
+      // nobody reviewing it - the same reason Scan holds its tier (this
+      // feature is in HELD_FEATURES too). A batch costs about a cent on
+      // Sonnet; a wrong cached answer costs forever.
+      feature: FEATURE.ESTIMATE_WINDOWS,
       tier: "extraction",
       effort: DEFAULT_EFFORT,
-      // Applied straight to the bottle and cached for every Domaine with
-      // nobody reviewing it - the same reason Scan holds its tier. A batch
-      // costs about a cent on Sonnet; a wrong cached answer costs forever.
-      holdTier: true,
       request: () => ({
         max_tokens: 8192,
         system: DRINK_WINDOW_SYSTEM_PROMPT,
@@ -2254,11 +2255,9 @@ export async function estimateWindowForBottle(id) {
 
   try {
     const response = await ai.call({
-      feature: "estimate-windows",
+      feature: FEATURE.ESTIMATE_WINDOWS,
       tier: "extraction",
       effort: DEFAULT_EFFORT,
-      // Held on its tier for the same reason as the bulk pass above.
-      holdTier: true,
       request: () => ({
         max_tokens: 2048,
         system: DRINK_WINDOW_SYSTEM_PROMPT,
@@ -2425,7 +2424,7 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
 
   try {
     const response = await ai.call({
-      feature: "photo-details",
+      feature: FEATURE.PHOTO_DETAILS,
       tier: "extraction",
       effort: DEFAULT_EFFORT,
       request: () => ({

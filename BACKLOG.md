@@ -3414,11 +3414,8 @@ new code serves traffic - the session callback reads `isAppOwner`.
 
 ## 56. Left open by the #55 review
 
-- **Shared constants for roles, access levels and usage features.** The
-  strings `"cellarmaster"`, `"guest"`, `"separate"` and the five feature
-  names are repeated across the code. Do what `WINE_COLORS` did: one list
-  (`lib/roles.js`, `lib/usage-features.js`) imported everywhere, and have
-  `recordUsage` log an unknown feature instead of recording it silently.
+- ~~**Shared constants for roles, access levels and usage features.**~~ -
+  done in #58.
 - **Measure Haiku.** Its quality on label reading and Research is still
   unmeasured; there is no live API key in the development environment.
   Scan and the estimators are held on Sonnet because of that doubt, and
@@ -3457,4 +3454,39 @@ tools, so the browse loop and its pg query were not exercised end to end.
 Running it - `node scripts/compare-suggest-models.mjs --models haiku,sonnet`
 against real keys - is the first step of the Haiku measurement in #56. It
 spends real money: all defaults is thirty calls.
+
+## 58. Roles, access levels and usage features, from one list each
+
+The strings `"cellarmaster"`, `"guest"`, `"separate"` and the five usage
+feature names were literals in about twenty files. A typo in one is a
+comparison that is never true, with no error - for `role !== "cellarmaster"`
+that locks a person out. Done the way `WINE_COLORS` was.
+
+- **`lib/roles.js`**: `ROLE` (cellarmaster, guest) and `ACCESS` (the two
+  roles plus `separate`), with `ROLE_VALUES` / `ACCESS_VALUES` for
+  validation. Frozen, no imports, so the invite form (a client component)
+  and plain node scripts can load it. Every comparison in `lib/auth.js`,
+  `lib/owner.js`, `lib/guest.js`, the owner layout, `/export`, `/usage`,
+  `/invites` and its actions now spells the value from here;
+  `lib/invite-access.js` builds its option list from it.
+- **`lib/usage-features.js`**: `FEATURE` (scan, suggest, research,
+  estimate-windows, photo-details), imported by every `ai.call()` site and
+  by the two pages that show a limit notice. `recordUsage` now logs an
+  unknown feature name (still recording the row - the spend is real).
+- **A drift hazard closed on the way**: "held" features (Scan and the
+  drinking-window estimators, which stay on their normal model over the
+  cap) were declared three times at the call sites with `holdTier: true`
+  and a fourth time, by name, in the notice that says "running on lighter
+  models". They are now one list, `HELD_FEATURES`, keyed on the feature,
+  and `ai.call()` no longer takes a `holdTier` argument. Adding a call site
+  for a held feature can't forget the hold; the notice can't disagree with
+  the gate.
+- **Stored values unchanged**: no migration. `scripts/constants.test.mjs`
+  (10 checks, in `npm run verify`) pins every stored word and fails if a
+  raw role, access or feature literal reappears in `app/` or `lib/` code
+  (comments may still say them); checked by adding a deliberate offender.
+
+`npm run verify` passes with accounts on and off, and the three stub
+end-to-end suites pass. One suite failed once for test-state reasons (a
+leftover research queue from another suite), fixed in the test.
 

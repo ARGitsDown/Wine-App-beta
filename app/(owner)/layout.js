@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth, isAuthConfigured } from "@/lib/auth";
+import { ROLE } from "@/lib/roles";
 import { signOutOfCellar } from "@/app/signin/actions";
 import { getResearchCount } from "@/lib/bottles";
 import NavLinks from "@/app/components/NavLinks";
@@ -60,7 +61,7 @@ export default async function OwnerLayout({ children }) {
     // convenience: lib/scoped-prisma.js refuses them on its own, which is
     // what actually covers Server Actions, since those never render this
     // layout.
-    if (session.user.role !== "cellarmaster") redirect("/guest");
+    if (session.user.role !== ROLE.CELLARMASTER) redirect("/guest");
     signedIn = true;
   }
 
