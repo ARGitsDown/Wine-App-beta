@@ -3490,3 +3490,100 @@ that locks a person out. Done the way `WINE_COLORS` was.
 end-to-end suites pass. One suite failed once for test-state reasons (a
 leftover research queue from another suite), fixed in the test.
 
+## 59. Model testing: paused, 2026-10-03
+
+The plan (#56, #57): run the Suggest comparison and then a label-reading
+comparison against the real API for the first time, to learn whether Haiku
+is acceptable as the over-cap tier and whether the 5.5 models are worth
+adopting. **Paused by the owner**, who may restart it from scratch.
+
+Where it stands:
+
+- **Built and merged, and still good**: `scripts/compare-suggest-models.mjs`
+  loads again and has a Haiku arm; the Suggest prompt and tools are shared
+  with the app (`lib/suggest-prompt.js`); the pricing table already has
+  `claude-opus-5-5` and `claude-sonnet-5-5`. Not yet done: arms for the 5.5
+  models in the script, and the label-reading comparison.
+- **Never run against a real key.** A separate session, "Cellarmaster model
+  testing", was started on the branch to do the first run. It stopped at
+  step one, the one-cent "does the key work" call: its own report was
+  "proxy not swapping credential". The environment's API credential (host
+  `api.anthropic.com`, header `x-api-key`) was not being substituted into
+  its requests, so no real model call has succeeded. This is an environment
+  set-up problem, not something the owner or the code did wrong. It spent no
+  API money.
+- **`test-labels/`** exists on the branch with only a one-line `notes.md`;
+  no photos or expected answers have been added.
+
+To resume, start a fresh session and change nothing else until a single
+tiny call (Haiku, 8 tokens) succeeds. If the credential still isn't
+substituted, try the other route: an ordinary environment variable holding
+the key, which the session can read (less private, since the session sees
+it), set only for the test and deleted after.
+
+If the testing is abandoned instead: delete the `cellarmaster-testing` key in
+the Claude Console, and remove the credential from the Default environment.
+
+## 60. Two flight UX items, raised by the owner 2026-10-03
+
+Both from using a flight at a real tasting (a flight of five wines, every one
+marked tasted, on `/flights/[id]`).
+
+### 1. "Delete flight" is the wrong word for finishing a flight
+
+Once every wine in a flight is tasted, the only control on the page is a red
+**Delete flight**. Functionally that is fine: each tasted wine is already
+logged (a flight-only wine moved to Tasting notes when its pick was marked
+tasted, an owned one had its count decremented), so the flight itself has
+nothing left to hold. But a red delete on a flight that went well reads as
+destroying something, and it is the only way to be rid of the flight.
+
+- **What to build.** When every pick is tasted, the control reads
+  **Complete flight**, in a calm tone rather than red (`ConfirmButton` already
+  has `tone="neutral"`), with a confirm that says what stays: the tasting
+  notes and the bottles' history are untouched; only the flight's queue entry
+  goes. While picks are still untasted it stays **Delete flight**, since that
+  really does discard planned wines.
+- **The open design question.** Should completing *delete* the flight, as
+  today, or *keep it as a record* (a `completedAt`, listed under a "Finished"
+  heading on `/flights`)? `isOpenFlight()` in `lib/flights.js` already treats
+  an all-tasted flight as "a record now, not a queue", which points at keeping
+  it - and a kept flight would let a past tasting's lineup be looked at again.
+  Deleting is the smaller change and what the owner described as acceptable.
+  Decide before building; the label change alone can ship either way.
+- **Check before changing anything.** An *untasted* flight-only wine
+  (`originFlightOnly`) deleted with its flight is left with no flight and
+  turns up in the "waiting for a flight" box on `/flights`. Completing a
+  fully tasted flight cannot do that, but a partly tasted one still can, so
+  "Complete" must not be offered until every pick is tasted, and "Delete"'s
+  existing warning about flight-only wines stays.
+
+### 2. Adding wines to a flight by photo, without leaving the flight
+
+Building a flight by hand lets you pick only from bottles already in the
+cellar (and flight-only wines saved earlier). Scanning wines straight into a
+flight does exist, but only by going out to **Scan**, choosing the **Flight**
+destination, and then picking a flight at the end of the batch. The owner's
+point: someone already on a flight's page, or just creating one, should not
+have to leave it to do that.
+
+- **What to build.** An **Add by photo** option beside the bottle picker on
+  `/flights/[id]` (and as the obvious next step right after "Create flight",
+  where the new page already opens the picker), which runs the existing scan
+  panel with its destination fixed to *this* flight, so the wines land in it
+  directly and the page ends back on the flight. The reading, review cards and
+  the Flight status for wines you don't own are all the existing Scan code
+  (`ScanPanel`, `lib/scan-intent.js`); this is a different entry point to it,
+  not a second scanner.
+- **Open questions.** Does a scanned wine here always become flight-only (the
+  Scan "Flight" behaviour, #36), or should the owner be able to say "this one
+  I do own" and send it to the Cellar as well? And the scan panel's
+  end-of-batch "choose a flight" step has to be skipped here, since the
+  flight is already known; that step is where #37 and #38's abandoned-batch
+  edge cases live, so the change needs the same care.
+- **Where the code is.** `app/(owner)/flights/[id]/page.js`,
+  `app/components/FlightBottlePicker.js`, `app/components/NewFlightForm.js`,
+  `app/components/ScanPanel.js`, and `addBottlesToFlight` in `app/actions.js`.
+
+Neither item is built; both are recorded here only.
+
