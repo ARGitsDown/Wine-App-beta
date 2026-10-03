@@ -24,7 +24,8 @@ import { resolveGuestView } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { characterRule } from "@/lib/suggestion-character";
-import { RESEARCH_FIELDS, researchChanges } from "@/lib/research-fields";
+import { RESEARCH_FIELDS, holdOwnersWindow, researchChanges } from "@/lib/research-fields";
+import { plausibleWindow } from "@/lib/drink-window";
 import { parseTastedDate } from "@/lib/tasting-date";
 import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
@@ -1011,7 +1012,7 @@ const SUGGESTION_PICK_SCHEMA = {
     reason: {
       type: "string",
       description:
-        "Why this wine - the pairing logic, or how it fits the tasting theme and its place in the tasting order. A sentence or two.",
+        "Why this wine - the pairing logic, or how it fits the tasting theme and its place in the tasting order. A sentence or two. If you mention a drinking window whose drinkWindowEstimated is true, say it is an estimate (\"estimated to be drinking now\", \"roughly 2024-2028\") - never present it as established.",
     },
     gapProducer: {
       type: ["string", "null"],
@@ -1064,7 +1065,7 @@ const SUGGESTIONS_TOOL = {
       summary: {
         type: "string",
         description:
-          "The explanation behind the title: what the theme is, why these wines, and for a flight why they are in this order. Two to four sentences - this sits behind a 'Why these' disclosure, so it has room to be more than a caption.",
+          "The explanation behind the title: what the theme is, why these wines, and for a flight why they are in this order. Two to four sentences - this sits behind a 'Why these' disclosure, so it has room to be more than a caption. If you mention a drinking window whose drinkWindowEstimated is true, say it is an estimate (\"estimated to be drinking now\", \"roughly 2024-2028\") - never present it as established.",
       },
       picks: {
         type: "array",
@@ -1201,7 +1202,7 @@ function buildSuggestSystemPrompt(currentYear, includeOutside, character) {
   const steer = characterRule(character);
   const steerRule = steer ? `${steer} ` : "";
 
-  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Use browse_cellar (repeatedly, with different filters, rather than assuming what's there) to find real candidates from their actual current inventory - never invent a bottle they don't have. A browse_cellar result with truncated true is a partial view - the first 40 matches by producer name, not the best 40 - so narrow the filters and browse again before deciding, and never call a pick the best in their cellar on the strength of a truncated browse. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. Each window also carries drinkWindowEstimated: true means the years are the app's own guess rather than anything anyone looked up, so treat them as approximate and don't claim where they came from; false means they were read from a source or entered by the owner. The flag only means anything when drinkFrom or drinkTo is actually set - for a bottle with no window at all, ignore it. Choose between bottles using an estimated window exactly as you would a sourced one, but never quote an estimated one back as established fact - write "estimated to be drinking now" or "roughly 2024-2028", not "drinking right in its window (2024-2028)". Every other screen marks an estimate as an estimate, and a recommendation that quietly promotes a guess to a fact is the one way this feature misleads. ${outsideRule} ${steerRule}For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
+  return `You help a home wine collector decide what to open, in one of two ways: PAIRING (they describe a meal or dish, possibly with multiple courses - recommend one or more wines from their own cellar for it) or TASTING (they describe a theme, goal, or mood - build an ordered flight of wines from their cellar exploring it). Infer which one from their request. Call browse_cellar with no filters first to see their whole current inventory - one call normally returns all of it - and choose only from real bottles in what comes back; never invent a bottle they don't have, and never assume what's there without browsing. A browse_cellar result with truncated true is a partial view - the first matches by producer name, not the best ones - so narrow the filters and browse again before deciding, and never call a pick the best in their cellar on the strength of a truncated browse. The current year is ${currentYear} - browse_cellar returns each bottle's drinkFrom/drinkTo drinking window where one is recorded (null means none is recorded, not that it's unready). Prefer a bottle whose window (if any) includes ${currentYear}; avoid one that's too young (${currentYear} < drinkFrom) or past peak (${currentYear} > drinkTo) unless nothing better fits, in which case say so plainly in your reasoning for that pick rather than silently ignoring it. Each window also carries drinkWindowEstimated: true means the years are the app's own guess rather than anything anyone looked up, so treat them as approximate and don't claim where they came from; false means they were read from a source or entered by the owner. The flag only means anything when drinkFrom or drinkTo is actually set - for a bottle with no window at all, ignore it. Choose between bottles using an estimated window exactly as you would a sourced one, but never quote an estimated one back as established fact - write "estimated to be drinking now" or "roughly 2024-2028", not "drinking right in its window (2024-2028)". Every other screen marks an estimate as an estimate, and a recommendation that quietly promotes a guess to a fact is the one way this feature misleads. ${outsideRule} ${steerRule}For a tasting flight, order picks in the sequence they should be tasted (typically lightest/driest to fullest/sweetest, or whatever logic fits the theme) and explain that ordering in the summary. Every answer needs both a title and a summary, and they do different jobs: the title is a short evocative name shown as the heading and saved as the flight's name, the summary is the fuller explanation shown behind it. Don't let the title swell into a sentence, and don't let the summary open by restating the title. Call record_suggestions exactly once, when you're done, with your final answer.`;
 }
 
 // Turns a freeform request (a meal to pair, or a tasting theme/mood) into
@@ -1387,6 +1388,7 @@ const WEB_SEARCH_TOOL = {
   name: "web_search",
   max_uses: 5,
 };
+const LIGHTER_WEB_SEARCHES = 2;
 
 // The shape below is also the shape of ResearchProposal.proposed, minus
 // `summary` and `sources`, which are stored as their own columns. That is
@@ -1514,7 +1516,10 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT, who) {
   // step running from the research route, which passes the job's own owner
   // and Domaine (see researchStep); everyone else is a signed-in member.
   const ai = await aiAccess(who);
-  if (ai.paused) return { error: ai.message };
+  // `paused` lets a bulk caller tell "AI is switched off until the 1st"
+  // from "this one bottle failed" - they need opposite handling: the first
+  // means stop and keep the rest of the queue, the second means move on.
+  if (ai.paused) return { error: ai.message, paused: true };
 
   const messages = [
     {
@@ -1539,7 +1544,9 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT, who) {
           // the same placement Suggest uses. Worth it here and nowhere else
           // among the mechanical calls (BACKLOG #23): this prefix is ~1.6k
           // tokens against Sonnet's 1024-token minimum, while the drinking-
-          // window prefix is only ~600 and would cache nothing at all. What
+          // window prefix is only ~600 and would cache nothing at all. (Haiku,
+          // which the lighter tier runs on, needs 4,096, so there the
+          // breakpoint is simply ignored - harmless, just no saving.) What
           // pays for it is the shape of the traffic rather than the size of
           // the prefix - this loop re-sends it up to four times per bottle,
           // and the bulk queue now runs step after step server-side, so one
@@ -1548,7 +1555,18 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT, who) {
           system: [
             { type: "text", text: RESEARCH_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
           ],
-          tools: [{ ...WEB_SEARCH_TOOL, type: shape.webSearchType }, RESEARCH_TOOL],
+          // The lighter tier can't take an effort level, which is what kept
+          // bulk research to about two searches on Sonnet (BACKLOG #23), and
+          // each search is billed on top of the tokens - so cap the
+          // searches directly there instead of leaving it at five.
+          tools: [
+            {
+              ...WEB_SEARCH_TOOL,
+              type: shape.webSearchType,
+              ...(shape.lighter ? { max_uses: LIGHTER_WEB_SEARCHES } : {}),
+            },
+            RESEARCH_TOOL,
+          ],
           messages,
         }),
       });
@@ -1624,7 +1642,10 @@ export async function researchBottle(id, effort = DEFAULT_EFFORT) {
   const result = await runResearch(bottle, effort);
   if (result.error) return result;
 
-  const { summary, sources, ...proposed } = result.data;
+  const { summary, sources, ...answered } = result.data;
+  // Whatever the model answered about a window that someone else typed or
+  // sourced is put back - see holdOwnersWindow.
+  const proposed = holdOwnersWindow(answered, bottle);
   await saveResearchProposal(id, { proposed, summary, sources });
 
   revalidatePath("/research");
@@ -1759,15 +1780,35 @@ export async function runResearchJobStep(jobId, token) {
   // consumes nothing and hands off would chain forever.
   let failed = slice.length;
   let attempted = slice;
+  let paused = false;
 
   try {
-    ({ researched, failed, attempted } = await researchStep(
+    ({ researched, failed, attempted, paused } = await researchStep(
       slice,
       Date.now() + STEP_BUDGET_MS,
       { ownerId: job.ownerId, domaineId: job.domaineId }
     ));
   } catch (err) {
     console.error(`Research job ${job.id} step failed:`, err);
+  }
+
+  // The Domaine hit its hard stop partway through. The one exception to
+  // "a step always consumes something", and safe: nothing chains on
+  // afterwards (this returns false), so there is nothing to loop. Whatever
+  // was actually researched is consumed; the rest stay pending, and the job
+  // says "paused" rather than "done" so the page can say why it stopped.
+  if (paused) {
+    const done = new Set(attempted);
+    await prisma.researchJob.update({
+      where: { id: job.id },
+      data: {
+        pendingIds: job.pendingIds.filter((id) => !done.has(id)),
+        researched: { increment: researched },
+        failed: { increment: failed },
+        status: "paused",
+      },
+    });
+    return false;
   }
 
   // Same guarantee from the other direction: whatever researchStep says,
@@ -1889,11 +1930,22 @@ async function researchStep(ids, deadline, { ownerId, domaineId }) {
   let researched = 0;
   let failed = 0;
   let asked = 0;
+  let paused = false;
   for (const group of byQuestion.values()) {
     if (asked > 0 && Date.now() > deadline) break;
     asked += 1;
 
     const result = await runResearch(group[0], BULK_RESEARCH_EFFORT, { id: ownerId, domaineId });
+    // Crossing the hard stop mid-run is not a failure of this bottle, and
+    // it isn't consumed: stopping here leaves it - and everything after
+    // it - on the queue, for the owner to pick up after the reset. (The
+    // old behaviour counted every remaining bottle as "failed" and
+    // finished the job, spending the queue on a condition that wasn't
+    // about any of them.)
+    if (result.paused) {
+      paused = true;
+      break;
+    }
     // Consumed either way: a wine whose search failed has had its turn,
     // and leaving it on the queue would mean a step that keeps retrying
     // the same broken question instead of getting to the rest.
@@ -1905,10 +1957,16 @@ async function researchStep(ids, deadline, { ownerId, domaineId }) {
       failed += group.length;
       continue;
     }
-    const { summary, sources, ...proposed } = result.data;
+    const { summary, sources, ...answered } = result.data;
     for (const bottle of group) {
       try {
-        await saveResearchProposal(bottle.id, { proposed, summary, sources });
+        // Per bottle: the group shares one answer, but each row's own
+        // window decides whether that answer may touch it.
+        await saveResearchProposal(bottle.id, {
+          proposed: holdOwnersWindow(answered, bottle),
+          summary,
+          sources,
+        });
         researched += 1;
       } catch (err) {
         console.error(`Failed to save research proposal for bottle ${bottle.id}:`, err);
@@ -1917,7 +1975,7 @@ async function researchStep(ids, deadline, { ownerId, domaineId }) {
     }
   }
 
-  return { researched, failed, attempted };
+  return { researched, failed, attempted, paused };
 }
 
 // Accepts a stored proposal as-is. The common case is that research got it
@@ -2099,11 +2157,18 @@ function describeBottleForWindowEstimate(bottle) {
 // One estimate onto one bottle. Shared by the bulk pass and the
 // single-bottle action so neither can forget the part that matters: an
 // estimate is always stored marked as an estimate.
+//
+// Only ever fills a blank, enforced in the write itself: a run holds a list
+// drawn before it started, and with several people in one Domaine a window
+// typed since then is somebody's own judgment, which an estimate must never
+// replace (and must never mark as "estimated"). Returns how many rows it
+// changed - 0 means somebody got there first.
 async function writeWindowEstimate(bottleId, { drinkFrom, drinkTo }) {
-  await db.bottle.update({
-    where: { id: bottleId },
+  const { count } = await db.bottle.updateMany({
+    where: { id: bottleId, drinkFrom: null, drinkTo: null },
     data: { drinkFrom, drinkTo, drinkWindowEstimated: true },
   });
+  return count;
 }
 
 // Failing to remember an answer is never a reason to discard it, so this
@@ -2133,6 +2198,10 @@ const WINDOW_ESTIMATE_SELECT = {
   region: true,
   subRegion: true,
   country: true,
+  // Not part of what the model is told: read only so the single-bottle
+  // action can see a window that appeared after the page was drawn.
+  drinkFrom: true,
+  drinkTo: true,
 };
 
 // (both drinkFrom and drinkTo null - a partial window someone deliberately
@@ -2144,8 +2213,10 @@ const WINDOW_ESTIMATE_SELECT = {
 // cellar at once (and stays well under a serverless function's execution
 // limit).
 export async function estimateDrinkWindows(bottleIds) {
+  // Blanks only, so a bottle that has gained a window since the list on
+  // screen was drawn is never even sent to the model.
   const bottles = await db.bottle.findMany({
-    where: { id: { in: bottleIds } },
+    where: { id: { in: bottleIds }, drinkFrom: null, drinkTo: null },
     select: WINDOW_ESTIMATE_SELECT,
   });
   if (bottles.length === 0) return { data: { updated: 0, total: 0, fromCache: 0 } };
@@ -2155,9 +2226,11 @@ export async function estimateDrinkWindows(bottleIds) {
   async function applyToBottles(targets, { drinkFrom, drinkTo }) {
     let applied = 0;
     for (const bottle of targets) {
+      // Checked here, not just on the way in, so an answer cached before
+      // this check existed is held to it too.
+      if (!plausibleWindow({ drinkFrom, drinkTo }, bottle.vintage)) continue;
       try {
-        await writeWindowEstimate(bottle.id, { drinkFrom, drinkTo });
-        applied++;
+        applied += await writeWindowEstimate(bottle.id, { drinkFrom, drinkTo });
       } catch (err) {
         // One bad id (e.g. a bottle deleted mid-run) shouldn't cost the
         // rest of the batch its otherwise-good estimates.
@@ -2203,18 +2276,25 @@ export async function estimateDrinkWindows(bottleIds) {
     .map(({ bottle }) => `id ${bottle.id}: ${describeBottleForWindowEstimate(bottle)}`)
     .join("\n");
   const keyByBottleId = new Map(toAsk.map(({ key, bottle }) => [bottle.id, key]));
+  const keyBottleVintage = new Map(toAsk.map(({ key, bottle }) => [key, bottle.vintage]));
 
   // Only here, once everything the cache could answer already has been:
   // those cost nothing, so a paused Domaine still gets them. See
   // lib/usage.js.
   const ai = await aiAccess();
-  if (ai.paused) return { error: ai.message };
+  // `paused` so the panel can stop sending batches that are all going to be
+  // refused, and say why, rather than counting each as a failure.
+  if (ai.paused) return { error: ai.message, paused: true };
 
   try {
     const response = await ai.call({
       feature: "estimate-windows",
       tier: "extraction",
       effort: DEFAULT_EFFORT,
+      // Applied straight to the bottle and cached for every Domaine with
+      // nobody reviewing it - the same reason Scan holds its tier. A batch
+      // costs about a cent on Sonnet; a wrong cached answer costs forever.
+      holdTier: true,
       request: () => ({
         max_tokens: 8192,
         system: DRINK_WINDOW_SYSTEM_PROMPT,
@@ -2247,6 +2327,11 @@ export async function estimateDrinkWindows(bottleIds) {
       if (estimate.drinkFrom == null && estimate.drinkTo == null) continue;
       const key = keyByBottleId.get(estimate.id);
       if (!key) continue;
+      // Applied straight to the bottle and cached for every Domaine, with
+      // nobody looking at it first - so an answer that can't be right
+      // (see plausibleWindow) is dropped instead. The wine simply stays
+      // blank and is asked about again next time, like an all-null one.
+      if (!plausibleWindow(estimate, keyBottleVintage.get(key))) continue;
 
       await cacheWindowEstimate(key, estimate);
       updated += await applyToBottles(byKey.get(key) ?? [], estimate);
@@ -2283,11 +2368,19 @@ export async function estimateWindowForBottle(id) {
   if (!bottle.producer) {
     return { error: "Add a producer first — there's nothing to estimate from." };
   }
+  // The page only offers this on a blank window, but a Server Action is its
+  // own endpoint, and with several people in a Domaine somebody may have
+  // typed one since the page was drawn.
+  if (bottle.drinkFrom != null || bottle.drinkTo != null) {
+    return { error: "This bottle already has a drinking window." };
+  }
 
   const key = drinkWindowCacheKey(bottle);
   const cached = await prisma.drinkWindowEstimate.findUnique({ where: { key } });
-  if (cached) {
-    await writeWindowEstimate(id, cached);
+  if (cached && plausibleWindow(cached, bottle.vintage)) {
+    if ((await writeWindowEstimate(id, cached)) === 0) {
+      return { error: "This bottle already has a drinking window." };
+    }
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/inventory");
     return {
@@ -2305,6 +2398,8 @@ export async function estimateWindowForBottle(id) {
       feature: "estimate-windows",
       tier: "extraction",
       effort: DEFAULT_EFFORT,
+      // Held on its tier for the same reason as the bulk pass above.
+      holdTier: true,
       request: () => ({
         max_tokens: 2048,
         system: DRINK_WINDOW_SYSTEM_PROMPT,
@@ -2337,8 +2432,15 @@ export async function estimateWindowForBottle(id) {
       return { error: "Not enough to go on for this wine — try Research instead." };
     }
 
+    if (!plausibleWindow(estimate, bottle.vintage)) {
+      // A window that can't be right is neither saved nor cached.
+      return { error: "That estimate didn't look right, so nothing was saved — try Research instead." };
+    }
+
     await cacheWindowEstimate(key, estimate);
-    await writeWindowEstimate(id, estimate);
+    if ((await writeWindowEstimate(id, estimate)) === 0) {
+      return { error: "This bottle already has a drinking window." };
+    }
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/inventory");
     return {

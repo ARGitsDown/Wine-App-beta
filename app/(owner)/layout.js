@@ -37,9 +37,9 @@ async function ResearchNavLink() {
   );
 }
 
-// Everything the cellar's owner sees. A guest never renders this layout, so
-// they never get the owner nav - and the count query above never runs for
-// them either.
+// Everything a Cellarmaster sees. A guest-role member who reaches it is
+// redirected to /guest before anything renders (below), so they never get
+// the owner nav - and the count query never runs for them either.
 //
 // It is also the front door. Every owner route renders through here and
 // /guest does not, so one check covers the whole private side of the app

@@ -40,7 +40,7 @@ export default async function EstimateWindowsPage() {
         </p>
       </div>
 
-      <AiLimitNotice bare />
+      <AiLimitNotice bare feature="estimate-windows" />
 
       {/* The panel is rendered unconditionally, including its own empty
           state. A finished run leaves no bottle missing a window, so

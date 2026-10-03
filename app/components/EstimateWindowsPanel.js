@@ -40,6 +40,11 @@ export default function EstimateWindowsPanel({ bottles }) {
   const [done, setDone] = useState(0);
   const [updated, setUpdated] = useState(0);
   const [failedBatches, setFailedBatches] = useState(0);
+  // Set when the server says AI is paused for this cellar until the 1st.
+  // Every further batch would be refused the same way, so the run stops
+  // sending them, and the finished view says why instead of reporting a
+  // pile of "failed" batches that reloading cannot fix.
+  const [pausedMessage, setPausedMessage] = useState(null);
   // How many came back from the estimate cache rather than a fresh ask.
   const [reused, setReused] = useState(0);
   // Frozen when the run starts. Finishing gives every bottle a window, so
@@ -54,6 +59,8 @@ export default function EstimateWindowsPanel({ bottles }) {
     setUpdated(0);
     setReused(0);
     setFailedBatches(0);
+    setPausedMessage(null);
+    let stopped = false;
 
     const batches = chunk(
       bottles.map((bottle) => bottle.id),
@@ -65,7 +72,13 @@ export default function EstimateWindowsPanel({ bottles }) {
     let reusedCount = 0;
 
     await runWithConcurrency(batches, CONCURRENCY, async (batch) => {
+      if (stopped) return;
       const result = await estimateDrinkWindows(batch);
+      if (result.paused) {
+        stopped = true;
+        setPausedMessage(result.error);
+        return;
+      }
       if (result.error) {
         failCount += 1;
         setFailedBatches(failCount);
@@ -86,12 +99,18 @@ export default function EstimateWindowsPanel({ bottles }) {
     return (
       <div className="flex flex-col gap-2 rounded-lg border border-green-300 p-4 dark:border-green-900">
         <p className="text-sm font-medium text-green-700 dark:text-green-400">
-          ✓ Done — estimated {updated} of {total} bottles.
+          {pausedMessage ? "Stopped" : "✓ Done"} — estimated {updated} of {total} bottles.
         </p>
         {reused > 0 && (
           <p className="text-sm text-zinc-500">
             {reused} reused an estimate already on file for the same wine,
             so only {updated - reused} needed asking.
+          </p>
+        )}
+        {pausedMessage && (
+          <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+            {pausedMessage} The bottles still missing a window are untouched -
+            come back to this page then.
           </p>
         )}
         {failedBatches > 0 && (

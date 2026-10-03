@@ -5,7 +5,8 @@ A personal wine cellar tracker: cellar, wishlist, and tasting notes. See
 the technical choices, [`BACKLOG.md`](./BACKLOG.md) for known data-model
 gaps worth revisiting later, and
 [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md) for bigger, deferred
-features like separate cellars per user.
+features like guest access section by section, sharing a single flight,
+or multiple locations in one cellar.
 
 ## What's here so far
 
@@ -218,16 +219,46 @@ features like separate cellars per user.
   this page — the owner pages send them back here, and the data layer
   refuses them regardless — which is why the app's routes are split into
   `app/(owner)` and `app/(guest)` route groups, each with its own header.
+  A "My favorites" button appears once they have picked something,
+  narrowing the list to their own shortlist, and the page greets them by
+  name (or just "Welcome" - an email address alone read like a system
+  record) under the cellar's own name rather than the app's.
   This used to be an open link anyone could use by typing a name; that
   was retired in favor of invited guests (BACKLOG #51), so guest browsing
   needs accounts switched on.
+- **People and sign-in** (`/invites`, titled "People"; `/signin`) — the
+  cellar belongs to a **Domaine**, the estate, which can have a name and
+  motto (set at the bottom of the People page; guests see it at the top of
+  their screen). The people in it are **Cellarmasters** (full access: add,
+  edit, scan, Suggest, and managing people) or **Guests** (browse and
+  favorite only). Only invited addresses can sign in, through Google or a
+  one-time emailed link. An invite says how the person joins: as a
+  Cellarmaster or Guest of your Domaine, or into a separate, empty cellar
+  of their own that sees nothing of yours. Nothing is emailed when you
+  invite someone, so a **Share** button drafts the message for you to
+  send; it is also on every "Waiting to sign in" row, for nudging. The page
+  runs in the order you use it - invite, waiting, members, people with
+  their own cellar, the Domaine's AI spend, then the Domaine's name - and
+  each person appears once. A member's role can be changed or the member
+  removed, each behind a confirmation that says what will happen; your own
+  row has neither, which is what guarantees a Domaine always keeps a
+  Cellarmaster (and the account that runs the app, `User.isAppOwner`, can't
+  be changed or removed from here either). Removing someone deletes their
+  account and invite, signs them out at once, and leaves what they added in
+  the cellar. A refused or expired sign-in lands on `/signin/error`, which
+  says why in words without revealing who was ever on the list. All of this
+  is dormant until `AUTH_SECRET` and a sign-in door are set (see
+  `.env.example`): until then the app is the single-owner app it began as,
+  with every page open, so a half-configured deploy can't lock the owner
+  out of their own cellar.
 - **Monthly AI limits** — every Claude call is recorded and summed per
   Domaine per calendar month. Past its cap, a Domaine's AI features keep
-  working on a lighter model (Scan stays at full strength, since it saves
-  what it reads without review); past a higher hard stop they pause until
-  the 1st. Everyone in a Domaine sees its spend on the People page, a note
-  appears on Suggest, Scan and Research when it matters, and the app owner
-  (`OWNER_EMAIL`) sees every Domaine on `/usage` and sets their limits.
+  working on a lighter model (Scan and the drinking-window estimators stay
+  at full strength, since they save what they read without review); past a higher hard stop they pause until
+  the 1st. Every Cellarmaster in a Domaine sees its spend on the People
+  page, a note appears on Suggest, Scan and Research when it matters, and
+  the app owner (the one account flagged `isAppOwner`) sees every Domaine
+  on `/usage` and sets their limits.
   Starting values and the `.env` settings are in `.env.example`
   (BACKLOG #54).
 - **Deleting asks first** — removing a bottle, one of its photos, or a
@@ -235,8 +266,9 @@ features like separate cellars per user.
   goes with it ("Also deletes 2 tasting notes and 2 guest favorites"),
   since a bottle's notes and favorites are cascade-deleted along with it.
 - **Data export** (`/export`, linked from the home page) — downloads every
-  bottle with its tasting notes and photo links, every guest with their
-  favorites, every saved flight with its picks in tasting order, and any
+  bottle with its tasting notes and photo links, every guest who favorited
+  one of this Domaine's bottles (with their favorites), the Domaine's name
+  and motto, its members and its invites (with their notes), every saved flight with its picks in tasting order, and any
   research still sitting in the review queue, as one JSON file. Cheap peace
   of mind for a personal system with no other backup story. The photos
   themselves live in blob storage, so the file holds their links rather than
@@ -255,8 +287,9 @@ features like separate cellars per user.
   won't update a bookmark that already exists.
 - **Design touches** — the home page is eight cards and nothing else: no
   title, no section labels, since eight labelled cards say what the app holds
-  better than a heading above them does (plus a plain "Export all your
-  data" link underneath, which isn't a card - see **Data export** above).
+  better than a heading above them does (plus a few plain links underneath
+  - export, and on a phone People & Domaine and Sign out - which aren't
+  cards; see **Data export** above).
   Each card carries its icon and
   name top-left, its count bottom-left (centered under the icon, so the
   figure reads as belonging to it) and its description bottom-right, each cut
@@ -296,6 +329,13 @@ database) — set its connection string as `DATABASE_URL` in a `.env` file
 (see `.env.example`). On Vercel, `npm run build` runs `prisma migrate
 deploy` first, so schema changes apply automatically on every deploy.
 
+Sign-in is off until you set `AUTH_SECRET` plus Google or email credentials
+(all in `.env.example`); until then every page is open and there is just the
+one owner. `OWNER_EMAIL` is worth setting once, before the first sign-in, so
+only you can claim the existing cellar. The monthly AI limits have their own
+optional settings there too (`USAGE_DEFAULT_CAP_CENTS`,
+`USAGE_HARD_STOP_MULTIPLIER`).
+
 Only two branches deploy on Vercel: `claude/great-meitner-j2tbow` (the
 repo's default branch, which production builds from) and `main`.
 `vercel.json` turns every other branch off, because each preview
@@ -320,12 +360,18 @@ rest of the app.
   reads wine photos for the scan feature (`extractWinesFromPhoto`), reasons
   over the cellar for pairing/tasting suggestions (`getSuggestions`), and
   looks up an uncertain bottle with a real web search (`researchBottle`).
-  All three in `app/actions.js`. Which model each call uses is set in one
-  place (`lib/anthropic.js`): structured extraction against a known schema
-  (scanning, research, drinking-window estimates, reading an added photo)
-  runs on a faster mid-tier model, while open-ended judgment over the whole
-  cellar (Suggest) stays on the heavier one — so the calls that just need
-  careful reading aren't paying for reasoning they don't use.
+  All three are defined in `app/actions.js`, but none of them talks to
+  Claude directly: each goes through `aiAccess()` in `lib/usage.js`, the one
+  door that picks the model, sends the request and records what it cost.
+  Which model each kind of work uses is set in one place (`lib/ai-models.js`):
+  structured extraction against a known schema (scanning, research,
+  drinking-window estimates, reading an added photo) runs on a faster
+  mid-tier model, while open-ended judgment over the whole cellar (Suggest's
+  "sommelier" depth) stays on the heavier one — so the calls that just need
+  careful reading aren't paying for reasoning they don't use. A Domaine that
+  has passed its monthly cap drops one rung (heavy to mid-tier, mid-tier to
+  Haiku 4.5), except Scan and the drinking-window estimators, which keep
+  their normal model until the hard stop; see **Monthly AI limits** above.
 
 Data mutations (adding a bottle, logging a tasting note, etc.) go through
 Next.js Server Actions in [`app/actions.js`](./app/actions.js) — plain

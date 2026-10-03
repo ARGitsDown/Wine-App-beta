@@ -6,7 +6,16 @@ those), but new capabilities that would reshape how the app is used. Add to
 this list as new ones come up; move an item into an actual build (and
 delete it from here) once it's picked up.
 
-## Separate cellars per user — scoped 2026-09-20, not yet started
+## Separate cellars per user — scoped 2026-09-20, Phases 0-3 built (see Phasing below); Phase 4 not yet started
+
+> **Status note, 2026-10-03.** This section began when there was exactly
+> one cellar and one owner. That is no longer true: accounts, scoping,
+> shared Domaines and usage limits are all built (see Phasing below, and
+> "Shared cellars" further down). The lightweight "guest" it contrasts
+> itself with - a friend typing a name - was retired on 2026-09-28
+> (BACKLOG #51); a guest is now an invited account with the Guest role.
+> What follows is kept as the record of the original decisions, in the
+> tense they were written in.
 
 Today there's exactly one cellar, one inventory, one wishlist — the app
 still assumes a single owner, per [`PROJECT.md`](./PROJECT.md)'s original
@@ -24,7 +33,10 @@ for someone who wants their own.
 2. **Fully separate cellars.** Each account sees only its own bottles,
    flights and pairings. No household/shared-bottle concept. Sharing
    stays what it is today: the guest link, for letting someone browse
-   yours.
+   yours. *(Superseded 2026-09-28: sharing a cellar is now built as
+   Domaines - invited Cellarmasters share one cellar, invited Guests
+   browse it, and the anonymous guest link is gone. "Fully separate"
+   survives as the invite access `separate`.)*
 3. **Google OAuth, plus a password-free fallback for anyone without a
    Google account.** No passwords stored, no reset flow to own, no
    credential breach to worry about. **Library settled: Auth.js
@@ -168,7 +180,9 @@ Staged so nothing is a leap, and each phase is independently shippable:
   re-fetches the parent it's attaching to through this same client first,
   which a foreign id already fails.
 
-  `/guest` keeps working, per the original plan, but not by accident: it
+  *(Since retired: `guestOwnerId()` no longer exists, and `/guest` is for
+  signed-in Guest members only - see BACKLOG #51.)* `/guest` keeps
+  working, per the original plan, but not by accident: it
   has no session for the extension to read, so it was never going to be
   "keep working" for free. `guestOwnerId()` in `lib/owner.js` - the
   earliest-created owner, the same answer `currentOwnerId` gives before
@@ -276,12 +290,17 @@ Research step has no session, so it passes the job's own `ownerId` and
   (the app owner's, left unlimited) those values; a newly founded Domaine
   gets them in `createUser`. A Domaine that *joins* another keeps that
   one's.
-- **The app owner** is the account whose email is `OWNER_EMAIL`, else any
-  Cellarmaster of the original Domaine (`isAppOwner` in `lib/owner.js`).
-  They alone see `/usage` (every Domaine's spend, per feature) and set its
-  limits; the action behind the form makes the same check, which is the
-  one that matters - replaying the owner's form from another Domaine's
-  session changes nothing (tested).
+- **The app owner** is one flagged account (`User.isAppOwner`, read by
+  `isAppOwner` in `lib/owner.js`). It was first built as "the
+  `OWNER_EMAIL` account, else any Cellarmaster of the original Domaine",
+  and the data review found two ways that went wrong - everyone ever added
+  to the original Domaine became an operator, and removing the earliest
+  account would have handed the role to the next-oldest one, in another
+  Domaine perhaps - so it became stored data (2026-10-03, see "Review
+  follow-ups" below). They alone see `/usage` (every Domaine's spend, per
+  feature) and set its limits; the action behind the form makes the same
+  check, which is the one that matters - replaying the owner's form from
+  another Domaine's session changes nothing (tested).
 
 **What the limits do.** Under the cap, nothing changes. At or over it,
 features keep working one tier down: Suggest's "sommelier" runs on Sonnet
@@ -354,6 +373,48 @@ spend now keeps growing past the cap, bounded only by the hard stop, so
 the hard stop is what actually limits it - keep it close enough to the
 cap to mean something.
 
+### Review follow-ups, 2026-10-03
+
+Three reviewers (`ai-reviewer`, `data-engineer`, `docs-keeper`) went over
+the shared-Domaine and usage work. What they found, and what was done -
+BACKLOG #55 has the detail:
+
+- **Drinking-window estimates were the second feature that saves without
+  review**, and I had missed it: they write onto bottles and into a cache
+  that answers *every* Domaine for ever, with nothing between a model's
+  answer and the data. They are now held on their normal model like Scan
+  (so "Scan is the one" in the section above is no longer true - it is
+  Scan and the estimators), and an answer that can't be right (a window
+  ending before it starts, opening before the vintage, or a century past
+  it) is dropped instead of saved or cached. The write itself now only
+  fills a blank, so a window someone typed while a run was in flight is
+  never overwritten; and Research puts back a sourced or owner-typed
+  window whatever the model answered, instead of trusting the prompt.
+- **The lighter-model retry now sticks** for the rest of an action (a
+  loop used to bounce between models, re-paying the cache each time),
+  also catches a 404 (what a retired model will look like), and says in
+  its log that a 400 about the *input* will fail on the normal model too.
+- **Reaching the hard stop partway through a bulk run no longer spends
+  the queue.** Research's job gets a `paused` status and keeps its
+  not-yet-researched bottles, and the estimate panel stops sending batches
+  and says why, instead of reporting a pile of failures that reloading
+  couldn't fix.
+- **Research on the lighter tier caps its searches at two** - the effort
+  level that held Sonnet to about two can't be sent to Haiku.
+- **The app owner is a stored flag** (above), `removeMember` and
+  `changeMemberRole` refuse to touch that account, and both now run in a
+  serializable transaction that refuses a change leaving a Domaine with no
+  Cellarmaster - the old guarantee was a read followed by a write, which
+  two Cellarmasters acting at once could both pass.
+- **Database CHECK constraints** hold what the form enforced: a hard stop
+  is never below the cap, nothing is negative.
+- **`/export` now includes** the Domaine's name and motto, its members and
+  its invites (with their notes) - things a person typed.
+- **Not done, by decision:** the lighter-model quality measurement and the
+  comparison script (`scripts/compare-suggest-models.mjs` no longer loads
+  and is the obvious tool for it) are deferred; the role/access/feature
+  string constants are a backlog cleanup.
+
 ### The plan as scoped and decided
 
 ### Decided with the owner, 2026-09-28
@@ -370,10 +431,11 @@ cap to mean something.
    depth) and `EXTRACTION_MODEL` (`claude-sonnet-5`: Scan, Research,
    drinking windows, photo details, Suggest's "standard" depth), both in
    `lib/anthropic.js`. Over the cap, each drops one tier: Opus work runs
-   on Sonnet, and Sonnet work runs on Haiku 4.5
-   (`claude-haiku-4-5-20251001`). The swap belongs in one function next to
-   those constants (`modelFor(tier, overCap)`), not repeated at the six
-   call sites.
+   on Sonnet, and Sonnet work runs on Haiku 4.5. The swap belongs in one
+   function next to those constants, not repeated at the six call sites.
+   *(As built: the function is `requestShape` in `lib/ai-models.js`, which
+   also holds the constants now, and the Haiku id is `claude-haiku-4-5`
+   with no date suffix.)*
 
 **What that decision changes in the plan below:**
 
@@ -406,15 +468,16 @@ assume now:**
   app/actions.js); Haiku 4.5 only takes the basic `web_search_20250305`.
   The downgraded Research call has to send the older tool version as
   well, or it fails outright instead of getting cheaper - so the tool
-  version belongs in `modelFor`'s answer, not just the model id.
+  version belongs in the tier function's answer (`requestShape`), not
+  just the model id.
 - **Downgrading alone doesn't bound the spend** - Haiku is cheaper, not
   free - which is why decision 4 below adds a hard stop.
 
 3. **The app owner sets every other Domaine's cap** (decided
    2026-09-28). Not a Domaine's own Cellarmasters, who would be raising
-   their own limit on the owner's API key. "The app owner" is the account
-   whose email is `OWNER_EMAIL` (lib/auth.js), falling back to the
-   original Domaine's Cellarmasters when that isn't set. Their own
+   their own limit on the owner's API key. "The app owner" is one flagged
+   account (`User.isAppOwner` - first drafted as the `OWNER_EMAIL`
+   account, falling back to the original Domaine's Cellarmasters). Their own
    Domaine is uncapped (`null`); they alone see every Domaine's spend and
    set its cap. A "separate" invite founds a Domaine with a default cap
    rather than none.
@@ -666,8 +729,11 @@ exactly what it is, a Domaine of one Cellarmaster, with no separate
 Domaine row yet because nothing has needed to distinguish "the account"
 from "the person" until now. This naming applies going forward, to this
 entry and the one below it, not retroactively to shipped schema.
+*(Written before Phase 0; the Domaine row and `domaineId` scoping have
+since been built - see Phases 0 and 1 below.)*
 
-**Why this doesn't fit today's ownership model as built.** Phases 0-2
+*(Also written before Phase 0 - see Phases 0 and 1 below for what was
+actually built.)* **Why this doesn't fit today's ownership model as built.** Phases 0-2
 above gave every ownership root - `Bottle`, `TastingFlight`,
 `SavedPairing` - a single `ownerId: String` pointing straight at `User`,
 and `lib/scoped-prisma.js` filters every query on that one column. That
@@ -809,10 +875,11 @@ database. `/invites` now shows only this Domaine's invites and members
 **Guest members.** A guest-role member's favorites go through a `Guest`
 row linked by the new `Guest.userId`, created on their first `/guest`
 visit and named from their account - no name form, and "Sign out"
-instead of "Not you?". A Cellarmaster visiting `/guest` previews their
-own Domaine; anyone without a session still gets the original cellar.
-All three are resolved in one place, `resolveGuestView` in
-`lib/guest.js`, which `toggleFavorite` uses too.
+instead of "Not you?". *(Since #51: a guest-role member reaches `/guest`
+and nobody else does - a Cellarmaster is sent to the app itself and a
+signed-out visitor to `/signin`; there is no no-session view any more.)*
+Both the view and `toggleFavorite` resolve it through one function,
+`resolveGuestView` in `lib/guest.js`.
 
 **Verified** against a pre-existing two-account database (the backfill
 kept both cellars separate, zero mismatched rows), then end to end with

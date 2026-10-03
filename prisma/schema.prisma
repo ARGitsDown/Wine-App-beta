@@ -14,15 +14,12 @@ datasource db {
 
 // The person a cellar belongs to.
 //
-// Phases 0 through 2 of separate cellars per user (FUTURE_CAPABILITIES.md)
-// are all done: every bottle, flight and pairing has a real owner,
-// lib/scoped-prisma.js filters essentially every read and write by it, and
-// an Auth.js session (or, until accounts are configured, the single seeded
-// row) decides who that is on each request. This comment described Phase 0
-// alone for a while - "ownership exists, but nothing reads it yet" - which
-// stopped being true the moment Phase 1 and 2 shipped; a schema comment
-// that outlives the state it describes is worse than none; that's what
-// this paragraph was caught doing.
+// Phases 0 through 3 of separate cellars (FUTURE_CAPABILITIES.md) are
+// done: a cellar belongs to a Domaine (see below), lib/scoped-prisma.js
+// scopes essentially every read and write by it, and an Auth.js session
+// (or, until accounts are configured, the single seeded row) decides who
+// is asking on each request. Bottle.ownerId and its siblings survive only
+// as "added by" attribution. Phase 4 (per-section access) is not started.
 //
 // Deliberately shaped as Auth.js's `User` from the outset rather than as a
 // throwaway `Owner`, because Phase 1 adopts @auth/prisma-adapter and that
@@ -65,11 +62,11 @@ model User {
   domaineId String
   domaine   Domaine @relation(fields: [domaineId], references: [id], onDelete: Cascade)
   // "cellarmaster" (full access - add, edit, scan, delete, run Suggest and
-  // Research) or "guest" (browse and favorite, no editing - see the
-  // Shared cellars entry's own "Guest-like" role, which is distinct from
-  // the existing anonymous /guest link and doesn't replace it). Every
-  // User backfilled by this migration is "cellarmaster", since they were
-  // each already the sole full-access person in their own cellar. A
+  // Research) or "guest" (browse and favorite, no editing). The guest role
+  // replaced the old anonymous /guest link, retired 2026-09-28 (BACKLOG
+  // #51): a guest is now always a signed-in member the Domaine chose. Every
+  // User backfilled by the Phase 0 migration is "cellarmaster", since they
+  // were each already the sole full-access person in their own cellar. A
   // "guest" member is refused by lib/scoped-prisma.js outright (reads
   // included - they browse through /guest's plain-client view instead)
   // and redirected there by app/(owner)/layout.js.
@@ -95,6 +92,18 @@ model User {
   // The favorites identity of a guest-role member (see Guest.userId).
   guest Guest?
 
+  // True for the one account that runs the app: pays for the API key, and
+  // alone sees every Domaine's AI spend and sets its limits (/usage). A
+  // person, not a Domaine - the earlier rule ("any Cellarmaster of the
+  // original Domaine") made everyone who was ever added to that Domaine an
+  // operator. Set by migration (20260930000000) on the earliest-created
+  // account, and by hand from there, never by the app: nothing here can
+  // grant or take it, and removeMember / changeMemberRole refuse to touch
+  // the account that has it, so the app can never end up without one.
+  // OWNER_EMAIL only decides who may *claim* the seeded cellar at first
+  // sign-in (lib/auth.js); it plays no part in this.
+  isAppOwner Boolean @default(false)
+
   // Claude calls this person made - attribution only, like Bottle.ownerId.
   // The cap is summed over the Domaine, not the person.
   usageEvents UsageEvent[]
@@ -117,23 +126,31 @@ model Domaine {
   // members/role comment for why they moved. Nullable for the same
   // reason they always were: not every Cellarmaster bothers naming their
   // estate, and a blank one falls back to the person's own name wherever
-  // this is shown (see cellarDisplayName in app/(guest)/guest/page.js).
+  // this is shown (see cellarDisplayName in lib/cellar-name.js).
   name      String?
   motto     String?
+  // When the Domaine was made - for one backfilled by a migration, the
+  // migration's own timestamp, not when the person actually arrived.
   createdAt DateTime @default(now())
 
   // What this Domaine may spend on Claude each calendar month (UTC) - see
   // UsageEvent below and lib/usage.js. Both in cents, both nullable, and
   // null means "no limit of this kind" (the app owner's own Domaine, by
   // design - the owner pays for the app, so a cap on them would be a cap
-  // on themselves; see FUTURE_CAPABILITIES.md, Phase 3).
+  // on themselves; see FUTURE_CAPABILITIES.md, Phase 3). That is not the
+  // same as 0: 0 means the limit is hit immediately, so every Suggest and
+  // Research call is already on the lighter model (cap) or refused (hard
+  // stop). A CHECK constraint keeps both non-negative and the hard stop at
+  // or above the cap.
   //
-  // Past the cap, AI features keep working on a lighter model (one tier
-  // down); past the hard stop they pause until the 1st. The hard stop is
-  // the runaway guard - a loop, a leaked session - and should sit far
-  // enough above the cap that ordinary use never reaches it. Only the app
-  // owner sets either, on /usage: a Domaine's own Cellarmasters would be
-  // raising their own limit on someone else's API key.
+  // Past the cap, Suggest and Research keep working on a lighter model (one
+  // tier down); Scan and the drinking-window estimators stay at full
+  // strength (holdTier in lib/usage.js). Past the hard stop everything
+  // pauses until the 1st. The hard stop is the runaway guard - a loop, a
+  // leaked session - and should sit far enough above the cap that ordinary
+  // use never reaches it. Only the app owner sets either, on /usage: a
+  // Domaine's own Cellarmasters would be raising their own limit on
+  // someone else's API key.
   monthlySpendCapCents Int?
   monthlyHardStopCents Int?
 
@@ -451,19 +468,15 @@ model TastingNote {
   @@index([bottleId])
 }
 
-// A friend/family member browsing the cellar at /guest to shortlist bottles
-// for their next visit - not a real account (no password), just a name
-// remembered via a cookie so favoriting works across visits from the same
-// browser. Looked up case-insensitively on entry so the same person typing
-// their name again reuses their existing guest record instead of forking
-// it. This is deliberately lightweight; real multi-user accounts (separate
-// cellars per person) are a much bigger, separate future capability - see
-// FUTURE_CAPABILITIES.md.
+// The favorites identity of a signed-in "guest" member (User.role): found
+// by userId, created on their first visit to /guest and named after their
+// account (see resolveGuestView in lib/guest.js). The Domaine's
+// Cellarmasters see this name next to each favorite.
 //
-// Also the favorites identity of a signed-in "guest" member (User.role):
-// same Favorite rows, same owner-side display, just found by userId rather
-// than by cookie - created on their first visit to /guest (see
-// resolveGuestView in lib/guest.js). Null for every cookie guest.
+// A row with a null userId is a leftover from the anonymous /guest link
+// (a name remembered via a cookie), retired 2026-09-28 - BACKLOG #51.
+// Those rows and their favorites were left in place so the names already
+// shown next to a favorite still make sense; nothing creates new ones.
 model Guest {
   id        Int        @id @default(autoincrement())
   name      String
@@ -629,16 +642,16 @@ model ResearchJob {
   // reaches the browser - only the server ever reads or sends it.
   token String @unique
 
-  // Who asked. Every other owner-scoped model (Bottle, TastingFlight,
-  // SavedPairing) gets its owner enforced by the Prisma Client Extension in
+  // Who asked - attribution. What the job may touch is domaineId, below.
+  // Every other Domaine-scoped model (Bottle, TastingFlight, SavedPairing)
+  // gets its scoping enforced by the Prisma Client Extension in
   // lib/scoped-prisma.js, which reads the signed-in session - but a bulk
   // research step runs from app/api/research/step/route.js, a plain HTTP
   // route hit by a server-to-server fetch with no cookies attached (see the
-  // route's own comment). There is no session to read there, so ownership
-  // has to be recorded as data at job creation time instead, and the step
-  // that fetches bottles to research filters on it explicitly (by
-  // domaineId, below, since the cellar belongs to the Domaine) rather
-  // than going through the session-based extension. Without it, a
+  // route's own comment). There is no session to read there, so the
+  // Domaine has to be recorded as data at job creation time instead, and
+  // the step that fetches bottles to research filters on it explicitly
+  // rather than going through the session-based extension. Without it, a
   // job's bottleIds would be trusted at face value with nothing checking
   // they belong to whoever started the run.
   ownerId   String
@@ -661,9 +674,12 @@ model ResearchJob {
   researched Int @default(0)
   failed     Int @default(0)
 
-  // "running" until pendingIds empties, then "done". No "failed" state: a
-  // bottle whose research fails is counted in `failed` and the run carries
-  // on, which is the behaviour the queue has always had.
+  // "running" until pendingIds empties, then "done" - or "paused" when the
+  // Domaine reached its hard stop mid-run (pendingIds is kept, so nothing is
+  // lost, but nothing resumes by itself: start "Research all" again once the
+  // limit lifts). No "failed" state: a bottle whose research fails is counted
+  // in `failed` and the run carries on, which is the behaviour the queue has
+  // always had.
   status String @default("running")
 
   createdAt DateTime @default(now())
@@ -822,11 +838,21 @@ model UsageEvent {
   owner     User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   // "scan" | "suggest" | "research" | "estimate-windows" | "photo-details"
+  // - the feature names lib/usage.js's callers pass to ai.call(); keep this
+  // list and that one in step.
+  //
+  // Written only by recordUsage in lib/usage.js, and only for a call that
+  // succeeded: a failed call costs nothing and leaves no row. A failed
+  // write is swallowed (a logged warning, never an error to the user), so
+  // the ledger can undercount and the hard stop fails open - by design,
+  // since a broken ledger shouldn't take Scan down with it.
   feature String
   // The model the call actually ran on - the lighter one when the Domaine
   // was over its cap, not the one the feature normally uses.
   model   String
-  // True when this call ran one tier down because of the cap.
+  // True when this call ran one tier down because of the cap. False for
+  // Scan and the estimators (held at full strength) and for a call that
+  // was retried on the normal model after the lighter one refused it.
   lighter Boolean @default(false)
 
   inputTokens              Int @default(0)
@@ -834,13 +860,18 @@ model UsageEvent {
   cacheCreationInputTokens Int @default(0)
   cacheReadInputTokens     Int @default(0)
   webSearches              Int @default(0)
+  // Token and search counts are 0 when there were none or the API didn't
+  // report them - 0 means "none / not reported", never "unknown".
 
   // Millionths of a US dollar, computed and stored at write time from the
   // rate table in force that day (lib/usage-pricing.js) - not recomputed
   // later from the tokens, so Anthropic repricing a model can't quietly
   // rewrite last month. Micros rather than cents because most calls cost
   // a fraction of one: a drinking-window estimate is about 0.3 cents, and
-  // rounding each row to whole cents would sum to nothing.
+  // rounding each row to whole cents would sum to nothing. Clamped at
+  // 2,000,000,000 so one runaway row can't overflow the Int column; a model
+  // the rate table doesn't recognise is priced as claude-opus-5, so an
+  // unknown model overstates spend rather than hiding it.
   costMicros Int
 
   createdAt DateTime @default(now())

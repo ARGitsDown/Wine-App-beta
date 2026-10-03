@@ -14,14 +14,14 @@ no edit tools, and that is deliberate.
 A mobile-first Next.js web app (App Router, JavaScript, Tailwind v4, server
 components + server actions). It has exactly one real user: a wine hobbyist
 with no coding background who built it to actually use, on a phone, standing
-in front of a wine rack or sitting in a shop. A friend occasionally opens the
-read-only guest link.
+in front of a wine rack or sitting in a shop. A friend occasionally signs in as an
+invited Guest member and browses read-only.
 
 Read `PROJECT.md` for intent and `README.md` for what's built. The screens:
 
 | Route | What it is |
 |---|---|
-| `/` | Home — six cards, nothing else, meant to fit above the fold |
+| `/` | Home — eight cards (Suggest, tonight's pairings, flights, tasting notes, scan, research, wishlist, cellar), meant to fit close to the fold |
 | `/scan` | Photograph a label or a shop's tasting sheet; pick a destination first |
 | `/suggest` | Describe a menu or a theme; get pairings or a tasting flight |
 | `/flights`, `/flights/[id]` | Saved tasting flights as a queue to pull from |
@@ -31,7 +31,11 @@ Read `PROJECT.md` for intent and `README.md` for what's built. The screens:
 | `/bottles/[id]` | One bottle: fields, photos, notes, research, windows |
 | `/research` | Queue of bottles scan wasn't confident about; review diffs |
 | `/estimate-windows` | Bulk backfill of drinking windows |
-| `/guest` | Read-only cellar browsing + favoriting, no account |
+| `/pairings`, `/pairings/[id]` | Saved Suggest pairings; "Drink tonight" |
+| `/invites` | People: who is invited, roles, Domaine name, AI usage line |
+| `/usage` | App owner only: every Domaine's AI spend, caps and hard stops |
+| `/signin` | Invite-only sign-in (Google or emailed link) |
+| `/guest` | Read-only cellar browsing + favoriting; needs an invited Guest account |
 
 Components are in `app/components/`, shared logic in `lib/`, mutations in
 `app/actions.js`.

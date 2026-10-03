@@ -171,9 +171,8 @@ hit - not just the changed ones.
   changes derive `emptiedAt` and `acquiredAt` through `emptiedAtForStatus` and
   `acquiredAtForStatus` in `lib/bottle-dates.js`. A new path that writes
   `status` directly, bypassing them, leaves a row claiming a date it doesn't
-  have. This class of bug is your highest-value find. (The schema comment on
-  `acquiredAt` still points at `app/actions.js` for these - the helpers moved.
-  A stale pointer like that is itself a finding worth reporting.)
+  have. This class of bug is your highest-value find. A schema comment that points at the
+  wrong file for these is itself a finding worth reporting.
 - **One definition of a derived value.** If an average, a canonical name or a
   date window is computed in two places, they will disagree.
 - **New data a human would be sad to lose** should appear in `/export`.

@@ -116,7 +116,9 @@ export default async function UsagePage() {
             <div>
               <h2 className="font-medium">{title}</h2>
               <p className="text-xs text-zinc-500">
-                {domaine.members.map((member) => member.name || member.email || "unclaimed").join(", ")}
+                {domaine.members.length === 0
+                  ? "No members - left behind by an account deleted outside the app."
+                  : domaine.members.map((member) => member.name || member.email || "unclaimed").join(", ")}
               </p>
             </div>
 

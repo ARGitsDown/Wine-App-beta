@@ -213,7 +213,9 @@ indexes) is tracked separately as ordinary work, not here.
   transformations. The free alternative - generate and store a small
   thumbnail at upload time, since `lib/client-image.js` already downscales
   before upload - costs a second Blob object per photo instead, which is
-  much cheaper but not nothing.
+  much cheaper but not nothing. (`sharp`, which `next/image` would use, is
+  now excluded from every server bundle - see #52 - so this option would
+  also mean putting it back.)
 - **Re-scan existing bottles to fill gaps in bulk.** A pass like
   `/estimate-windows` but for every empty field (missing `wineColor`,
   `subRegion`, `abv`) across the whole cellar. Straightforward to build on
@@ -290,8 +292,9 @@ bite someone actually using the app.
   invalidated on delete: a suggestion for a region you no longer own is
   harmless, and the backstop clears it eventually.
 - **`thinking: adaptive` on the extraction calls is probably not earning
-  its latency.** All five Claude calls set it; the four now on the
-  lighter model are structured extraction ("read this back label, invent
+  its latency.** All the Claude calls set it (six now, all through `ai.call()`; the lighter
+  tier, Haiku 4.5, takes no thinking at all - see #54); the four on the
+  extraction model are structured extraction ("read this back label, invent
   nothing"), where deliberation buys little. Worth measuring with it off
   for the added-photo read and the drinking-window estimates.
 
@@ -1217,9 +1220,13 @@ a model holding something the owner curated belongs in the backup.
 
 ### The index — still open
 
-Pairings currently live at `/pairings`, reached from Suggest rather than from
-the nav, because the nav is already at seven links and where the eighth goes
-is the parked question in #17. That is a holding position, not the answer.
+*(Updated 2026-10-03: Pairings has since gained its own nav link and tab,
+and Home links to it - see #28 - so the holding position described here no
+longer holds. The one-screen idea below is still open.)*
+
+Pairings lived at `/pairings`, reached from Suggest rather than from the nav,
+because the nav was at seven links and where the eighth went was the parked
+question in #17. That was a holding position, not the answer.
 
 The answer is still one screen listing both kinds, rows expanding in place,
 flights keeping `/flights/[id]` and their queue behaviour untouched. A flight
@@ -1926,7 +1933,7 @@ general box" state today, only "collapsed" and "everything open."
    next to the other string helpers it joins (`searchableText`,
    `includesInsensitive`).
 
-## 28. Pairings: tighter summaries and "Drink tonight" — both done
+## ~~28. Pairings: tighter summaries and "Drink tonight"~~ — both done
 
 Raised by the owner, looking at both the pairings list and a kept pairing's
 detail page.
@@ -3353,3 +3360,74 @@ label reading and Research is still unmeasured - see FUTURE_CAPABILITIES.md
 `app/components/{AiLimitNotice,AiUsageSummary,UsageLimitsForm}.js`,
 `app/(owner)/invites/page.js`, `scripts/usage.test.mjs`,
 `scripts/smoke.mjs`, `.env.example`, README.md.
+
+## 55. A three-reviewer pass on the usage limits, and what it changed
+
+After #54 the ai-reviewer, data-engineer and docs-keeper agents each read the
+work. Their combined list, decided with the owner 2026-10-03 (the owner will
+revisit item M separately):
+
+- **Drinking-window estimates are held on Sonnet** (like Scan) and only
+  paused at the hard stop: they too are saved unreviewed. Both estimators
+  pass `holdTier`. A plausibility check (`plausibleWindow` in
+  `lib/drink-window.js`: whole years, 1800-2300, end not before start, start
+  not before the vintage, end within a century of it) refuses an implausible
+  answer before it is saved or cached.
+- **Estimates only fill blanks.** The write is a conditional `updateMany`
+  (`drinkFrom` and `drinkTo` both null), so an estimate that arrives after
+  the owner typed a window can't overwrite it; the single-bottle button
+  refuses a bottle that already has one.
+- **Research keeps the owner's window** (`holdOwnersWindow` in
+  `lib/research-fields.js`): a proposal can no longer replace a window the
+  owner set, only fill or revise an estimated one.
+- **The lighter-model retry** sticks for the rest of the action once a model
+  has refused (and catches a 404 as well as a 400), instead of retrying every
+  call; the log says an input-caused 400 will also fail on the normal model.
+- **"Research all" and "Estimate windows" stop cleanly at the hard stop**:
+  the queue is kept, the job is marked `paused`, and the screens say so.
+- **Lighter-tier Research is capped at two web searches** per call.
+- **The app owner is a stored flag** (`User.isAppOwner`, on exactly one
+  account, the earliest by `createdAt` then `id`, set by a migration), not
+  "the earliest user, looked up each time" and not an env var. The People
+  page shows no controls on that row and `changeMemberRole`/`removeMember`
+  refuse it. `OWNER_EMAIL` is now only for claiming the first account.
+- **A Domaine can't lose its last Cellarmaster to a race**: those two
+  actions run in a Serializable transaction that rolls back if no
+  Cellarmaster would remain. Three Domaines left memberless by accounts
+  deleted outside the app were removed from the development database;
+  `/usage` labels any such Domaine.
+- **CHECK constraints** on limits (non-negative, hard stop at or above cap)
+  and on the ledger's counts and cost.
+- **`/export` now carries** the Domaine (name, motto), its members and its
+  invites - the usage ledger and limits are deliberately left out.
+- **Suggest's system prompt** was rewritten (browse the cellar with no
+  filters first), and the "estimated window" rule is repeated in the tool's
+  field descriptions.
+- **Docs**: README, FUTURE_CAPABILITIES, AGENTS.md, `.env.example`, the
+  schema comments, three agent definitions and this file brought back in
+  line with the code. 23 new unit checks (`scripts/ai-guards.test.mjs`) join
+  `npm run verify`.
+
+Migrations: `20260930000000_app_owner_flag`,
+`20260930010000_limits_check_constraints`. Deploy note: apply them before the
+new code serves traffic - the session callback reads `isAppOwner`.
+
+## 56. Left open by the #55 review
+
+- **Shared constants for roles, access levels and usage features.** The
+  strings `"cellarmaster"`, `"guest"`, `"separate"` and the five feature
+  names are repeated across the code. Do what `WINE_COLORS` did: one list
+  (`lib/roles.js`, `lib/usage-features.js`) imported everywhere, and have
+  `recordUsage` log an unknown feature instead of recording it silently.
+- **Measure Haiku.** Its quality on label reading and Research is still
+  unmeasured; there is no live API key in the development environment.
+  Scan and the estimators are held on Sonnet because of that doubt, and
+  Suggest/Research drop to Haiku over the cap. A small fixed set of photos
+  and bottles run on both tiers would settle whether that is acceptable.
+- **`scripts/compare-suggest-models.mjs` no longer loads** (deferred by the
+  owner). It imports from `lib/anthropic.js`, which has since lost the model
+  helpers; import from `../lib/ai-models.js`, and add a Haiku arm via
+  `requestShape("extraction", { lighter: true })`.
+- **Maybe, if it ever bites**: an index on `UsageEvent(createdAt)` if `/usage`
+  gets slow across many Domaines; a ledger flag for "retried on the normal
+  model" so `/usage` can show how often the lighter tier was refused.

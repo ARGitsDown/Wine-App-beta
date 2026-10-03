@@ -53,7 +53,7 @@ export async function GET() {
 
   const domaineId = await currentDomaineId();
 
-  const [bottles, guests, flights, pairings, researchProposals] = await Promise.all([
+  const [bottles, guests, flights, pairings, researchProposals, domaine, invites, members] = await Promise.all([
     db.bottle.findMany({
       include: { tastingNotes: true, photos: true },
       orderBy: { id: "asc" },
@@ -82,10 +82,34 @@ export async function GET() {
       orderBy: { id: "asc" },
     }),
     db.researchProposal.findMany({ orderBy: { id: "asc" } }),
+    // The Domaine itself and the people around it - things a person typed
+    // (an estate's name and motto, a "who is this?" note on an invite) and
+    // would be sad to lose, which is this file's own test. On the plain
+    // client, scoped by hand: none of these models are cellar data the
+    // scoping extension covers. Deliberately not here: the AI usage ledger
+    // and the monthly limits - those are the app owner's, not the cellar's
+    // (see /usage) - and anything secret: a session, a sign-in token.
+    prisma.domaine.findUnique({
+      where: { id: domaineId },
+      select: { name: true, motto: true, createdAt: true },
+    }),
+    prisma.invite.findMany({
+      where: { domaineId },
+      select: { email: true, note: true, access: true, createdAt: true, acceptedAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.user.findMany({
+      where: { domaineId },
+      select: { name: true, email: true, role: true, createdAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
   ]);
 
   const payload = {
     exportedAt: new Date().toISOString(),
+    domaine,
+    members,
+    invites,
     bottles,
     guests,
     flights,

@@ -56,8 +56,8 @@ export default async function AiUsageSummary({ status }) {
         <p className={state === "ok" ? "text-zinc-500" : "font-medium"}>{headline}</p>
         {capCents != null && state !== "stopped" && (
           <p className="text-xs text-zinc-500">
-            Past {formatCents(capCents)} Suggest, Research and estimates keep working on a lighter
-            model; Scan stays at full strength
+            Past {formatCents(capCents)} Suggest and Research keep working on a lighter model; Scan
+            and drinking-window estimates stay at full strength
             {hardStopCents != null ? `. At ${formatCents(hardStopCents)} AI features pause until ${resets}` : ""}.
           </p>
         )}

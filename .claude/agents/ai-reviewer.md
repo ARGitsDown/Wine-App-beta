@@ -36,8 +36,11 @@ That failure mode is invisible to every other reviewer on this project.
 | Add-photo read | `extractBottlePhotoDetails` | :1728, call at :1749 | EXTRACTION | `PHOTO_DETAILS_TOOL` |
 
 Line numbers drift - find the call sites with
-`grep -n "anthropic.messages.create" app/actions.js` rather than trusting the
-table. Also read `lib/anthropic.js` (the model split), `lib/research-fields.js`
+`grep -n "ai.call(" app/actions.js` rather than trusting the table - every
+call goes through `ai.call()` in `lib/usage.js` (the usage ledger, the cap and
+the hard stop), never `anthropic.messages.create` directly. Also read
+`lib/ai-models.js` (the model split, and `requestShape`, which turns a tier
+into model + thinking + tools), `lib/research-fields.js`
 (the review contract), and `lib/drink-window-cache.js` (what gets reused).
 
 ## The standard this code already meets
@@ -58,12 +61,18 @@ already clears:
 - **`pause_turn` is handled where a server tool can produce it** (research,
   which has `web_search`). Its absence in the calls with no server tools is
   correct, not an omission.
-- **Adaptive thinking on every call** (`thinking: { type: "adaptive" }`), which
-  is the current API. `budget_tokens` is removed on both models this app uses
-  and returns a 400 - never suggest it, whatever you remember.
-- **The model split is centralized and reasoned** in `lib/anthropic.js`:
+- **Adaptive thinking on every Opus/Sonnet call** (`thinking: { type:
+  "adaptive" }`, set by `requestShape`), which is the current API.
+  `budget_tokens` is removed on those models and returns a 400 - never suggest
+  it, whatever you remember. The lighter tier (Haiku 4.5, used when a Domaine
+  is over its monthly cap) takes no thinking and no effort, and only the basic
+  `web_search_20250305` tool; `requestShape` drops them deliberately.
+- **The model split is centralized and reasoned** in `lib/ai-models.js`:
   `EXTRACTION_MODEL` for structured reading against a schema, `REASONING_MODEL`
-  for open-ended judgment over the cellar. The comment explains why.
+  for open-ended judgment over the cellar, and `LIGHTER_MODEL` one tier down
+  for a Domaine over its cap. Scan and the drinking-window estimators pass
+  `holdTier: true` and stay at full strength until the hard stop, because
+  their answers are saved without review. The comments explain why.
 - **A null answer is deliberately not cached** in the drink-window path, with a
   comment saying the model having nothing this time shouldn't stop us asking
   again.

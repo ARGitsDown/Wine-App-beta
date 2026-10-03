@@ -10,8 +10,8 @@
     "postinstall": "prisma generate",
     "compare-suggest": "node scripts/compare-suggest-models.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "verify": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && bash scripts/verify.sh",
-    "test:policy": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs"
+    "verify": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && node scripts/ai-guards.test.mjs && bash scripts/verify.sh",
+    "test:policy": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && node scripts/ai-guards.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

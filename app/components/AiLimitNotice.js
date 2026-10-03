@@ -26,10 +26,13 @@ export default async function AiLimitNotice({ bare = false, feature }) {
     return null;
   }
   if (status.state === "ok") return null;
-  // Scan is held on its normal model over the cap (holdTier in
-  // lib/usage.js), so "running on lighter models" would be false there:
-  // it only has something to say once Scan itself is paused.
-  if (feature === "scan" && status.state === "lighter") return null;
+  // Scan and the drinking-window estimators are held on their normal model
+  // over the cap (holdTier in lib/usage.js), so "running on lighter models"
+  // would be false there: they only have something to say once they are
+  // paused.
+  if ((feature === "scan" || feature === "estimate-windows") && status.state === "lighter") {
+    return null;
+  }
 
   const resets = formatResetDate(status.resetsAt);
   const stopped = status.state === "stopped";
@@ -51,8 +54,8 @@ export default async function AiLimitNotice({ bare = false, feature }) {
       ) : (
         <>
           <span className="font-medium">Running on lighter models until {resets}.</span> This
-          cellar has used its monthly AI allowance, so Suggest, Research and estimates still work
-          but may be a little less thorough. Scan still reads labels at full strength.
+          cellar has used its monthly AI allowance, so Suggest and Research still work but may be a
+          little less thorough. Scan and drinking-window estimates stay at full strength.
         </>
       )}{" "}
       <Link href="/invites#ai-use" className="underline underline-offset-2">

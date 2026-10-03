@@ -107,8 +107,12 @@ export function ResearchRunProgress() {
   if (!job) return null;
 
   const done = job.researched + job.failed;
+  // The Domaine reached its hard stop partway through. Distinct from
+  // "stalled" (something broke) and from "done" (everything was tried):
+  // nothing here failed, the rest are simply still waiting.
+  const paused = job.status === "paused";
 
-  const barClass = stalled
+  const barClass = stalled || paused
     ? "bg-amber-500"
     : running
       ? "bg-zinc-900 dark:bg-zinc-100"
@@ -122,9 +126,11 @@ export function ResearchRunProgress() {
         <p aria-live="polite" className="font-medium">
           {running
             ? `Researching… ${done} of ${job.total}`
-            : stalled
-              ? `Research stopped after ${done} of ${job.total}`
-              : `✓ Researched ${job.researched} of ${job.total}`}
+            : paused
+              ? `Research paused after ${done} of ${job.total}`
+              : stalled
+                ? `Research stopped after ${done} of ${job.total}`
+                : `✓ Researched ${job.researched} of ${job.total}`}
           {job.failed > 0 && (
             <span className="font-normal text-zinc-500"> — {job.failed} failed</span>
           )}
@@ -155,6 +161,12 @@ export function ResearchRunProgress() {
             This runs on the server, not in this tab — leave the page, close
             it, come back later; it keeps going either way, and this bar
             picks it back up.
+          </>
+        ) : paused ? (
+          <>
+            AI features are paused for this cellar until the 1st, so the rest
+            are still waiting - none of them failed, and nothing already
+            researched is lost. Press “Research all” again after the reset.
           </>
         ) : stalled ? (
           <>

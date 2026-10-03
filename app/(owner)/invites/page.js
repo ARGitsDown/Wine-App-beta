@@ -61,7 +61,7 @@ export default async function PeoplePage({ searchParams }) {
     prisma.user.findMany({
       where: { domaineId },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, isAppOwner: true },
     }),
     monthlyUsage(domaineId),
   ]);
@@ -184,7 +184,12 @@ export default async function PeoplePage({ searchParams }) {
                     {ROLE_LABELS[member.role] ?? member.role}
                   </span>
                 </div>
-                {!isMe && (
+                {member.isAppOwner && !isMe && (
+                  <p className="text-xs text-zinc-500">
+                    Runs this app - can&apos;t be changed or removed from here.
+                  </p>
+                )}
+                {!isMe && !member.isAppOwner && (
                   <div className="flex flex-wrap items-center gap-2">
                     <ConfirmButton
                       action={changeMemberRole.bind(null, member.id, nextRole)}

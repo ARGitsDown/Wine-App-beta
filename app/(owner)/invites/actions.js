@@ -76,6 +76,51 @@ const MEMBER_ROLES = new Set(["cellarmaster", "guest"]);
 //     page doesn't offer either on your own row; this is what makes that
 //     more than a missing button.
 
+// Runs `work` in one transaction, and refuses - rolls everything back - if
+// the Domaine would be left with no Cellarmaster. Returns whether it went
+// through.
+//
+// Excluding yourself in the query already keeps the person pressing the
+// button, but that is a read followed by a write: two Cellarmasters
+// removing (or demoting) each other at the same moment would each see the
+// other still there, and both succeed. Serializable makes the second
+// commit fail instead, and a refused request is the right answer to
+// "two people clicked at once".
+async function keepingACellarmaster(domaineId, work) {
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        await work(tx);
+        const left = await tx.user.count({ where: { domaineId, role: "cellarmaster" } });
+        if (left === 0) throw new LastCellarmasterError();
+      },
+      { isolationLevel: "Serializable" }
+    );
+    return true;
+  } catch (err) {
+    // P2034: the other of two concurrent changes won. Either way: refused.
+    if (err instanceof LastCellarmasterError || err?.code === "P2034") return false;
+    throw err;
+  }
+}
+
+class LastCellarmasterError extends Error {}
+
+// The people these two actions may act on: this Domaine's own members,
+// never yourself, and never the account that runs the app (User.isAppOwner)
+// - removing or demoting that one would leave the app with nobody who can
+// see or set anyone's AI limits, and it is the one account the app must
+// never be able to lose. The page shows no controls on either row; this is
+// what makes that more than a missing button.
+function actionableMember(memberId, me) {
+  return {
+    id: memberId,
+    domaineId: me.domaineId,
+    NOT: { id: me.id },
+    isAppOwner: false,
+  };
+}
+
 // Makes a member a Cellarmaster or a Guest. Takes effect on their very
 // next request - database sessions re-read the User row every time (see
 // the session callback in lib/auth.js) - so a new Guest is on /guest the
@@ -86,26 +131,19 @@ const MEMBER_ROLES = new Set(["cellarmaster", "guest"]);
 export async function changeMemberRole(memberId, role) {
   if (!MEMBER_ROLES.has(role)) return;
   const me = await currentCellarmaster();
-  const member = await prisma.user.findFirst({
-    where: { id: memberId, domaineId: me.domaineId, NOT: { id: me.id } },
-    select: { id: true, email: true },
-  });
+  const where = actionableMember(memberId, me);
+  const member = await prisma.user.findFirst({ where, select: { id: true, email: true } });
   if (!member) return;
 
-  await prisma.$transaction([
-    prisma.user.updateMany({
-      where: { id: member.id, domaineId: me.domaineId, NOT: { id: me.id } },
-      data: { role },
-    }),
-    ...(member.email
-      ? [
-          prisma.invite.updateMany({
-            where: { email: member.email, domaineId: me.domaineId },
-            data: { access: role },
-          }),
-        ]
-      : []),
-  ]);
+  await keepingACellarmaster(me.domaineId, async (tx) => {
+    await tx.user.updateMany({ where, data: { role } });
+    if (member.email) {
+      await tx.invite.updateMany({
+        where: { email: member.email, domaineId: me.domaineId },
+        data: { access: role },
+      });
+    }
+  });
   revalidatePath("/invites");
 }
 
@@ -120,20 +158,16 @@ export async function changeMemberRole(memberId, role) {
 // Re-inviting the same address later works like any new invite.
 export async function removeMember(memberId) {
   const me = await currentCellarmaster();
-  const member = await prisma.user.findFirst({
-    where: { id: memberId, domaineId: me.domaineId, NOT: { id: me.id } },
-    select: { id: true, email: true },
-  });
+  const where = actionableMember(memberId, me);
+  const member = await prisma.user.findFirst({ where, select: { id: true, email: true } });
   if (!member) return;
 
-  await prisma.$transaction([
-    ...(member.email
-      ? [prisma.invite.deleteMany({ where: { email: member.email, domaineId: me.domaineId } })]
-      : []),
-    prisma.user.deleteMany({
-      where: { id: member.id, domaineId: me.domaineId, NOT: { id: me.id } },
-    }),
-  ]);
+  await keepingACellarmaster(me.domaineId, async (tx) => {
+    if (member.email) {
+      await tx.invite.deleteMany({ where: { email: member.email, domaineId: me.domaineId } });
+    }
+    await tx.user.deleteMany({ where });
+  });
   revalidatePath("/invites");
 }
 
