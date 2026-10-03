@@ -3,7 +3,9 @@
 A personal wine cellar tracker: cellar, wishlist, and tasting notes. See
 [`PROJECT.md`](./PROJECT.md) for the full project spec and reasoning behind
 the technical choices, [`BACKLOG.md`](./BACKLOG.md) for known data-model
-gaps worth revisiting later, and
+gaps worth revisiting later,
+[`LEARNING.md`](./LEARNING.md) for a self-test recap of how the app and its
+platforms work, and
 [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md) for bigger, deferred
 features like guest access section by section, sharing a single flight,
 or multiple locations in one cellar.
