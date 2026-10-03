@@ -290,9 +290,11 @@ export default function FlightPicksList({ flightId, picks }) {
                 {pick.reason && (
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">{pick.reason}</p>
                 )}
+                {/* ?flight= carries where you came from, so the wine's page can
+                    say so and offer a Back that names this flight. */}
                 <Link
-                  href={`/bottles/${pick.bottle.id}`}
-                  className="self-start text-sm text-zinc-500 underline underline-offset-2"
+                  href={`/bottles/${pick.bottle.id}?flight=${flightId}`}
+                  className="-my-2 flex min-h-11 items-center self-start text-sm text-zinc-500 underline underline-offset-2"
                 >
                   Photos, notes and editing →
                 </Link>

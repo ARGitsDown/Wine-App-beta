@@ -30,7 +30,7 @@ export default function BackButton({ fallbackHref, label = "Back" }) {
     <button
       type="button"
       onClick={handleClick}
-      className="inline-flex w-fit items-center gap-1 text-sm text-zinc-500 underline underline-offset-2"
+      className="-ml-2 inline-flex min-h-11 w-fit items-center gap-1 px-2 text-left text-sm text-zinc-500 underline underline-offset-2"
     >
       ← {label}
     </button>

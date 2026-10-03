@@ -535,9 +535,9 @@ export async function removeScannedBottles(ids) {
   }
 }
 
-export async function addTastingNote(bottleId, formData) {
+export async function addTastingNote(bottleId, prevState, formData) {
   const note = String(formData.get("note") || "").trim();
-  if (!note) return;
+  if (!note) return { error: "Write a note first." };
   const rating = parseOptionalRating(formData.get("rating"));
   // Falls back to the column's own now() when the field is missing or
   // unparseable, so a note is never lost to a bad date.
@@ -548,11 +548,17 @@ export async function addTastingNote(bottleId, formData) {
   // one the form it's bound to actually has open. Without this, anyone
   // signed in could write a note onto a bottle they don't own.
   const bottle = await db.bottle.findUnique({ where: { id: bottleId }, select: { id: true } });
-  if (!bottle) return;
+  if (!bottle) return { error: "That wine is no longer in your cellar." };
 
-  await db.tastingNote.create({ data: { bottleId, note, rating, tastedAt } });
-  await syncEmptiedToLatestNote(bottleId);
+  try {
+    await db.tastingNote.create({ data: { bottleId, note, rating, tastedAt } });
+    await syncEmptiedToLatestNote(bottleId);
+  } catch (err) {
+    console.error("Failed to add a tasting note:", err);
+    return { error: "Couldn't save that note. Please try again." };
+  }
   revalidatePath(`/bottles/${bottleId}`);
+  return { ok: true };
 }
 
 // Correcting when a note happened, without reopening the note itself -
@@ -2959,6 +2965,9 @@ export async function unmarkFlightPickConsumed(pickId) {
   } else {
     await undoOneTasted(pick.bottleId);
   }
+  // The bottle's own page too: Undo is also offered there, on the line that
+  // says it was just tasted in this flight.
+  revalidatePath(`/bottles/${pick.bottleId}`);
   revalidatePath(`/flights/${pick.flightId}`);
   revalidatePath("/flights");
 }

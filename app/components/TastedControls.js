@@ -5,9 +5,9 @@ import { markOneTasted, setBottleStatus, undoOneTasted } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
 
 const buttonClass =
-  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
+  "min-h-11 rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
 const secondaryButtonClass =
-  "rounded border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700";
+  "min-h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700";
 
 // The Tasted buttons and their own Undo, as one client component rather
 // than plain <form> actions - Undo needs to survive exactly the moment it

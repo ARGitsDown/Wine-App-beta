@@ -3683,3 +3683,53 @@ cellar; Complete appears only when everything is tasted and refuses on a stale
 page; another Domaine's flight scan page is a 404; the ordinary Scan page is
 unchanged. Not tried with a real photo or a phone camera.
 
+## 61. Arriving at a wine from a flight: a UX review, and the first group built
+
+The owner found the way from a flight into a wine "not as simple as it could be
+... it felt like work to navigate". Two reviews, one reading the code (the
+`ux-critic` agent, which could not run the app) and one rendering the real pages
+on a phone-sized screen with touch input (flight -> wine -> note -> back),
+agreed: nothing was broken, but the wine's page never changed to show that you
+had come from a flight.
+
+Built (the first group, 2026-10-03):
+
+- **An arrival line.** After "With note" the page opens with "Tasted in {flight}
+  - {N left in your cellar | that was the last bottle | now in Tasting notes}"
+  and an Undo (the same `unmarkFlightPickConsumed` as the flight page). The page's
+  own Tasted buttons are hidden for that visit: the flight has just done it, and
+  a second "Tasted one" would take another bottle off the count.
+- **A Back that names the flight.** "Photos, notes and editing" now carries
+  `?flight=<id>` (no note prefill); with that or `?tastingFlight=`, Back reads
+  "Back to {flight}" and, when there is no history to step back to, goes to the
+  flight rather than the list for the wine's status (which had often just
+  changed). Other ways in are unchanged.
+- **A note form that says what happened** (`TastingNoteForm`, a client
+  component). "Saving..." and a disabled button while it works, then a "Note
+  saved" panel in place of the form with - from a flight - a button that names
+  the flight, and "Add another note". It used to be a plain form that reset to
+  its starting text, so a saved note looked unsent and a second tap saved a
+  second one. `addTastingNote` now returns `{ ok }` or `{ error }`. When the
+  visit is about a note (from a flight or a pairing) the form sits first on the
+  page instead of about 460px down; otherwise it stays under Tasting notes.
+- **The wine's heading and facts.** The heading includes the bottling (it was
+  producer and vintage only, so a producer's whole range looked alike) and a
+  read-only line gives variety, origin, colour and ABV; the closed editing
+  section is now called "Edit details".
+- **Delete moved to the foot** of the page, apart from Tasted.
+- **Thumb-sized targets and inputs:** Back, the Tasted buttons, Delete, the
+  "Edit details" row and the note button are at least 44px tall; the note
+  inputs are 16px so iPhone Safari does not zoom in on them.
+
+Verified on a production build with real touch events and a rendered
+walkthrough: the arrival line and its Undo (bottle count restored), the note box
+about 255px from the top (was ~460), one note written per save, the named Back
+and Back-to-flight button, flight-only and multi-bottle wines, and a plain visit
+with none of it. Not tried on a phone.
+
+Left for the owner to decide (from the review, not built): showing "In: {flight}"
+on every wine page for any status, and removing from the "Add to a tasting" list
+the flight a wine is already in (and renaming the button "Add to a flight"); a
+"noted" tag on the flight page for wines that got a note; and the Research panel's
+amber border, which shows on every visit even when nothing needs checking.
+

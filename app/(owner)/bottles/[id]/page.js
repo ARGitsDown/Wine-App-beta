@@ -6,7 +6,7 @@ import { getRegionOptions } from "@/lib/bottles";
 import {
   updateBottle,
   deleteBottle,
-  addTastingNote,
+  unmarkFlightPickConsumed,
   updateTastingNoteDate,
   updateEmptiedDate,
   updateAcquiredDate,
@@ -17,6 +17,7 @@ import ConfirmButton from "@/app/components/ConfirmButton";
 import AddToFlight from "@/app/components/AddToFlight";
 import BackButton from "@/app/components/BackButton";
 import TastedControls from "@/app/components/TastedControls";
+import TastingNoteForm from "@/app/components/TastingNoteForm";
 import { flightName as nameOfFlight, isOpenFlight } from "@/lib/flights";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
@@ -26,11 +27,9 @@ import EstimateWindowButton from "@/app/components/EstimateWindowButton";
 import { todayInputValue } from "@/lib/tasting-date";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 import { drinkWindowLabel } from "@/lib/drink-window";
+import { wineDetail } from "@/lib/wine-origin";
 
 export const dynamic = "force-dynamic";
-
-const buttonClass =
-  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
 
 // Where Back sends you when this tab has no history to go back to (a
 // bottle opened from a fresh link). The list matching its own status,
@@ -65,7 +64,7 @@ function describeDeleteLoss(bottle) {
   return `Also deletes ${list}. This can't be undone.`;
 }
 const dangerButtonClass =
-  "rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
+  "min-h-11 rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
 
 // `tastingFlight` arrives as a flight id, so the note prefill can render
 // whichever of the flight's title/summary exists rather than whatever text
@@ -87,7 +86,10 @@ async function flightNameFor(param) {
 
 export default async function BottleDetailPage({ params, searchParams }) {
   const { id } = await params;
-  const { pairedWith, tastingFlight } = await searchParams;
+  // `tastingFlight` (arriving to write a note about a flight wine) and `flight`
+  // (any other link from a flight's page) both say which flight the person came
+  // from; `flight` carries no note prefill.
+  const { pairedWith, tastingFlight, flight: flightParam } = await searchParams;
   const domaineId = await currentDomaineId();
   const [flightName, allFlights] = await Promise.all([
     flightNameFor(tastingFlight),
@@ -134,9 +136,92 @@ export default async function BottleDetailPage({ params, searchParams }) {
 
   if (!bottle) notFound();
 
+  // Where they came from, when it was a flight that still exists. Gives the
+  // page a Back that names it, and - for a wine that was just tasted there - a
+  // line saying so, since the flight did the marking and this page otherwise
+  // looks like any other visit (BACKLOG #61).
+  const contextFlightId = [tastingFlight, flightParam]
+    .map((value) => String(value ?? "").trim())
+    .find((value) => /^\d+$/.test(value));
+  const contextFlight = contextFlightId
+    ? await db.tastingFlight.findUnique({
+        where: { id: Number(contextFlightId) },
+        select: {
+          id: true,
+          title: true,
+          summary: true,
+          picks: {
+            where: { bottleId },
+            select: { id: true, consumed: true, originFlightOnly: true },
+          },
+        },
+      })
+    : null;
+  const fromFlight = contextFlight
+    ? { id: contextFlight.id, name: nameOfFlight(contextFlight), pick: contextFlight.picks[0] ?? null }
+    : null;
+  const back = fromFlight
+    ? { href: `/flights/${fromFlight.id}`, label: `Back to ${fromFlight.name}` }
+    : null;
+  const arrivedTasted = Boolean(tastingFlight && fromFlight?.pick?.consumed);
+  // Came here to write a note (via "With note", or from a pairing): the form
+  // goes first, under the arrival line, instead of below everything else.
+  const noteOnTop = Boolean(tastingFlight || pairedWith);
+  const noteDefault = pairedWith
+    ? `Paired with: ${pairedWith}\n\n`
+    : flightName
+      ? `Tasted as part of: ${flightName}\n\n`
+      : "";
+  const heading = [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage || null]
+    .filter(Boolean)
+    .join(" ");
+  const facts = [
+    wineDetail(bottle),
+    [bottle.wineColor, bottle.abv != null ? `${bottle.abv}% ABV` : null].filter(Boolean).join(" · "),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  // What the flight's tap did to the cellar, said plainly.
+  const tastedWhere = fromFlight?.pick?.originFlightOnly
+    ? "now in Tasting notes"
+    : bottle.status === "consumed"
+      ? "that was the last bottle"
+      : `${bottle.quantity} left in your cellar`;
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
-      <BackButton fallbackHref={STATUS_FALLBACK_HREF[bottle.status] ?? "/inventory"} />
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6">
+      <BackButton
+        fallbackHref={back?.href ?? STATUS_FALLBACK_HREF[bottle.status] ?? "/inventory"}
+        label={back?.label}
+      />
+      {arrivedTasted && (
+        <div
+          role="status"
+          className="-mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-green-300 px-4 py-2 text-sm dark:border-green-900"
+        >
+          <span className="font-medium text-green-800 dark:text-green-400">
+            &#10003; Tasted in {fromFlight.name}
+          </span>
+          <span className="text-zinc-600 dark:text-zinc-400">&middot; {tastedWhere}</span>
+          <form action={unmarkFlightPickConsumed.bind(null, fromFlight.pick.id)} className="ml-auto">
+            <button
+              type="submit"
+              className="min-h-11 px-1 text-zinc-600 underline underline-offset-2 dark:text-zinc-400"
+            >
+              Undo
+            </button>
+          </form>
+        </div>
+      )}
+      {noteOnTop && (
+        <TastingNoteForm
+          bottleId={bottle.id}
+          defaultNote={noteDefault}
+          today={todayInputValue()}
+          back={back}
+          title="Your tasting note"
+        />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           {bottle.photoUrl && (
@@ -155,9 +240,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
                   title={bottle.wineColor}
                 />
               )}
-              {bottle.producer}
-              {bottle.vintage ? ` ${bottle.vintage}` : ""}
+              {heading}
             </h1>
+            {facts && <p className="mt-1 text-sm text-zinc-500">{facts}</p>}
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={bottle.status} />
               {bottle.needsResearch && (
@@ -230,18 +315,16 @@ export default async function BottleDetailPage({ params, searchParams }) {
           {/* "Bought it" lives inside TastedControls now (BACKLOG #29
               polish note) - it was the one status-change button on this
               page still a plain, pending-state-free <form>. */}
-          <TastedControls
-            bottleId={bottle.id}
-            status={bottle.status}
-            quantity={bottle.quantity}
-          />
-          <ConfirmButton
-            action={deleteBottle.bind(null, bottle.id)}
-            label="Delete"
-            confirmLabel="Yes, delete"
-            warning={describeDeleteLoss(bottle)}
-            className={dangerButtonClass}
-          />
+          {/* Not shown straight after "With note": the flight has just done
+              this, the line at the top says so, and a second "Tasted one"
+              here would take another bottle off the count. */}
+          {!arrivedTasted && (
+            <TastedControls
+              bottleId={bottle.id}
+              status={bottle.status}
+              quantity={bottle.quantity}
+            />
+          )}
         </div>
         {/* Cellar wines can always add another tasting. A flight-status
             bottle can too, and needs to more - it's the recovery path for
@@ -287,11 +370,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
           thousand pixels tall on a phone. */}
       <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
         <details className="group">
-          <summary className="-mx-1 -my-1 flex cursor-pointer list-none items-center gap-1.5 rounded px-1 py-1 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100">
+          <summary className="-mx-1 -my-2 flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded px-1 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100">
             <span className="inline-block text-zinc-400 transition-transform group-open:rotate-90">
               &#9656;
             </span>
-            Details
+            Edit details
           </summary>
           <div className="mt-3">
             <BottleForm
@@ -339,55 +422,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
           ))}
         </ul>
 
-        <form
-          action={addTastingNote.bind(null, bottle.id)}
-          className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
-        >
-          <label className="flex flex-col gap-1 text-sm">
-            Note
-            <textarea
-              name="note"
-              required
-              rows={3}
-              defaultValue={
-                pairedWith
-                  ? `Paired with: ${pairedWith}\n\n`
-                  : flightName
-                    ? `Tasted as part of: ${flightName}\n\n`
-                    : ""
-              }
-              className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </label>
-          <div className="flex flex-wrap gap-3">
-            <label className="flex max-w-[8rem] flex-col gap-1 text-sm">
-              Rating (1–5, optional)
-              <input
-                name="rating"
-                type="number"
-                min="1"
-                max="5"
-                className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Tasted on
-              {/* Defaults to today, so logging as you drink stays one tap -
-                  but a bottle you opened last month no longer gets stamped
-                  with the day you got round to writing it up. */}
-              <input
-                name="tastedAt"
-                type="date"
-                defaultValue={todayInputValue()}
-                max={todayInputValue()}
-                className="rounded border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
-              />
-            </label>
-          </div>
-          <button type="submit" className={`self-start ${buttonClass}`}>
-            Add tasting note
-          </button>
-        </form>
+        {!noteOnTop && (
+          <TastingNoteForm bottleId={bottle.id} defaultNote={noteDefault} today={todayInputValue()} />
+        )}
       </section>
 
       <section className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
@@ -431,6 +468,19 @@ export default async function BottleDetailPage({ params, searchParams }) {
         proposal={bottle.researchProposal}
         regionOptions={regionOptions}
       />
+
+      {/* At the foot, not beside Tasted at the top: deleting a wine is rare,
+          and the first screen of a page usually opened for something harmless
+          should not have a red button on it. */}
+      <div className="flex flex-col items-start border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <ConfirmButton
+          action={deleteBottle.bind(null, bottle.id)}
+          label="Delete this wine"
+          confirmLabel="Yes, delete"
+          warning={describeDeleteLoss(bottle)}
+          className={dangerButtonClass}
+        />
+      </div>
     </div>
   );
 }
