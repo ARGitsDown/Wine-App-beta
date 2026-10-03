@@ -75,6 +75,12 @@ export default async function FlightDetailPage({ params }) {
   // empty flight is not finished, it is just unstarted (and Delete is the
   // right word for putting one of those away).
   const allTasted = flight.picks.length > 0 && flight.picks.every((pick) => pick.consumed);
+  // What "Complete flight" would still have to mark tasted, split the way the
+  // confirm has to say it: a cellar wine comes off its count, a flight-only
+  // wine moves to Tasting notes (markFlightPickConsumed).
+  const untasted = flight.picks.filter((pick) => !pick.consumed);
+  const untastedFlightOnly = untasted.filter((pick) => pick.originFlightOnly).length;
+  const untastedCellar = untasted.length - untastedFlightOnly;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
@@ -95,24 +101,14 @@ export default async function FlightDetailPage({ params }) {
             Saved {new Date(flight.createdAt).toLocaleDateString()}
           </p>
         </div>
-        {/* Two different acts, so two different words. A flight whose every
-            wine has been tasted is finished: each wine is already logged, so
-            what is left to do is put the flight away, and a red "Delete" on a
-            flight that went well read as destroying something. One with wines
-            still to pour is being thrown away, which is what Delete says. */}
-        {allTasted ? (
-          <ConfirmButton
-            action={completeTastingFlight.bind(null, flight.id)}
-            label="Complete flight"
-            confirmLabel="Yes, complete it"
-            tone="neutral"
-            warning={`All ${flight.picks.length} wine${
-              flight.picks.length === 1 ? " is" : "s are"
-            } tasted and logged, with their notes. This clears the flight from your list.`}
-            className={neutralButtonClass}
-            confirmClassName={neutralConfirmClass}
-          />
-        ) : (
+        {/* The way to finish sits at the top, beside the title, and it works
+            whether or not each wine was ticked off one by one: with wines
+            still untasted it marks them all tasted and then clears the
+            flight, so nobody has to tap through a dozen rows to be done.
+            An empty flight has nothing to complete, so it gets Delete here
+            instead. Throwing a flight away without tasting is Delete's job,
+            and it sits at the foot of the page. */}
+        {flight.picks.length === 0 ? (
           <ConfirmButton
             action={deleteTastingFlight.bind(null, flight.id)}
             label="Delete flight"
@@ -133,6 +129,32 @@ export default async function FlightDetailPage({ params }) {
                   }. The bottles themselves stay in your cellar.`
             }
             className={dangerButtonClass}
+          />
+        ) : (
+          <ConfirmButton
+            action={completeTastingFlight.bind(null, flight.id)}
+            label="Complete flight"
+            confirmLabel={allTasted ? "Yes, complete it" : "Yes, mark all tasted"}
+            tone="neutral"
+            warning={
+              allTasted
+                ? `All ${flight.picks.length} wine${
+                    flight.picks.length === 1 ? " is" : "s are"
+                  } tasted and logged, with their notes. This clears the flight from your list.`
+                : `Marks the ${untasted.length} untasted wine${
+                    untasted.length === 1 ? "" : "s"
+                  } as tasted${
+                    untastedCellar > 0
+                      ? ` (${untastedCellar} from your cellar - one bottle each comes off its count${
+                          untastedFlightOnly > 0 ? `; ${untastedFlightOnly} move to Tasting notes` : ""
+                        })`
+                      : untastedFlightOnly > 0
+                        ? ` (they move to Tasting notes)`
+                        : ""
+                  }, then clears the flight. Add notes first if you want them.`
+            }
+            className={neutralButtonClass}
+            confirmClassName={neutralConfirmClass}
           />
         )}
       </div>
@@ -158,6 +180,34 @@ export default async function FlightDetailPage({ params }) {
         defaultOpen={flight.picks.length === 0}
         photoHref={`/flights/${flight.id}/scan`}
       />
+
+      {/* Discarding a flight that was never tasted: the opposite of
+          completing one, so it is apart from it and quieter. */}
+      {flight.picks.length > 0 && (
+        <div className="flex flex-col items-start gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <ConfirmButton
+            action={deleteTastingFlight.bind(null, flight.id)}
+            label="Delete flight"
+            confirmLabel="Yes, delete"
+            warning={
+              originFlightOnlyCount > 0
+                ? `Deletes this flight and its ${flight.picks.length} pick${
+                    flight.picks.length === 1 ? "" : "s"
+                  }. ${originFlightOnlyCount} of these wine${
+                    originFlightOnlyCount === 1 ? " was" : "s were"
+                  } only ever in this flight and will have nowhere else to appear.${
+                    flight.picks.length > originFlightOnlyCount
+                      ? " The rest stay in your cellar."
+                      : ""
+                  }`
+                : `Deletes this flight and its ${flight.picks.length} pick${
+                    flight.picks.length === 1 ? "" : "s"
+                  }. The bottles themselves stay in your cellar.`
+            }
+            className={dangerButtonClass}
+          />
+        </div>
+      )}
     </div>
   );
 }

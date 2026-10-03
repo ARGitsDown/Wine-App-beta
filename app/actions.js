@@ -2914,6 +2914,19 @@ export async function markFlightPickConsumed(pickId) {
   revalidatePath("/flights");
 }
 
+// "Tasted + note", one tap from the flight page: marks the pick tasted exactly
+// as above, then opens the bottle's own page with the tasting-note form
+// already tied to this flight (the same link "Log a tasting note" uses).
+export async function markFlightPickConsumedAndNote(pickId) {
+  const pick = await db.flightPick.findUnique({
+    where: { id: pickId },
+    select: { flightId: true, bottleId: true },
+  });
+  if (!pick) return;
+  await markFlightPickConsumed(pickId);
+  redirect(`/bottles/${pick.bottleId}?tastingFlight=${pick.flightId}`);
+}
+
 // Undoes markFlightPickConsumed - marking a pick tasted now moves the
 // bottle somewhere real (Cellar quantity down, or status straight to
 // consumed), not just a checklist flag, so a mis-tap needs a way back the
@@ -2950,19 +2963,28 @@ export async function unmarkFlightPickConsumed(pickId) {
   revalidatePath("/flights");
 }
 
-// Finishing a flight, once every wine in it has been tasted. The same
-// removal as deleteTastingFlight - each tasted wine is already logged, so
-// the flight has nothing left to hold - under the word that matches what
-// the owner is doing, and refusing when it isn't true: a page left open
-// while a pick is un-tasted in another tab would otherwise "complete" a
-// flight that still has wines to pour. A refused call just re-renders the
-// page, which then offers Delete instead.
+// Finishing a flight: marks whatever is still untasted as tasted, then clears
+// the flight. With every wine already ticked off that is just the clearing -
+// each tasted wine is logged, so the flight has nothing left to hold. With
+// some left it is the shortcut for someone who would rather not tap through
+// every row: each remaining pick goes through markFlightPickConsumed, so a
+// cellar wine comes off its count by one and a flight-only wine moves to
+// Tasting notes, exactly as if each had been tapped (the page's confirm says
+// so before it runs). No notes are written; "Tasted + note" on a row is for
+// that. An empty flight is not completed, only deleted - there is nothing to
+// finish.
+//
+// Safe to run twice: markFlightPickConsumed skips a pick already tasted, so
+// a failure partway leaves a flight that can simply be completed again.
 export async function completeTastingFlight(id) {
   const flight = await db.tastingFlight.findUnique({
     where: { id },
-    select: { picks: { select: { consumed: true } } },
+    select: { picks: { select: { id: true, consumed: true } } },
   });
-  if (flight && flight.picks.length > 0 && flight.picks.every((pick) => pick.consumed)) {
+  if (flight && flight.picks.length > 0) {
+    for (const pick of flight.picks) {
+      if (!pick.consumed) await markFlightPickConsumed(pick.id);
+    }
     await db.tastingFlight.delete({ where: { id } });
     revalidatePath("/flights");
     redirect("/flights");

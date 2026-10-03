@@ -861,9 +861,10 @@ export default function ScanPanel({
       <h1 className="text-2xl font-semibold">{flight ? "Add wines by photo" : "Scan"}</h1>
       {flight && (
         <p className="-mt-3 text-sm text-zinc-500">
-          Every wine read here goes straight into{" "}
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">{flight.name}</span>
-          , and stays out of your cellar. A bottle label, a shelf, or a whole tasting sheet.
+          Wines read here are added to{" "}
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">{flight.name}</span>{" "}
+          only - nothing is added to your cellar. A bottle label, a shelf, or a whole
+          tasting sheet.
         </p>
       )}
 
@@ -1122,7 +1123,13 @@ export default function ScanPanel({
               <div className="flex flex-1 flex-col gap-2">
                 {photo.status === "loading" && (
                   <p className="text-sm text-zinc-500">
-                    <Spinner label="Reading the photo and checking your cellar…" />
+                    <Spinner
+                      label={
+                        flight
+                          ? "Reading the photo…"
+                          : "Reading the photo and checking your cellar…"
+                      }
+                    />
                   </p>
                 )}
 

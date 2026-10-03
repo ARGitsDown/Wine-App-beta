@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   markFlightPickConsumed,
+  markFlightPickConsumedAndNote,
   unmarkFlightPickConsumed,
   removeFlightPick,
   moveFlightPick,
@@ -11,8 +12,12 @@ import {
 import ConfirmButton from "@/app/components/ConfirmButton";
 import StatusBadge from "@/app/components/StatusBadge";
 
-const buttonClass =
-  "rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900";
+// The two taps on a wine that has not been tasted yet, shown on its collapsed
+// row. Equal weight, side by side: which one is wanted depends on the wine,
+// not on a default, and both are one tap (see markFlightPickConsumed and
+// markFlightPickConsumedAndNote).
+const quickButtonClass =
+  "flex min-h-11 w-full items-center justify-center rounded-lg border border-zinc-300 px-2 text-sm font-medium dark:border-zinc-700";
 const undoButtonClass =
   "min-h-11 rounded-lg border border-zinc-300 px-3 text-sm dark:border-zinc-700";
 // 44px, not the 24px this used to be (BACKLOG #29) - reordering a flight is
@@ -97,6 +102,32 @@ export default function FlightPicksList({ flightId, picks }) {
               )}
             </button>
 
+            {/* Where the flight is actually used - at the table, a bottle at a
+                time - so tasting a wine is not behind an expand. A tasted
+                wine's row stays a single line. */}
+            {!pick.consumed && (
+              <div className="grid grid-cols-2 gap-2 px-4 pb-3">
+                <form action={markFlightPickConsumed.bind(null, pick.id)}>
+                  <button
+                    type="submit"
+                    aria-label={`${tastedLabel(pick.bottle)}: ${bottleHeader(pick.bottle)}`}
+                    className={quickButtonClass}
+                  >
+                    {tastedLabel(pick.bottle)}
+                  </button>
+                </form>
+                <form action={markFlightPickConsumedAndNote.bind(null, pick.id)}>
+                  <button
+                    type="submit"
+                    aria-label={`Tasted, and add a tasting note: ${bottleHeader(pick.bottle)}`}
+                    className={quickButtonClass}
+                  >
+                    Tasted + note
+                  </button>
+                </form>
+              </div>
+            )}
+
             {expanded && (
               <div className="flex flex-col gap-3 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
                 {/* A pick added by hand has no argument attached to it -
@@ -160,13 +191,7 @@ export default function FlightPicksList({ flightId, picks }) {
                         Undo
                       </button>
                     </form>
-                  ) : (
-                    <form action={markFlightPickConsumed.bind(null, pick.id)}>
-                      <button type="submit" className={buttonClass}>
-                        {tastedLabel(pick.bottle)}
-                      </button>
-                    </form>
-                  )}
+                  ) : null}
                   {/* The id, not the text: the note prefill then renders
                       whichever of title/summary this flight actually has,
                       instead of freezing a copy into the URL. Left visible

@@ -3615,6 +3615,25 @@ completing deletes, as before.
   with the bottle search opening below (`FlightBottlePicker` takes a
   `photoHref`; its collapsible became an `aria-expanded` button). On an empty
   flight the search is still open to begin with.
+- **Revised the same day (owner).** "Complete flight" is now at the top
+  whether or not every wine is tasted: with some left it marks them all tasted
+  and then clears the flight (`completeTastingFlight` runs each remaining pick
+  through `markFlightPickConsumed`, so the effects are exactly those of tapping
+  each - a cellar wine's count down by one, a flight-only wine to Tasting
+  notes - and a failure partway can simply be re-run). The confirm spells out
+  those effects. Delete moved to the foot of the page, as the quieter way to
+  discard an untasted flight; an empty flight keeps Delete at the top. Each
+  untasted pick also shows **Tasted** and **Tasted + note** on its collapsed
+  row (`markFlightPickConsumedAndNote` marks it, then opens the bottle's note
+  form tied to the flight); a tasted row stays one line, and Undo is still in
+  the expanded row. A cost to know: two buttons add about 56px under each
+  untasted wine, so a long untasted flight is taller than before.
+- **Wording on the flight scan page.** It said wines "stay out of your cellar",
+  and the card spinner said "checking your cellar" (true - Claude looks for
+  existing matches - but it read as if the wines went there). The flow was
+  never wrong: scanned wines get the Flight status and no cellar quantity. The
+  intro now says wines are added to the flight only, "nothing is added to your
+  cellar", and the spinner just says "Reading the photo…" in flight mode.
 - **A race fixed on the way.** Appending picks was "last order + 1", a read
   then a write; three photos finishing together (the panel reads three at
   once) would write the same order. `appendFlightPicks` does it in a

@@ -215,8 +215,13 @@ or multiple locations in one cellar.
   inside that flight, where every wine read goes straight into it (as a
   flight-only wine, never counted in the cellar) with no destination to
   choose and no "which flight?" step afterward. Once every wine in a flight
-  is tasted, the button that clears it is **Complete flight**; while some
-  are still to pour it stays **Delete flight**.
+  is tasted - or even if not - **Complete flight**, at the top of its page,
+  clears it: with wines still untasted it first marks them all tasted (a
+  cellar wine comes off its count by one, a flight-only wine moves to
+  Tasting notes; the confirm says which), so nobody has to tap through every
+  row. **Delete flight**, at the foot, throws one away without tasting.
+  On each untasted wine's row there are two one-tap buttons, **Tasted** and
+  **Tasted + note** (which marks it and opens its note form for this flight).
 - **Guests** (`/guest`) — someone invited from People (`/invites`) as a Guest
   signs in with their own address and lands here: a read-only view of the
   Domaine's cellar where they can favorite bottles they'd like pulled for
