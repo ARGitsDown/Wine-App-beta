@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { isEmailConfigured } from "@/lib/auth";
@@ -82,7 +83,7 @@ export async function GET(request) {
 
     try {
       const bottles = await prisma.bottle.findMany({
-        where: { domaineId: person.domaineId, status: "inventory" },
+        where: { domaineId: person.domaineId, status: BOTTLE_STATUS.INVENTORY },
         select: {
           producer: true,
           bottling: true,

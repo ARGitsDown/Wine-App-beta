@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
@@ -76,7 +77,7 @@ export default async function FlightDetailPage({ params }) {
   const picked = new Set(flight.picks.map((pick) => pick.bottleId));
   const candidates = (
     await db.bottle.findMany({
-      where: { status: { in: ["inventory", "flight"] } },
+      where: { status: { in: [BOTTLE_STATUS.INVENTORY, BOTTLE_STATUS.FLIGHT] } },
       select: {
         id: true,
         producer: true,
@@ -134,7 +135,7 @@ export default async function FlightDetailPage({ params }) {
               Print card
             </Link>
           )}
-          <StatusBadge status="flight" />
+          <StatusBadge status={BOTTLE_STATUS.FLIGHT} />
         </div>
       </div>
 

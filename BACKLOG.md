@@ -4612,3 +4612,15 @@ inline, unchanged:** the single-bottle Research on a wine's own page and the sca
 up" (`researchBottle`), which want their answer there and then. Two runs going at once means two
 searches in flight against the API at once; if that ever meets a rate limit, the fix is a lock per
 Domaine in `runResearchJobStep`.
+
+### 67 follow-up: status literals moved (2026-10-04)
+
+Every `Bottle.status` word in `app/` and `lib/` (about 150 places) is now spelled through
+`BOTTLE_STATUS` (`lib/bottle-status.js`), including the maps keyed by status (`STATUS_LOOK`,
+`LIST_NAMES`, the bottle page's fallback links, the import destinations). A check in
+`scripts/constants.test.mjs` fails the build if a raw status word comes back. Deliberately left
+as words, because they are other vocabularies that share a spelling: the scan *intents* ("cellar",
+"wishlist", "tasting", "flight" in `lib/scan-intent.js` and `ScanPanel`), the Prisma relation
+name `FlightPick: "flight"` in `lib/scoped-prisma.js`, and the plain-English "your wishlist" in a
+warning. Unrelated words that look alike (`FlightPick.consumed`, the pairing result "wishlist-existing")
+were not touched. No behaviour change; migrations and `scripts/` still carry the words in SQL.

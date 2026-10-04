@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { db } from "@/lib/scoped-prisma";
 import EstimateWindowsPanel from "@/app/components/EstimateWindowsPanel";
 import AiLimitNotice from "@/app/components/AiLimitNotice";
@@ -11,7 +12,7 @@ function bottleHeader(bottle) {
 
 export default async function EstimateWindowsPage() {
   const bottles = await db.bottle.findMany({
-    where: { status: "inventory", drinkFrom: null, drinkTo: null },
+    where: { status: BOTTLE_STATUS.INVENTORY, drinkFrom: null, drinkTo: null },
     select: {
       id: true,
       producer: true,

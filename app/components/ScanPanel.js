@@ -1,5 +1,6 @@
 "use client";
 
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -368,13 +369,13 @@ const INTENT_LOOK = {
 const DESTINATIONS = [
   // Sorted newest-first, so finishing a scan lands on the wines just added
   // rather than on whatever happens to sort first by producer.
-  { value: "inventory", label: "Cellar", path: "/inventory?sort=acquired", Icon: CellarIcon, accent: INTENT_LOOK.cellar.accent },
-  { value: "wishlist", label: "Wishlist", path: "/wishlist", Icon: WishlistIcon, accent: INTENT_LOOK.wishlist.accent },
-  { value: "consumed", label: "Tasted", path: "/consumed", Icon: TastingHistoryIcon, accent: INTENT_LOOK.tasting.accent },
+  { value: BOTTLE_STATUS.INVENTORY, label: "Cellar", path: "/inventory?sort=acquired", Icon: CellarIcon, accent: INTENT_LOOK.cellar.accent },
+  { value: BOTTLE_STATUS.WISHLIST, label: "Wishlist", path: "/wishlist", Icon: WishlistIcon, accent: INTENT_LOOK.wishlist.accent },
+  { value: BOTTLE_STATUS.CONSUMED, label: "Tasted", path: "/consumed", Icon: TastingHistoryIcon, accent: INTENT_LOOK.tasting.accent },
   // No list page of its own to link to - a flight-status bottle's only
   // home is the flight it belongs to, so this points at the flights index
   // rather than a page that would show nothing for it specifically.
-  { value: "flight", label: "Flight", path: "/flights", Icon: FlightsIcon, accent: INTENT_LOOK.flight.accent },
+  { value: BOTTLE_STATUS.FLIGHT, label: "Flight", path: "/flights", Icon: FlightsIcon, accent: INTENT_LOOK.flight.accent },
 ];
 
 function destinationFor(status) {
@@ -741,7 +742,7 @@ export default function ScanPanel({
       for (const entry of photo.entries) {
         if (entry.kind !== "saved") continue;
         counts[entry.bottle.status] = (counts[entry.bottle.status] ?? 0) + 1;
-        if (entry.bottle.status === "flight") {
+        if (entry.bottle.status === BOTTLE_STATUS.FLIGHT) {
           candidates.push({ id: entry.bottle.id, title: wineTitle(entry.bottle) });
           eventLabelFromBatch ??= entry.bottle.eventLabel || null;
         }
@@ -917,7 +918,7 @@ export default function ScanPanel({
                   // /flights, which has no record of these wines at all
                   // until the panel's own choice is made. Plain text here
                   // points at the panel instead of away from it.
-                  if (d.value === "flight" && pendingFlight) {
+                  if (d.value === BOTTLE_STATUS.FLIGHT && pendingFlight) {
                     return (
                       <span key={d.value} className="text-zinc-600 dark:text-zinc-400">
                         {finished[d.value]} waiting for a flight &darr;
@@ -1165,7 +1166,7 @@ export default function ScanPanel({
         flightPending={
           !flight &&
           (Boolean(pendingFlight) ||
-            photos.some((p) => p.entries.some((e) => e.kind === "saved" && e.bottle.status === "flight")))
+            photos.some((p) => p.entries.some((e) => e.kind === "saved" && e.bottle.status === BOTTLE_STATUS.FLIGHT)))
         }
       />
 
@@ -1474,12 +1475,12 @@ export default function ScanPanel({
                           label="Delete this wine"
                           confirmLabel="Yes, delete it"
                           warning={
-                            entry.bottle.status === "flight"
+                            entry.bottle.status === BOTTLE_STATUS.FLIGHT
                               ? `Deletes ${entry.bottle.producer || "this wine"}. It was never in your cellar to begin with.`
                               : `Deletes ${entry.bottle.producer || "this wine"} from your ${
-                                  entry.bottle.status === "wishlist"
+                                  entry.bottle.status === BOTTLE_STATUS.WISHLIST
                                     ? "wishlist"
-                                    : entry.bottle.status === "consumed"
+                                    : entry.bottle.status === BOTTLE_STATUS.CONSUMED
                                       ? "tasting notes"
                                       : "cellar"
                                 }.`

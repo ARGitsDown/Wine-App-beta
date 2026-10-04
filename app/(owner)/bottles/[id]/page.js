@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
@@ -42,13 +43,13 @@ export const dynamic = "force-dynamic";
 // since that's the one place among the half-dozen this page is reached
 // from that's always right.
 const STATUS_FALLBACK_HREF = {
-  inventory: "/inventory",
-  wishlist: "/wishlist",
-  consumed: "/consumed",
+  [BOTTLE_STATUS.INVENTORY]: "/inventory",
+  [BOTTLE_STATUS.WISHLIST]: "/wishlist",
+  [BOTTLE_STATUS.CONSUMED]: "/consumed",
   // No list page of its own - the flights index is the closest thing a
   // flight-status bottle has to a home (see the Bottle.status comment in
   // prisma/schema.prisma).
-  flight: "/flights",
+  [BOTTLE_STATUS.FLIGHT]: "/flights",
 };
 
 // Deleting a bottle cascades to everything hanging off it. Naming what
@@ -150,11 +151,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
   // narrows by producer; the same-wine key (which ignores case, spacing and
   // accents) decides.
   const otherLots =
-    bottle.status === "inventory"
+    bottle.status === BOTTLE_STATUS.INVENTORY
       ? (
           await db.bottle.findMany({
             where: {
-              status: "inventory",
+              status: BOTTLE_STATUS.INVENTORY,
               id: { not: bottle.id },
               producer: { equals: bottle.producer, mode: "insensitive" },
             },
@@ -223,7 +224,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
   // What the flight's tap did to the cellar, said plainly.
   const tastedWhere = fromFlight?.pick?.originFlightOnly
     ? "now in Tasting notes"
-    : bottle.status === "consumed"
+    : bottle.status === BOTTLE_STATUS.CONSUMED
       ? "that was the last bottle"
       : `${bottle.quantity} left in your cellar`;
 
@@ -282,10 +283,10 @@ export default async function BottleDetailPage({ params, searchParams }) {
               {heading}
             </h1>
             {facts && <p className="mt-1 text-sm text-zinc-500">{facts}</p>}
-            {(lotLine(bottle) || (bottle.status === "inventory" && otherLots.length > 0)) && (
+            {(lotLine(bottle) || (bottle.status === BOTTLE_STATUS.INVENTORY && otherLots.length > 0)) && (
               <p className="mt-1 text-sm text-zinc-500">
                 {[
-                  bottle.status === "inventory" && otherLots.length > 0
+                  bottle.status === BOTTLE_STATUS.INVENTORY && otherLots.length > 0
                     ? `${bottle.quantity} bottle${bottle.quantity === 1 ? "" : "s"}`
                     : null,
                   lotLine(bottle),
@@ -320,7 +321,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
                   to open it is no longer a question. */}
               {!bottle.drinkFrom &&
                 !bottle.drinkTo &&
-                bottle.status !== "consumed" && (
+                bottle.status !== BOTTLE_STATUS.CONSUMED && (
                   <EstimateWindowButton bottleId={bottle.id} />
                 )}
               {/* Here rather than on a line of its own: when a bottle was
@@ -330,7 +331,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
                   it. A wishlist bottle isn't owned, so there is nothing to
                   date - a flight-status bottle isn't either, for the same
                   reason (see acquiredAtForStatus). */}
-              {bottle.status !== "wishlist" && bottle.status !== "flight" && (
+              {bottle.status !== BOTTLE_STATUS.WISHLIST && bottle.status !== BOTTLE_STATUS.FLIGHT && (
                 <div className="flex flex-wrap items-center gap-1 py-0.5 text-xs text-zinc-500">
                   Acquired
                   <InlineDateEditor
@@ -349,7 +350,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
                 need it again here. Without a note there is nowhere else for
                 it to appear - or to be corrected - so it stays, under the
                 name the owner uses for it. */}
-            {bottle.status === "consumed" && bottle.tastingNotes.length === 0 && (
+            {bottle.status === BOTTLE_STATUS.CONSUMED && bottle.tastingNotes.length === 0 && (
               // A div, not a p: the editor renders a <form> once open, and
               // a form can't legally nest inside a paragraph.
               <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-zinc-500">
@@ -394,11 +395,11 @@ export default async function BottleDetailPage({ params, searchParams }) {
             exactly the stranded case BACKLOG #38 names, reachable from
             here since this page (Research, an old scan card, a direct
             link) is often the only way back to one. Restricted to
-            "inventory" alone used to hide this control from the one
+            BOTTLE_STATUS.INVENTORY alone used to hide this control from the one
             status that most needed it (a UX review, 2026-09-27). Once
             it's actually linked, naming where beats offering to add it
             again. */}
-        {bottle.status === "flight" && bottle.flightPicks.length > 0 ? (
+        {bottle.status === BOTTLE_STATUS.FLIGHT && bottle.flightPicks.length > 0 ? (
           <p className="text-sm text-zinc-500">
             In:{" "}
             {bottle.flightPicks
@@ -414,7 +415,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
               .reduce((prev, curr) => [prev, ", ", curr])}
           </p>
         ) : (
-          (bottle.status === "inventory" || bottle.status === "flight") && (
+          (bottle.status === BOTTLE_STATUS.INVENTORY || bottle.status === BOTTLE_STATUS.FLIGHT) && (
             <AddToFlight bottleId={bottle.id} flights={openFlights} />
           )
         )}
@@ -423,7 +424,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
       {/* Where else this wine is: its other lots, and the way to add one. In
           view rather than inside the closed "Wine details", so a purchase just
           added shows up here and is not added twice by mistake. */}
-      {bottle.status === "inventory" && (
+      {bottle.status === BOTTLE_STATUS.INVENTORY && (
         <section className="flex flex-col gap-2">
           {otherLots.length > 0 && (
             <>
@@ -492,7 +493,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
               submitLabel="Save changes"
               regionOptions={regionOptions}
               showLotFields
-              showLocation={bottle.status === "inventory"}
+              showLocation={bottle.status === BOTTLE_STATUS.INVENTORY}
               locationOptions={locationOptions}
               idPrefix="bottle-details"
             />

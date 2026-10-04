@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { getBottles, getLocationOptions, getRegionOptions } from "@/lib/bottles";
 import { currentDomaineId } from "@/lib/owner";
 import { createBottle } from "@/app/actions";
@@ -11,7 +12,7 @@ export default async function WishlistPage({ searchParams }) {
   const filters = await searchParams;
   const domaineId = await currentDomaineId();
   const [bottles, regionOptions, locationOptions] = await Promise.all([
-    getBottles("wishlist"),
+    getBottles(BOTTLE_STATUS.WISHLIST),
     getRegionOptions(domaineId),
     getLocationOptions(),
   ]);
@@ -31,7 +32,7 @@ export default async function WishlistPage({ searchParams }) {
           turns out to belong somewhere else can be moved on its own card. */}
       <ScanAndAddRow scanHref="/scan?intent=wishlist">
         <BottleForm
-          action={createBottle.bind(null, "wishlist")}
+          action={createBottle.bind(null, BOTTLE_STATUS.WISHLIST)}
           regionOptions={regionOptions}
         />
       </ScanAndAddRow>

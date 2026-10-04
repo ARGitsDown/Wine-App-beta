@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { wineKey } from "@/lib/wine-key";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -47,7 +48,7 @@ export default async function GuestPage({ searchParams }) {
   // by the Domaine resolveGuestView settled on above.
   const [rows, regionOptions, filters] = await Promise.all([
     prisma.bottle.findMany({
-      where: { status: "inventory", domaineId },
+      where: { status: BOTTLE_STATUS.INVENTORY, domaineId },
       // An allowlist (lib/guest.js): this goes to the browser.
       select: {
         ...GUEST_BOTTLE_SELECT,

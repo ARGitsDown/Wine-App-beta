@@ -1,5 +1,6 @@
 "use client";
 
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { addBottleToFlight } from "@/app/actions";
@@ -38,7 +39,7 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
       // could otherwise bury one past the 12-row cap before it's ever
       // seen (a UX review, 2026-09-27).
       [...bottles]
-        .sort((a, b) => (a.status === "flight" ? 0 : 1) - (b.status === "flight" ? 0 : 1))
+        .sort((a, b) => (a.status === BOTTLE_STATUS.FLIGHT ? 0 : 1) - (b.status === BOTTLE_STATUS.FLIGHT ? 0 : 1))
         .map((bottle) => ({
           ...bottle,
           haystack: [
@@ -112,8 +113,8 @@ export default function FlightBottlePicker({ flightId, bottles, defaultOpen = fa
                     path for - unlinked and easy to mistake for an
                     ordinary cellar bottle otherwise (a UX review,
                     2026-09-27). */}
-                {bottle.status === "flight" && (
-                  <StatusBadge status="flight" className="ml-1.5" />
+                {bottle.status === BOTTLE_STATUS.FLIGHT && (
+                  <StatusBadge status={BOTTLE_STATUS.FLIGHT} className="ml-1.5" />
                 )}
               </span>
               <button

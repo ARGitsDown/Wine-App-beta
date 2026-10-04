@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import BackButton from "@/app/components/BackButton";
 import ImportPanel from "@/app/components/ImportPanel";
 import RecentImports from "@/app/components/RecentImports";
@@ -28,7 +29,7 @@ export default async function ImportPage() {
     .map((batch, i) => ({
       id: batch.id,
       remaining: remaining[i],
-      destination: batch.status === "inventory" ? "Cellar" : "Wishlist",
+      destination: batch.status === BOTTLE_STATUS.INVENTORY ? "Cellar" : "Wishlist",
       when: batch.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     }))
     .filter((batch) => batch.remaining > 0);

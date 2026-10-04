@@ -59,6 +59,28 @@ for (const path of files) {
 }
 t("no raw role/access/feature literals in app/ or lib/", offenders, []);
 
+// Bottle.status words: spelled through BOTTLE_STATUS, not as literals. What is
+// left are other vocabularies that happen to share a word - the scan intents
+// ("wishlist", "flight"), the Prisma relation name FlightPick: "flight" - and
+// the plain-English "from your wishlist" in a warning.
+const statusLiteral = /["'](inventory|wishlist|consumed|flight)["']/;
+const otherVocabulary = (path, text) =>
+  path.endsWith("lib/bottle-status.js") ||
+  path.endsWith("lib/scoped-prisma.js") ||
+  /\bintent\b/.test(text) ||
+  (path.endsWith("lib/scan-intent.js") && /\bvalue:/.test(text)) ||
+  /\?\s*"wishlist"\s*$/.test(text) ||
+  /\bhref=/.test(text);
+const statusOffenders = [];
+for (const path of files) {
+  for (const { text, n } of codeLines(path)) {
+    if (statusLiteral.test(text) && !otherVocabulary(path, text)) {
+      statusOffenders.push(`${path.replace(/.*\/(app|lib)\//, "$1/")}:${n}  ${text.trim()}`);
+    }
+  }
+}
+t("no raw bottle-status literals in app/ or lib/", statusOffenders, []);
+
 t("the four stored bottle statuses", [...BOTTLE_STATUS_VALUES].sort(), ["consumed", "flight", "inventory", "wishlist"]);
 t("a status is checked", [isBottleStatus("inventory"), isBottleStatus("Inventory"), isBottleStatus("gone"), isBottleStatus(null)], [true, false, false, false]);
 const migration = readFileSync("prisma/migrations/20261004090000_bottle_status_known/migration.sql", "utf8");

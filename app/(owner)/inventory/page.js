@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import Link from "next/link";
 import { getBottles, getLocationOptions, getRegionOptions } from "@/lib/bottles";
 import { db } from "@/lib/scoped-prisma";
@@ -15,11 +16,11 @@ export default async function CellarPage({ searchParams }) {
   const filters = await searchParams;
   const domaineId = await currentDomaineId();
   const [bottles, regionOptions, locationOptions, missingWindowCount, allFlights] = await Promise.all([
-    getBottles("inventory"),
+    getBottles(BOTTLE_STATUS.INVENTORY),
     getRegionOptions(domaineId),
     getLocationOptions(),
     db.bottle.count({
-      where: { status: "inventory", drinkFrom: null, drinkTo: null },
+      where: { status: BOTTLE_STATUS.INVENTORY, drinkFrom: null, drinkTo: null },
     }),
     db.tastingFlight.findMany({
       select: {
@@ -72,7 +73,7 @@ export default async function CellarPage({ searchParams }) {
           corrected. */}
       <ScanAndAddRow scanHref="/scan?intent=cellar">
         <BottleForm
-          action={createBottle.bind(null, "inventory")}
+          action={createBottle.bind(null, BOTTLE_STATUS.INVENTORY)}
           regionOptions={regionOptions}
           showLotFields
           locationOptions={locationOptions}

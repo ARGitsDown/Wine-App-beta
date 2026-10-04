@@ -1,5 +1,6 @@
 "use client";
 
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { adjustBottleQuantity } from "@/app/actions";
@@ -106,7 +107,7 @@ export default function BottleList({
   return (
     <ul className="flex flex-col gap-1.5">
       {bottles.map((bottle) => {
-        const severalLots = bottle.status === "inventory" && lotsOfWine.get(wineSiblingKey(bottle)) > 1;
+        const severalLots = bottle.status === BOTTLE_STATUS.INVENTORY && lotsOfWine.get(wineSiblingKey(bottle)) > 1;
         const expanded = expandedIds.has(bottle.id);
         // Origin and the drinking window share one quiet line rather than
         // each getting their own - both are worth scanning by, neither is
@@ -239,7 +240,7 @@ export default function BottleList({
                   )}
                   {/* History is a record of what's gone, so its count is
                       not something to nudge up and down after the fact. */}
-                  {bottle.status === "consumed" ? (
+                  {bottle.status === BOTTLE_STATUS.CONSUMED ? (
                     <div className="text-xs text-zinc-400">Qty: {bottle.quantity}</div>
                   ) : (
                     <QuantityStepper bottle={bottle} />
@@ -251,7 +252,7 @@ export default function BottleList({
                       component and the same markOneTasted the bottle page
                       uses, not a second implementation - it already
                       self-gates to nothing on a wishlist row. */}
-                  {bottle.status === "wishlist" && (
+                  {bottle.status === BOTTLE_STATUS.WISHLIST && (
                     <BoughtIt
                       bottleId={bottle.id}
                       quantity={bottle.quantity}
@@ -261,7 +262,7 @@ export default function BottleList({
                       locationOptions={locationOptions}
                     />
                   )}
-                  {bottle.status === "inventory" && (
+                  {bottle.status === BOTTLE_STATUS.INVENTORY && (
                     <TastedControls
                       bottleId={bottle.id}
                       status={bottle.status}
@@ -269,7 +270,7 @@ export default function BottleList({
                       name={wineLabel(bottle)}
                     />
                   )}
-                  {flights !== null && bottle.status === "inventory" && (
+                  {flights !== null && bottle.status === BOTTLE_STATUS.INVENTORY && (
                     <AddToFlight bottleId={bottle.id} flights={flights} />
                   )}
                   <Link

@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import Link from "next/link";
 import { db } from "@/lib/scoped-prisma";
 import { flightName, isOpenFlight } from "@/lib/flights";
@@ -19,7 +20,7 @@ export default async function FlightsPage() {
     // app that finds it again. Newest first, so a batch abandoned five
     // minutes ago surfaces before one from months back.
     db.bottle.findMany({
-      where: { status: "flight", flightPicks: { none: {} } },
+      where: { status: BOTTLE_STATUS.FLIGHT, flightPicks: { none: {} } },
       select: { id: true, producer: true, bottling: true, vintage: true },
       orderBy: { id: "desc" },
     }),

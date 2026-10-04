@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import Link from "next/link";
 import { db } from "@/lib/scoped-prisma";
 import {
@@ -70,8 +71,8 @@ export default async function HomePage() {
     cellarWindows,
     binCount,
   ] = await Promise.all([
-      db.bottle.count({ where: { status: "inventory" } }),
-      db.bottle.count({ where: { status: "wishlist" } }),
+      db.bottle.count({ where: { status: BOTTLE_STATUS.INVENTORY } }),
+      db.bottle.count({ where: { status: BOTTLE_STATUS.WISHLIST } }),
       // Wines tasted, not notes written. A bottle you finished without
       // writing anything down still counts - knowing you have had a wine
       // before is the useful fact, and it does not depend on having had
@@ -79,7 +80,7 @@ export default async function HomePage() {
       // rather than an individual bottle, so three of the same Rochioli is
       // one wine tasted.
       db.bottle.count({
-        where: { OR: [{ status: "consumed" }, { tastingNotes: { some: {} } }] },
+        where: { OR: [{ status: BOTTLE_STATUS.CONSUMED }, { tastingNotes: { some: {} } }] },
       }),
       db.tastingFlight.count(),
       db.savedPairing.count(),
@@ -98,11 +99,11 @@ export default async function HomePage() {
       // under "Flight" but never actually linked to one (BACKLOG #37/#38).
       // Nothing on this page said so before (a UX review, 2026-09-27);
       // this count is what swaps the card's own description to name it.
-      db.bottle.count({ where: { status: "flight", flightPicks: { none: {} } } }),
+      db.bottle.count({ where: { status: BOTTLE_STATUS.FLIGHT, flightPicks: { none: {} } } }),
       getResearchCount(),
       // Two small integers per cellar row, to say how many are ready to open.
       db.bottle.findMany({
-        where: { status: "inventory" },
+        where: { status: BOTTLE_STATUS.INVENTORY },
         select: { drinkFrom: true, drinkTo: true, drinkWindowEstimated: true },
       }),
       // Only what is still inside the 30 days (the purge is lazy).

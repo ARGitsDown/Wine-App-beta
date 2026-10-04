@@ -1,5 +1,6 @@
 "use client";
 
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { useTransition } from "react";
 import { markOneTasted, setBottleStatus, undoOneTasted } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
@@ -68,7 +69,7 @@ export default function TastedControls({
 
   function tasteAll() {
     startTransition(async () => {
-      const result = await setBottleStatus(bottleId, "consumed");
+      const result = await setBottleStatus(bottleId, BOTTLE_STATUS.CONSUMED);
       if (result?.error) {
         showUndo(result.error, null);
         return;
@@ -77,7 +78,7 @@ export default function TastedControls({
     });
   }
 
-  if (status === "wishlist") {
+  if (status === BOTTLE_STATUS.WISHLIST) {
     return (
       <BoughtIt
         bottleId={bottleId}
@@ -92,7 +93,7 @@ export default function TastedControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {status === "inventory" && (
+      {status === BOTTLE_STATUS.INVENTORY && (
         <>
           <button
             type="button"

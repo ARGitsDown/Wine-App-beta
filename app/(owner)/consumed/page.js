@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { getBottles, getRegionOptions } from "@/lib/bottles";
 import { currentDomaineId } from "@/lib/owner";
 import FilterableBottleList from "@/app/components/FilterableBottleList";
@@ -10,7 +11,7 @@ export default async function ConsumedPage({ searchParams }) {
   const [bottles, regionOptions] = await Promise.all([
     // The one page that renders note text - see getBottles for why this is
     // opt-in rather than the default.
-    getBottles("consumed", { withLatestNote: true }),
+    getBottles(BOTTLE_STATUS.CONSUMED, { withLatestNote: true }),
     getRegionOptions(domaineId),
   ]);
 

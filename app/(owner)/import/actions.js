@@ -1,5 +1,6 @@
 "use server";
 
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
 import { TRASH_DAYS } from "@/lib/bottle-trash";
@@ -16,7 +17,7 @@ import { deleteUntouchedBottles } from "@/lib/untouched-bottles";
 // import rather than trusting what the browser says the preview contained, so
 // what is written is what the server itself parsed.
 
-const DESTINATIONS = { inventory: "Cellar", wishlist: "Wishlist" };
+const DESTINATIONS = { [BOTTLE_STATUS.INVENTORY]: "Cellar", [BOTTLE_STATUS.WISHLIST]: "Wishlist" };
 
 async function readUpload(formData) {
   const file = formData.get("file");
@@ -24,7 +25,7 @@ async function readUpload(formData) {
   if (file.size > MAX_IMPORT_BYTES) {
     return { error: "That file is too big (limit 800 KB). Split it and import in parts." };
   }
-  const status = String(formData.get("destination") || "inventory");
+  const status = String(formData.get("destination") || BOTTLE_STATUS.INVENTORY);
   if (!Object.hasOwn(DESTINATIONS, status)) return { error: "Choose where the wines should go." };
   const prepared = prepareImport(await file.text());
   if (!prepared.ok) return { error: prepared.error };
@@ -67,7 +68,7 @@ async function splitDuplicates(wines, status) {
       priceCurrency: true,
     },
   });
-  const keyOf = status === "inventory" ? lotKey : duplicateKey;
+  const keyOf = status === BOTTLE_STATUS.INVENTORY ? lotKey : duplicateKey;
   const known = new Set(existing.map(keyOf));
   const fresh = [];
   const duplicates = [];
@@ -76,7 +77,7 @@ async function splitDuplicates(wines, status) {
     (known.has(key) ? duplicates : fresh).push(wine);
     // A wishlist row has no lot, so two lines of one wine in the file are one
     // wish; the cellar keeps them (different lots, or overflow past 999).
-    if (status === "wishlist") known.add(key);
+    if (status === BOTTLE_STATUS.WISHLIST) known.add(key);
   }
   return { fresh, duplicates };
 }
@@ -140,14 +141,14 @@ export async function commitImport(prevState, formData) {
     status,
     // A wishlist wine is not owned: no count beyond one, no place, no price,
     // no arrival date (the same rule acquiredAtForStatus applies).
-    quantity: status === "inventory" ? wine.quantity : 1,
+    quantity: status === BOTTLE_STATUS.INVENTORY ? wine.quantity : 1,
     sizeMl: wine.sizeMl,
-    location: status === "inventory" ? wine.location : null,
-    pricePaidCents: status === "inventory" ? wine.pricePaidCents : null,
-    priceCurrency: status === "inventory" ? wine.priceCurrency : null,
+    location: status === BOTTLE_STATUS.INVENTORY ? wine.location : null,
+    pricePaidCents: status === BOTTLE_STATUS.INVENTORY ? wine.pricePaidCents : null,
+    priceCurrency: status === BOTTLE_STATUS.INVENTORY ? wine.priceCurrency : null,
     acquiredAt:
       // false = the file had a date that could not be read: unknown, not today.
-      wine.acquiredAt === false ? null : acquiredAtForStatus(status, status === "inventory" ? wine.acquiredAt : null),
+      wine.acquiredAt === false ? null : acquiredAtForStatus(status, status === BOTTLE_STATUS.INVENTORY ? wine.acquiredAt : null),
   }));
 
   let created;
@@ -174,7 +175,7 @@ export async function commitImport(prevState, formData) {
   }
   // An import is the write most likely to bring in regions the autocomplete has not seen.
   revalidateTag(REGION_OPTIONS_TAG);
-  revalidatePath(status === "inventory" ? "/inventory" : "/wishlist");
+  revalidatePath(status === BOTTLE_STATUS.INVENTORY ? "/inventory" : "/wishlist");
   revalidatePath("/import");
   return { done: { count: created.length, status, destination: DESTINATIONS[status], batchId } };
 }

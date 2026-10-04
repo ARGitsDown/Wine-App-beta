@@ -1,5 +1,6 @@
 "use client";
 
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { commitImport, previewImport } from "@/app/(owner)/import/actions";
@@ -22,7 +23,7 @@ export default function ImportPanel() {
   const [file, setFile] = useState(null);
   const [, startAction] = useTransition();
   const fileKey = file ? `${file.name}:${file.size}` : null;
-  const [destination, setDestination] = useState("inventory");
+  const [destination, setDestination] = useState(BOTTLE_STATUS.INVENTORY);
 
   const preview = previewState?.preview;
   // A preview describes the file and destination it was made for; changing
@@ -48,7 +49,7 @@ export default function ImportPanel() {
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            href={done.status === "inventory" ? "/inventory" : "/wishlist"}
+            href={done.status === BOTTLE_STATUS.INVENTORY ? "/inventory" : "/wishlist"}
             className="flex min-h-11 items-center text-sm underline underline-offset-2"
           >
             View the {done.destination}
@@ -81,8 +82,8 @@ export default function ImportPanel() {
         <legend className="text-sm">Put them in</legend>
         <div className="flex flex-wrap gap-2">
           {[
-            ["inventory", "Cellar"],
-            ["wishlist", "Wishlist"],
+            [BOTTLE_STATUS.INVENTORY, "Cellar"],
+            [BOTTLE_STATUS.WISHLIST, "Wishlist"],
           ].map(([value, label]) => (
             <label
               key={value}

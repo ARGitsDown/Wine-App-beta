@@ -1,3 +1,4 @@
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import Link from "next/link";
 import PairingDecision from "@/app/components/PairingDecision";
 import PairingTasted from "@/app/components/PairingTasted";
@@ -75,7 +76,7 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
                   ) : (
                     gone && (
                       <span className="mt-1 block text-xs text-zinc-600 dark:text-zinc-400">
-                        {pick.bottle?.status === "consumed" ? "Already tasted" : "No longer in your cellar"}
+                        {pick.bottle?.status === BOTTLE_STATUS.CONSUMED ? "Already tasted" : "No longer in your cellar"}
                         {pick.decision ? ` \u00b7 you had chosen ${pick.decision === "drink" ? "Drink" : "Hold"}` : ""}
                       </span>
                     )
@@ -106,7 +107,7 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
                   <PairingTasted
                     pickId={pick.id}
                     drank
-                    left={pick.bottle?.status === "inventory" ? pick.bottle.quantity : 0}
+                    left={pick.bottle?.status === BOTTLE_STATUS.INVENTORY ? pick.bottle.quantity : 0}
                     bottleHref={pick.bottle ? `/bottles/${pick.bottle.id}` : null}
                     noteHref={noteHref}
                   />
@@ -124,7 +125,7 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
                         wishlistBottleId={wishlisted ? pick.bottle.id : null}
                       />
                     )}
-                    {drinking && pick.bottle && !notOwned && pick.bottle.status !== "wishlist" && (
+                    {drinking && pick.bottle && !notOwned && pick.bottle.status !== BOTTLE_STATUS.WISHLIST && (
                       <PairingTasted pickId={pick.id} drank={false} noteHref={noteHref} />
                     )}
                   </>

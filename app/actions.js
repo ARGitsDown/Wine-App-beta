@@ -1,5 +1,6 @@
 "use server";
 
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { prisma } from "@/lib/prisma";
 import { db } from "@/lib/scoped-prisma";
 import { REGION_OPTIONS_TAG } from "@/lib/bottles";
@@ -149,12 +150,12 @@ function invalidateRegionOptions() {
 }
 
 function pathForStatus(status) {
-  if (status === "inventory") return "/inventory";
-  if (status === "consumed") return "/consumed";
+  if (status === BOTTLE_STATUS.INVENTORY) return "/inventory";
+  if (status === BOTTLE_STATUS.CONSUMED) return "/consumed";
   // A flight-only bottle has no list page of its own (see the Bottle.status
   // comment in prisma/schema.prisma) - the flights index is the closest
   // thing it has to a home until it's linked to a specific one.
-  if (status === "flight") return "/flights";
+  if (status === BOTTLE_STATUS.FLIGHT) return "/flights";
   return "/wishlist";
 }
 
@@ -299,7 +300,7 @@ export async function createBottleInFlight(flightId, prevState, formData) {
   });
   if (!flight) return { error: "That flight no longer exists." };
 
-  const result = await createBottleWithNote("flight", prevState, formData);
+  const result = await createBottleWithNote(BOTTLE_STATUS.FLIGHT, prevState, formData);
   if (!result.success) return result;
 
   let flightLinked = true;
@@ -367,7 +368,7 @@ export async function setBottleStatus(id, status) {
     // A bottle can be noted long before it's marked drunk - the note is
     // the evening, the status change is the tidying up afterwards - so the
     // note's date wins over the "now" just stamped above.
-    if (status === "consumed") await syncEmptiedToLatestNote(id);
+    if (status === BOTTLE_STATUS.CONSUMED) await syncEmptiedToLatestNote(id);
 
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/inventory");
@@ -443,15 +444,15 @@ export async function markBought(id, { quantity, price, currency, location } = {
       where: { id: bottleId },
       select: { status: true, quantity: true, pricePaidCents: true, priceCurrency: true, location: true },
     });
-    if (!existing || existing.status !== "wishlist") {
+    if (!existing || existing.status !== BOTTLE_STATUS.WISHLIST) {
       return { error: "That wine is no longer on your wishlist." };
     }
     const moved = await db.bottle.updateMany({
-      where: { id: bottleId, status: "wishlist" },
+      where: { id: bottleId, status: BOTTLE_STATUS.WISHLIST },
       data: {
-        status: "inventory",
+        status: BOTTLE_STATUS.INVENTORY,
         quantity: count,
-        acquiredAt: acquiredAtForStatus("inventory", null),
+        acquiredAt: acquiredAtForStatus(BOTTLE_STATUS.INVENTORY, null),
         // Where it went, when said; a blank leaves any place already on the row.
         ...(placeText ? { location: placeText } : {}),
         // A price typed now replaces one the wishlist row already held (a
@@ -499,11 +500,11 @@ export async function undoBought(
       ? { pricePaidCents: previousPriceCents, priceCurrency: previousPriceCurrency }
       : { pricePaidCents: null, priceCurrency: null };
   const reverted = await db.bottle.updateMany({
-    where: { id: bottleId, status: "inventory", quantity: bought },
+    where: { id: bottleId, status: BOTTLE_STATUS.INVENTORY, quantity: bought },
     data: {
-      status: "wishlist",
+      status: BOTTLE_STATUS.WISHLIST,
       quantity: previous,
-      acquiredAt: acquiredAtForStatus("wishlist", null),
+      acquiredAt: acquiredAtForStatus(BOTTLE_STATUS.WISHLIST, null),
       // The place the wishlist row held before (normally none): what Bought it
       // wrote is taken back with the rest.
       location: typeof previousLocation === "string" && previousLocation.trim() ? previousLocation.slice(0, MAX_LOCATION) : null,
@@ -537,7 +538,7 @@ async function syncEmptiedToLatestNote(bottleId) {
     where: { id: bottleId },
     select: { status: true },
   });
-  if (bottle?.status !== "consumed") return;
+  if (bottle?.status !== BOTTLE_STATUS.CONSUMED) return;
 
   const latest = await db.tastingNote.findFirst({
     where: { bottleId },
@@ -559,7 +560,7 @@ export async function updateEmptiedDate(id, formData) {
 
   try {
     // Only a wine that has been tasted has a date it was emptied.
-    const updated = await db.bottle.updateMany({ where: { id, status: "consumed" }, data: { emptiedAt } });
+    const updated = await db.bottle.updateMany({ where: { id, status: BOTTLE_STATUS.CONSUMED }, data: { emptiedAt } });
     if (updated.count === 0) return { error: "That wine isn't in your tasting notes." };
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/consumed");
@@ -616,22 +617,22 @@ export async function updateAcquiredDate(id, formData) {
 // in that wine's tasting notes, which carry their own dates.
 async function tasteOneBottle(client, id, scope = {}) {
   const decremented = await client.bottle.updateMany({
-    where: { id, ...scope, status: "inventory", quantity: { gt: 1 } },
+    where: { id, ...scope, status: BOTTLE_STATUS.INVENTORY, quantity: { gt: 1 } },
     data: { quantity: { decrement: 1 } },
   });
   if (decremented.count > 0) return "decremented";
 
   const row = await client.bottle.findFirst({
-    where: { id, ...scope, status: "inventory" },
+    where: { id, ...scope, status: BOTTLE_STATUS.INVENTORY },
     select: { emptiedAt: true },
   });
   if (!row) return null;
   const emptied = await client.bottle.updateMany({
-    where: { id, ...scope, status: "inventory", quantity: { lte: 1 } },
+    where: { id, ...scope, status: BOTTLE_STATUS.INVENTORY, quantity: { lte: 1 } },
     data: {
-      status: "consumed",
+      status: BOTTLE_STATUS.CONSUMED,
       quantity: 1,
-      emptiedAt: emptiedAtForStatus("consumed", row.emptiedAt),
+      emptiedAt: emptiedAtForStatus(BOTTLE_STATUS.CONSUMED, row.emptiedAt),
     },
   });
   if (emptied.count > 0) return "emptied";
@@ -670,7 +671,7 @@ export async function markOneTasted(id) {
 // identical to the one it left.
 export async function addAnotherPurchase(id, { quantity, price, currency, location } = {}) {
   const source = await db.bottle.findUnique({ where: { id: Number(id) } });
-  if (!source || source.status !== "inventory") {
+  if (!source || source.status !== BOTTLE_STATUS.INVENTORY) {
     return { error: "That wine isn't in your cellar any more." };
   }
   const count = Math.min(MAX_LOT_QUANTITY, Math.max(1, parseOptionalInt(quantity) ?? 1));
@@ -700,7 +701,7 @@ export async function addAnotherPurchase(id, { quantity, price, currency, locati
         pricePaidCents: cents,
         priceCurrency: cents === null ? null : parseCurrency(currency),
         quantity: count,
-        status: "inventory",
+        status: BOTTLE_STATUS.INVENTORY,
         acquiredAt: todayAtNoonUtc(),
       },
     });
@@ -718,7 +719,7 @@ export async function addAnotherPurchase(id, { quantity, price, currency, locati
 export async function undoAddedPurchase(id) {
   // Only a wine created in the last hour: the id comes from the browser, and
   // this must never be a way to delete an old, never-edited bottle.
-  const { removed } = await deleteUntouchedBottles([id], "inventory", { sinceMs: 3600000 });
+  const { removed } = await deleteUntouchedBottles([id], BOTTLE_STATUS.INVENTORY, { sinceMs: 3600000 });
   if (removed === 0) return { error: "It has changed since - delete it from its own page." };
   revalidatePath("/inventory");
   return { ok: true };
@@ -761,8 +762,8 @@ export async function undoOneTasted(id) {
   });
   if (!bottle) return { error: "That wine is no longer in your cellar." };
 
-  if (bottle.status === "consumed") {
-    await setBottleStatus(id, "inventory");
+  if (bottle.status === BOTTLE_STATUS.CONSUMED) {
+    await setBottleStatus(id, BOTTLE_STATUS.INVENTORY);
   } else {
     await adjustBottleQuantity(id, 1);
   }
@@ -1386,7 +1387,7 @@ export async function extractWinesFromPhoto(
                 ownerId,
                 ...bottleDataFromWine(wine),
                 status,
-                location: status === "inventory" ? batchLocation : null,
+                location: status === BOTTLE_STATUS.INVENTORY ? batchLocation : null,
                 emptiedAt: emptiedAtForStatus(status, null),
                 acquiredAt: acquiredAtForStatus(status, null),
                 needsResearch: wine.confident === false,
@@ -1505,7 +1506,7 @@ function withoutNulls(row) {
 
 async function browseCellar(filters) {
   const bottles = await db.bottle.findMany({
-    where: { status: "inventory" },
+    where: { status: BOTTLE_STATUS.INVENTORY },
     include: { tastingNotes: { select: { rating: true } } },
     orderBy: { producer: "asc" },
   });
@@ -1673,7 +1674,7 @@ export async function getSuggestions(
         const ownedBottles = ownedIds.length
           // Inventory only, like browse_cellar: a made-up id that happens to
           // be a consumed or wishlist bottle must not show up as owned.
-          ? await db.bottle.findMany({ where: { id: { in: ownedIds }, status: "inventory" } })
+          ? await db.bottle.findMany({ where: { id: { in: ownedIds }, status: BOTTLE_STATUS.INVENTORY } })
           : [];
         const bottleById = new Map(ownedBottles.map((b) => [b.id, b]));
 
@@ -3119,7 +3120,7 @@ export async function toggleFavorite(bottleId) {
   // - otherwise a favorite could attach to a bottle in a different
   // Domaine's cellar entirely.
   const bottle = await prisma.bottle.findFirst({
-    where: { id: bottleId, domaineId, status: "inventory" },
+    where: { id: bottleId, domaineId, status: BOTTLE_STATUS.INVENTORY },
     select: { id: true, producer: true, bottling: true, vintage: true },
   });
   if (!bottle) return;
@@ -3129,7 +3130,7 @@ export async function toggleFavorite(bottleId) {
   const candidates = await prisma.bottle.findMany({
     where: {
       domaineId,
-      status: "inventory",
+      status: BOTTLE_STATUS.INVENTORY,
       producer: { equals: bottle.producer, mode: "insensitive" },
     },
     select: { id: true, producer: true, bottling: true, vintage: true },
@@ -3192,7 +3193,7 @@ export async function saveTastingFlight({ title, summary, picks }) {
           reason: cleanPairingReason(trimmedOrNull(pick.reason, MAX_PAIRING_TEXT) ?? ""),
           order: index,
           // See addBottleToFlight's own comment on originFlightOnly.
-          originFlightOnly: ownedStatus.get(pick.bottleId) === "flight",
+          originFlightOnly: ownedStatus.get(pick.bottleId) === BOTTLE_STATUS.FLIGHT,
         })),
       },
     },
@@ -3257,7 +3258,7 @@ export async function addBottleToFlight(flightId, bottleId) {
       // markFlightPickConsumed/unmarkFlightPickConsumed need to know this
       // rather than re-deriving it from whatever the bottle's status
       // happens to be by then.
-      originFlightOnly: bottle.status === "flight",
+      originFlightOnly: bottle.status === BOTTLE_STATUS.FLIGHT,
     },
   });
   revalidatePath(`/flights/${flightId}`);
@@ -3306,7 +3307,7 @@ export async function addBottlesToFlight(flightId, bottleIds) {
     toAdd.map((bottleId) => ({
       bottleId,
       // See addBottleToFlight's own comment on originFlightOnly.
-      originFlightOnly: ownedStatus.get(bottleId) === "flight",
+      originFlightOnly: ownedStatus.get(bottleId) === BOTTLE_STATUS.FLIGHT,
     }))
   );
 
@@ -3434,7 +3435,7 @@ export async function markFlightPickConsumed(pickId) {
     });
     await db.bottle.update({
       where: { id: pick.bottleId },
-      data: { status: "consumed", emptiedAt: emptiedAtForStatus("consumed", bottle?.emptiedAt ?? null) },
+      data: { status: BOTTLE_STATUS.CONSUMED, emptiedAt: emptiedAtForStatus(BOTTLE_STATUS.CONSUMED, bottle?.emptiedAt ?? null) },
     });
     revalidatePath(`/bottles/${pick.bottleId}`);
     revalidatePath("/consumed");
@@ -3484,7 +3485,7 @@ export async function unmarkFlightPickConsumed(pickId) {
   if (pick.originFlightOnly) {
     await db.bottle.update({
       where: { id: pick.bottleId },
-      data: { status: "flight", emptiedAt: null },
+      data: { status: BOTTLE_STATUS.FLIGHT, emptiedAt: null },
     });
     revalidatePath(`/bottles/${pick.bottleId}`);
     revalidatePath("/consumed");
@@ -3793,7 +3794,7 @@ export async function setPairingPickDecision(pickId, decision) {
         const bottle = current.bottleId
           ? await tx.bottle.findUnique({ where: { id: current.bottleId }, select: { status: true } })
           : null;
-        if (!bottle || bottle.status !== "inventory") return { unavailable: true };
+        if (!bottle || bottle.status !== BOTTLE_STATUS.INVENTORY) return { unavailable: true };
       }
 
       let linkId = null;
@@ -3803,7 +3804,7 @@ export async function setPairingPickDecision(pickId, decision) {
         const existing = await tx.bottle.findFirst({
           where: {
             domaineId: pairing.domaineId,
-            status: { in: ["inventory", "wishlist"] },
+            status: { in: [BOTTLE_STATUS.INVENTORY, BOTTLE_STATUS.WISHLIST] },
             producer: { equals: gap.producer, mode: "insensitive" },
             ...(gap.type ? { type: { equals: gap.type, mode: "insensitive" } } : {}),
           },
@@ -3815,7 +3816,7 @@ export async function setPairingPickDecision(pickId, decision) {
         });
         if (existing) {
           linkId = existing.id;
-          kind = existing.status === "inventory" ? "owned" : "wishlist-existing";
+          kind = existing.status === BOTTLE_STATUS.INVENTORY ? "owned" : "wishlist-existing";
         } else {
           const created = await tx.bottle.create({
             data: {
@@ -3831,9 +3832,9 @@ export async function setPairingPickDecision(pickId, decision) {
               // The same "where it came from" the wishlist form on Suggest
               // writes, so it reads the same wherever it is seen.
               notes: `Suggested because: ${current.reason}`,
-              status: "wishlist",
-              emptiedAt: emptiedAtForStatus("wishlist", null),
-              acquiredAt: acquiredAtForStatus("wishlist", null),
+              status: BOTTLE_STATUS.WISHLIST,
+              emptiedAt: emptiedAtForStatus(BOTTLE_STATUS.WISHLIST, null),
+              acquiredAt: acquiredAtForStatus(BOTTLE_STATUS.WISHLIST, null),
             },
             select: { id: true },
           });
@@ -3906,12 +3907,12 @@ export async function markPairingPickDrank(pickId, day) {
       if (current.decision !== PICK_DECISION.DRINK) return { notChosen: true };
       if (current.drankAt) return { ok: true, already: true };
       // Not the owner's yet: a wishlist wine, or a suggestion with no wine.
-      if (current.bottle ? current.bottle.status === "wishlist" : Boolean(current.gap)) {
+      if (current.bottle ? current.bottle.status === BOTTLE_STATUS.WISHLIST : Boolean(current.gap)) {
         return { notOwned: true };
       }
 
       let took = false;
-      if (current.bottle && current.bottle.status === "inventory") {
+      if (current.bottle && current.bottle.status === BOTTLE_STATUS.INVENTORY) {
         took = (await tasteOneBottle(tx, current.bottle.id, { domaineId: pairing.domaineId })) !== null;
       }
       await tx.pairingPick.update({
@@ -4019,7 +4020,7 @@ export async function removePairingPickFromWishlist(pickId) {
     const worked = await db.bottle.findFirst({
       where: {
         id: pick.bottleId,
-        status: "wishlist",
+        status: BOTTLE_STATUS.WISHLIST,
         OR: [
           { tastingNotes: { some: {} } },
           { photos: { some: {} } },
@@ -4036,7 +4037,7 @@ export async function removePairingPickFromWishlist(pickId) {
     if (worked) {
       return { error: "That wine has notes or photos on it, so it was left on your wishlist." };
     }
-    const gone = await db.bottle.deleteMany({ where: { id: pick.bottleId, status: "wishlist" } });
+    const gone = await db.bottle.deleteMany({ where: { id: pick.bottleId, status: BOTTLE_STATUS.WISHLIST } });
     if (gone.count === 0) return { error: "That wine isn't on your wishlist." };
     // The pick's bottleId clears itself (onDelete SetNull); a Drink decision
     // would now point at nothing, so that goes too. Hold stays.

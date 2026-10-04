@@ -1,5 +1,6 @@
 "use client";
 
+import { BOTTLE_STATUS } from "@/lib/bottle-status";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -497,7 +498,7 @@ export default function SuggestForm({ initial = null }) {
                       </summary>
                       <div className="mt-3">
                         <BottleForm
-                          action={createBottle.bind(null, "wishlist")}
+                          action={createBottle.bind(null, BOTTLE_STATUS.WISHLIST)}
                           defaultValues={{
                             producer: pick.gap.producer,
                             type: pick.gap.type,
