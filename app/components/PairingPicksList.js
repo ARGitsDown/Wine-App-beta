@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PairingDecision from "@/app/components/PairingDecision";
+import PairingTasted from "@/app/components/PairingTasted";
 import { groupPicksByDish, pickNotOwned } from "@/lib/pairings";
 
 // A pairing's wines, grouped under the dish or course each is for, so a
@@ -27,7 +28,11 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
             const notOwned = pickNotOwned(pick);
             const wishlisted = notOwned && Boolean(pick.bottle);
             const held = pick.decision === "hold";
+            const drank = Boolean(pick.drankAt);
             const drinking = pick.decision === "drink";
+            const noteHref = pick.bottle
+              ? `/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish || pairingTitle || "")}`
+              : null;
             return (
               <div
                 key={pick.id}
@@ -73,27 +78,33 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
                   )}
                   <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{pick.reason}</p>
                 </div>
-                <PairingDecision
-                  pickId={pick.id}
-                  decision={pick.decision}
-                  wineLabel={pick.wineLabel}
-                  notOwned={notOwned}
-                  wishlistBottleId={wishlisted ? pick.bottle.id : null}
-                />
-                {/* For a wine chosen to drink, in the cellar, with a dish to
-                    name: the ?pairedWith prefill is what the throwaway
-                    Suggest result gives the same wine. It follows the choice
-                    rather than the old tonight flag, so a wine marked Drink
-                    always has the way to write its note, and one nobody has
-                    decided on does not. A single-dish pairing has no dish on
-                    its picks, so the pairing's own title stands in for it. */}
-                {drinking && (pick.dish || pairingTitle) && pick.bottle?.status === "inventory" && (
-                  <Link
-                    href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish || pairingTitle)}`}
-                    className="-my-2 flex min-h-11 items-center text-sm text-zinc-500 underline underline-offset-2"
-                  >
-                    Add a tasting note →
-                  </Link>
+                {/* Drunk: the tiles give way to "Tasted, N left, Undo". Not yet:
+                    the choice, and for a wine chosen Drink that is in the
+                    cellar, the two ways to say it was opened. A suggestion
+                    with no wine behind it, or one still on the wishlist, has
+                    no Tasted: it has to be bought first (the status line
+                    above the tiles says so). */}
+                {drank ? (
+                  <PairingTasted
+                    pickId={pick.id}
+                    drank
+                    left={pick.bottle?.status === "inventory" ? pick.bottle.quantity : 0}
+                    bottleHref={pick.bottle ? `/bottles/${pick.bottle.id}` : null}
+                    noteHref={noteHref}
+                  />
+                ) : (
+                  <>
+                    <PairingDecision
+                      pickId={pick.id}
+                      decision={pick.decision}
+                      wineLabel={pick.wineLabel}
+                      notOwned={notOwned}
+                      wishlistBottleId={wishlisted ? pick.bottle.id : null}
+                    />
+                    {drinking && pick.bottle && !notOwned && pick.bottle.status !== "wishlist" && (
+                      <PairingTasted pickId={pick.id} drank={false} noteHref={noteHref} />
+                    )}
+                  </>
                 )}
               </div>
             );

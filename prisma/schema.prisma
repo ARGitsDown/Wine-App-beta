@@ -835,6 +835,21 @@ model PairingPick {
   // add it again. Held to the two words by a CHECK in the migration, which
   // Prisma does not model.
   decision  String?
+  // When this wine was actually drunk, from this pairing (a calendar day
+  // anchored at noon UTC, like every picked date); NULL = not drunk. `decision`
+  // is intent and this is fact, so they are separate: a Drink that was never
+  // followed up stays "drink" with no drankAt, and nothing infers one from the
+  // other. Old picks stay NULL - not backfilled from tasting notes, which would
+  // be a guess. Only a "drink" pick can have one (a CHECK holds that), and
+  // Drink cannot be cleared while it is set: undo the tasting first.
+  drankAt   DateTime?
+  // Whether marking it drunk took a bottle off the wine's count. False when
+  // there was nothing to take (the bottle was already History, or is gone, or
+  // never was one the owner had): the pick is stamped and the wine left
+  // alone. It is what lets Undo put back exactly what was taken, and no more,
+  // after a reload - without it, undoing a stamp-only pick would add a bottle
+  // that was never removed.
+  drankTookBottle Boolean @default(false)
 
   @@index([pairingId])
   @@index([bottleId])

@@ -37,7 +37,7 @@ export default async function PairingDetailPage({ params }) {
           picks: {
             include: {
               bottle: {
-                select: { id: true, producer: true, status: true },
+                select: { id: true, producer: true, status: true, quantity: true },
               },
             },
             orderBy: { order: "asc" },

@@ -39,8 +39,9 @@ t("order kept inside a group", groups[1].picks.map((p) => p.id), [2, 3]);
 t("a single-dish pairing is one group with no heading", groupPicksByDish([{ id: 1, dish: null }, { id: 2, dish: "" }]).map((g) => [g.dish, g.picks.length]), [[null, 2]]);
 t("no picks, no groups", groupPicksByDish([]), []);
 
-t("counts", decisionCounts(picks), { drink: 1, hold: 1, undecided: 3 });
-t("unknown stored value counts as undecided", decisionCounts([{ decision: "x" }]), { drink: 0, hold: 0, undecided: 1 });
+t("counts", decisionCounts(picks), { done: 0, drink: 1, hold: 1, undecided: 3 });
+t("unknown stored value counts as undecided", decisionCounts([{ decision: "x" }]), { done: 0, drink: 0, hold: 0, undecided: 1 });
+t("a drunk pick is done, not still to drink", decisionCounts([{ decision: "drink", drankAt: "2026-10-04T12:00:00Z" }, { decision: "drink" }]), { done: 1, drink: 1, hold: 0, undecided: 0 });
 
 t("owned wine is not 'not owned'", pickNotOwned({ gap: null, bottle: { status: "inventory" } }), false);
 t("a gap with no bottle is not owned", pickNotOwned({ gap: { producer: "p" }, bottle: null }), true);
@@ -109,13 +110,17 @@ t("with no sentence end it cuts at a word with an ellipsis", [noStops.length <= 
 t("nothing in, nothing out", cleanPairingReason(null), "");
 
 // --- the progress line
-const C = (drink, hold, undecided) => ({ drink, hold, undecided });
+const C = (drink, hold, undecided, done = 0) => ({ done, drink, hold, undecided });
 t("planned and decided: to drink", progressParts(C(2, 1, 1), true).map((p) => p.text), ["2 to drink", "1 on hold", "1 undecided"]);
 t("not planned and decided: chosen (no 'to drink' once the day is cleared)", progressParts(C(2, 1, 1), false).map((p) => p.text), ["2 chosen", "1 on hold", "1 undecided"]);
 t("zero counts are left out", progressParts(C(0, 0, 3), false).map((p) => p.text), ["3 undecided"]);
 t("planned with nothing chosen says so", progressParts(C(0, 0, 3), true).map((p) => p.text), ["Nothing chosen yet"]);
 t("only the Drink count is strong", progressParts(C(1, 1, 1), true).map((p) => p.strong), [true, false, false]);
 t("only holds", progressParts(C(0, 2, 0), false).map((p) => p.text), ["2 on hold"]);
+
+t("tasted leads, then to drink", progressParts(C(1, 1, 1, 2), true).map((p) => p.text), ["2 tasted", "1 to drink", "1 on hold", "1 undecided"]);
+t("only the tasted count is strong once there is one", progressParts(C(1, 0, 0, 2), true).map((p) => p.strong), [true, false]);
+t("everything tasted", progressParts(C(0, 0, 0, 3), false).map((p) => p.text), ["3 tasted"]);
 
 console.log(`pairings: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -23,6 +23,7 @@ export default async function PairingsPage() {
           dish: true,
           wineName: true,
           decision: true,
+          drankAt: true,
           gap: true,
           bottle: { select: { status: true } },
         },
@@ -92,7 +93,11 @@ export default async function PairingsPage() {
                       {pick.wineName}
                     </span>
                     <span className="flex shrink-0 items-center gap-1">
-                      {pick.decision === "drink" && <Pill look={STATUS_LOOK.consumed} label="Drink" />}
+                      {pick.drankAt ? (
+                        <Pill look={STATUS_LOOK.consumed} label="Tasted" />
+                      ) : (
+                        pick.decision === "drink" && <Pill look={STATUS_LOOK.consumed} label="Drink" />
+                      )}
                       {pick.decision === "hold" && <Pill look={STATUS_LOOK.inventory} label="Hold" />}
                       {pickNotOwned(pick) && (
                         <Pill

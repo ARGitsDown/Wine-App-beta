@@ -31,7 +31,7 @@ import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { RESEARCH_FIELDS, holdOwnersWindow, researchChanges } from "@/lib/research-fields";
 import { plausibleWindow } from "@/lib/drink-window";
-import { parseTastedDate } from "@/lib/tasting-date";
+import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
 import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
@@ -3314,9 +3314,12 @@ export async function setPairingPickDecision(pickId, decision) {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(2, ${pickId}::int)`;
       const current = await tx.pairingPick.findUnique({
         where: { id: pickId },
-        select: { bottleId: true, gap: true, reason: true },
+        select: { bottleId: true, gap: true, reason: true, drankAt: true },
       });
       if (!current) return { gone: true };
+      // A wine that has been drunk stays a Drink pick: the tasting has to be
+      // undone first, or the page would say "hold" about a wine already gone.
+      if (current.drankAt && next !== PICK_DECISION.DRINK) return { drunk: true };
 
       let linkId = null;
       let kind = null;
@@ -3370,6 +3373,7 @@ export async function setPairingPickDecision(pickId, decision) {
       return { kind };
     });
     if (outcome.gone) return { error: "That wine is no longer in this pairing." };
+    if (outcome.drunk) return { error: "It has been tasted - undo that first." };
 
     if (outcome.kind === "created") invalidateRegionOptions();
     revalidatePath(`/pairings/${pick.pairingId}`);
@@ -3381,6 +3385,120 @@ export async function setPairingPickDecision(pickId, decision) {
   } catch (err) {
     console.error("Failed to set a pairing pick's decision:", err);
     return { error: "Couldn't save that choice. Please try again." };
+  }
+}
+
+// "We drank it": a wine chosen Drink on a saved pairing was opened. Takes one
+// bottle off the wine's count (the same tasteOneBottle as "Tasted one" and a
+// flight pick) and stamps the day on the pick, in one transaction under the
+// pick's advisory lock (the same lock the Drink choice takes, so the two
+// cannot interleave). Idempotent: a second tap finds the day already set and
+// changes nothing.
+//
+// What it will not do: tick a wine that was never chosen Drink, or one that is
+// not the owner's yet (a wishlist wine, or a suggestion with no wine behind
+// it - buy it first). A wine that was already finished elsewhere, or whose row
+// is gone, is stamped but left alone (`drankTookBottle` false), so the record
+// of the evening is whole without the count moving twice. The note is not
+// written here: "With note" opens the bottle's own page for that, the way a
+// flight does.
+//
+// `day` is the reader's own date, chosen in the browser: the server runs on
+// UTC, which is already tomorrow for an evening in the Americas.
+export async function markPairingPickDrank(pickId, day) {
+  if (!Number.isInteger(pickId)) return { error: "That wine is no longer in this pairing." };
+  const drankAt = parseTastedDate(day) ?? todayAtNoonUtc();
+
+  const pick = await db.pairingPick.findUnique({ where: { id: pickId }, select: { id: true, pairingId: true } });
+  if (!pick) return { error: "That wine is no longer in this pairing." };
+  const pairing = await db.savedPairing.findUnique({ where: { id: pick.pairingId }, select: { domaineId: true } });
+  if (!pairing) return { error: "That wine is no longer in this pairing." };
+
+  try {
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(2, ${pickId}::int)`;
+      const current = await tx.pairingPick.findUnique({
+        where: { id: pickId },
+        select: {
+          decision: true,
+          drankAt: true,
+          gap: true,
+          bottle: { select: { id: true, status: true } },
+        },
+      });
+      if (!current) return { gone: true };
+      if (current.decision !== PICK_DECISION.DRINK) return { notChosen: true };
+      if (current.drankAt) return { ok: true, already: true };
+      // Not the owner's yet: a wishlist wine, or a suggestion with no wine.
+      if (current.bottle ? current.bottle.status === "wishlist" : Boolean(current.gap)) {
+        return { notOwned: true };
+      }
+
+      let took = false;
+      if (current.bottle && current.bottle.status === "inventory") {
+        took = (await tasteOneBottle(tx, current.bottle.id, { domaineId: pairing.domaineId })) !== null;
+      }
+      await tx.pairingPick.update({
+        where: { id: pickId },
+        data: { drankAt, drankTookBottle: took },
+      });
+      return { ok: true, took, bottleId: current.bottle?.id ?? null };
+    });
+    if (outcome.gone) return { error: "That wine is no longer in this pairing." };
+    if (outcome.notChosen) return { error: "Choose Drink for this wine first." };
+    if (outcome.notOwned) return { error: "That wine isn't in your cellar yet - buy it first." };
+
+    revalidatePath(`/pairings/${pick.pairingId}`);
+    revalidatePath("/pairings");
+    if (outcome.took) {
+      revalidatePath(`/bottles/${outcome.bottleId}`);
+      revalidatePath("/inventory");
+      revalidatePath("/consumed");
+    }
+    return { ok: true, bottleId: outcome.bottleId ?? null };
+  } catch (err) {
+    console.error("Failed to mark a pairing wine drunk:", err);
+    return { error: "Couldn't save that. Please try again." };
+  }
+}
+
+// Undoes markPairingPickDrank: clears the day and puts back exactly what was
+// taken - a bottle if one came off the count, nothing if the wine was only
+// stamped (see drankTookBottle). Safe to repeat: with no day set it does
+// nothing.
+export async function undoPairingPickDrank(pickId) {
+  if (!Number.isInteger(pickId)) return { error: "That wine is no longer in this pairing." };
+  const pick = await db.pairingPick.findUnique({ where: { id: pickId }, select: { id: true, pairingId: true } });
+  if (!pick) return { error: "That wine is no longer in this pairing." };
+
+  try {
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(2, ${pickId}::int)`;
+      const current = await tx.pairingPick.findUnique({
+        where: { id: pickId },
+        select: { drankAt: true, drankTookBottle: true, bottleId: true },
+      });
+      if (!current || !current.drankAt) return { nothing: true };
+      await tx.pairingPick.update({
+        where: { id: pickId },
+        data: { drankAt: null, drankTookBottle: false },
+      });
+      return { tookBottleId: current.drankTookBottle ? current.bottleId : null };
+    });
+    // The same reversal "Undo" on a bottle's page uses: status back to the
+    // cellar if the last bottle was taken, else the count plus one.
+    if (outcome.tookBottleId) await undoOneTasted(outcome.tookBottleId);
+    revalidatePath(`/pairings/${pick.pairingId}`);
+    revalidatePath("/pairings");
+    if (outcome.tookBottleId) {
+      revalidatePath(`/bottles/${outcome.tookBottleId}`);
+      revalidatePath("/inventory");
+      revalidatePath("/consumed");
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to undo a pairing wine's tasting:", err);
+    return { error: "Couldn't undo that. Please try again." };
   }
 }
 
