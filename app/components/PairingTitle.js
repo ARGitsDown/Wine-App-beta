@@ -24,7 +24,7 @@ export default function PairingTitle({ pairing }) {
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="text-sm text-zinc-500 underline decoration-dotted underline-offset-2"
+          className="-my-3 py-3 text-sm text-zinc-500 underline decoration-dotted underline-offset-2"
         >
           Rename
         </button>

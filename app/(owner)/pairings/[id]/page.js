@@ -2,13 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
 import { deletePairing } from "@/app/actions";
-import { decisionCounts, tonightLabel } from "@/lib/pairings";
+import { decisionCounts } from "@/lib/pairings";
+import { formatTastedDate, toDateInputValue, todayInputValue } from "@/lib/tasting-date";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import PairingTitle from "@/app/components/PairingTitle";
 import PairingPicksList from "@/app/components/PairingPicksList";
 import BackButton from "@/app/components/BackButton";
 import ExpandableText from "@/app/components/ExpandableText";
-import TonightToggle from "@/app/components/TonightToggle";
+import PairingPlan from "@/app/components/PairingPlan";
+import PlanBadge from "@/app/components/PlanBadge";
 import { SUGGESTION_CHARACTERS } from "@/lib/suggestion-character";
 import { DEPTH_LEVELS } from "@/lib/suggest-depth";
 
@@ -56,15 +58,14 @@ export default async function PairingDetailPage({ params }) {
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <PairingTitle pairing={pairing} />
-          {/* Teal, matching the Pairings card's own accent on home - amber
-              was already "needs a check" (Needs research, unsaved) and
-              Wishlist elsewhere in the app, so the same color meant two
-              unrelated things on this one screen (a UX review,
-              2026-09-27). */}
-          {tonightLabel(pairing) && (
-            <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs text-teal-800 dark:bg-teal-950 dark:text-teal-400">
-              {tonightLabel(pairing)}
-            </span>
+          {/* Teal for tonight and a day still to come, grey for queued; amber
+              is this app's "needs a check" colour and Wishlist's, so it is
+              not worn here. The day is worked out in the browser (PlanBadge). */}
+          {pairing.plannedFor && (
+            <PlanBadge
+              plannedFor={toDateInputValue(pairing.plannedFor)}
+              serverToday={todayInputValue()}
+            />
           )}
         </div>
         <ExpandableText
@@ -82,7 +83,7 @@ export default async function PairingDetailPage({ params }) {
         </p>
       </div>
 
-      <PairingPicksList picks={pairing.picks} plannedForTonight={pairing.plannedForTonight} />
+      <PairingPicksList picks={pairing.picks} />
 
       {/* The model's own "why these", about the set rather than any one
           wine - after the wines because the per-wine reasons are what the
@@ -101,13 +102,17 @@ export default async function PairingDetailPage({ params }) {
       )}
 
       {/* The evening ends here, not at the top of the page (a UX review,
-          2026-09-27). A plain toggle, not a checkbox or a status control -
-          it's an owner decision with exactly one way in and one way out
-          (BACKLOG #28/#39: "drink tonight" as a real state rather than a
-          shortcut). The rarely-used controls and the record of what was
-          asked sit quietly under it. */}
+          2026-09-27). Planning is the owner's call with one way in and one
+          way out (BACKLOG #28/#39: a planned pairing as a real state rather
+          than a shortcut). The rarely-used controls and the record of what
+          was asked sit quietly under it. */}
       <div className="flex flex-col items-start gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <TonightToggle pairingId={pairing.id} plannedForTonight={pairing.plannedForTonight} />
+        {pairing.plannedFor && (
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Planned for {formatTastedDate(pairing.plannedFor)}
+          </p>
+        )}
+        <PairingPlan pairingId={pairing.id} planned={Boolean(pairing.plannedFor)} />
         <div className="flex flex-wrap items-center gap-x-4">
           {/* Coming back to a kept pairing is usually to ask again with one
               thing changed. */}

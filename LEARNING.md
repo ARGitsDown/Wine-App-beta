@@ -262,7 +262,7 @@ A **database** is organized tables of rows. Each table below is a **model** in
 | `Bottle` | A *wine*, not a physical bottle: producer, vintage, grape, region, quantity, status, drinking window… |
 | `BottlePhoto`, `TastingNote` | Photos and tasting notes attached to a bottle. |
 | `TastingFlight`, `FlightPick` | A saved tasting queue and its ordered bottles. |
-| `SavedPairing`, `PairingPick` | A kept Suggest result for a dish or menu; each wine (pick) can be decided Drink or Hold, and is undecided (NULL) until it is. |
+| `SavedPairing`, `PairingPick` | A kept Suggest result for a dish or menu; each wine (pick) can be decided Drink or Hold, and is undecided (NULL) until it is; the pairing can be planned for a day (`plannedFor`, a calendar day, NULL = not planned). |
 | `Guest`, `Favorite` | A Guest member's shortlist of bottles. |
 | `DrinkWindowEstimate` | A *cache*: "we asked Claude about this exact wine before, here is the answer". |
 | `ResearchProposal`, `ResearchJob` | What Research found (waiting for your review); and a bulk run's queue. |

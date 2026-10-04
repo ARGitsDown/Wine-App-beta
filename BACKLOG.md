@@ -3927,3 +3927,58 @@ own (it includes every pick column).
 Checked on a production build: grouping, the reason visible, Drink / Hold / undo / switching,
 an owned wine's quantity untouched, the wishlist bottle made once and linked, undo leaving it,
 the database refusing any other word, and the list's one-line-per-wine pills.
+
+### Saved pairings: planned for a day, and the UX review's first fixes (built)
+
+The owner chose option C for the "Tonight" question, then asked for review items 1-3 and 7.
+
+**Tonight is now a day.** `SavedPairing.plannedForTonight` (a flag) and `plannedForTonightAt`
+are replaced by `plannedFor`, a calendar day anchored at noon UTC like every picked date
+(`lib/tasting-date.js`); NULL = not planned. The migration carries existing marks over (the day
+it was marked, or today for rows with no date) and was checked on seeded rows.
+- **Wording:** a plan for today reads **Tonight**, tomorrow **Tomorrow**, within the week the
+  weekday, later a date, and a day that has passed without Done reads **Queued** (the owner's
+  word in place of "Overdue"; teal for Tonight, outlined teal for a day to come, grey for
+  Queued - amber stays "needs a check"/Wishlist).
+- **Controls** (`PairingPlan`): unplanned shows "Drink tonight" (one tap) and, on the detail
+  page, "Pick a day"; planned shows "Done" (the only way a plan clears - still never automatic)
+  and "Change day". The list row has just the one button.
+- **"Today" is the reader's, not the server's.** The server runs on UTC, which is already
+  tomorrow for an evening in the Americas, so a server-rendered "Tonight" would have turned into
+  "Queued" at dinner time. The browser works the label out against its own date (`PlanBadge`,
+  `planLabel` in `lib/pairings.js`, which only compares day strings) and sends its own day when
+  planning for tonight. Checked in a New York time zone at a moment when UTC was a day ahead.
+- **Order on the list:** planned (soonest first), then Queued (latest first), then the rest
+  (newest first). The server judges "passed" a day early so a plan for the reader's own today is
+  never mistaken for Queued; the cost is that yesterday's plan can sit among the upcoming for a
+  few hours.
+- The Home Pairings card now says "N planned" (it said "N tonight"): the server cannot tell
+  which are for tonight.
+- **The tasting-note link follows the choice, not the plan:** "Add a tasting note" shows under a
+  wine chosen Drink (owned, with a dish) and no longer under undecided ones or only on a
+  tonight pairing.
+
+**UX review items built:**
+1. *The wishlist side effect is said in words.* A line above the tiles for a wine not owned
+   ("Choosing Drink also adds it to your wishlist."), "Added to your wishlist." right after the
+   tap, and, once Drink is cleared while the wine is still on the wishlist, "Still on your
+   wishlist · Remove" (a two-step confirm; `removePairingPickFromWishlist` only ever deletes a
+   bottle still on the wishlist, never one since bought into the cellar).
+2. *A list row opens the pairing wherever it is tapped* (the title link covers the row); the
+   plan button sits above it, so a stray tap cannot toggle the plan.
+3. *Progress on the list:* each row ends with "2 to drink · 1 on hold · 1 undecided" instead of
+   "Kept <date> · N wines" (the kept date is on the detail page). The pills now use the detail
+   page's words: "Not in cellar" and "On wishlist".
+7. *Tap targets:* the wine-name links, the tasting-note link, the "On your wishlist" pill and
+   Rename now have 44px hit areas without moving anything; no link or button on the detail page
+   is under 40px.
+
+**Not built from the review, still open:** Drink offered on a wine you no longer have (#4),
+the dimmed Hold card's contrast (#5), blue meaning both "Drink" and "link" (#6), the label
+"Hold" (kept for now, by the owner), radio-vs-toggle semantics and a selected-state check icon
+(#10), the missing "We drank it" step that turns Drink into tasted, and a pairing search.
+
+Checked on a production build: the list order and each badge, a passed day reading Queued and
+never Overdue, the whole-row tap, Drink tonight storing the New York day, Pick a day / Change day
+/ Done, the note link only on Drink wines, the whole wishlist add / still-there / remove cycle,
+and no small tap targets.

@@ -13,7 +13,7 @@ import { groupPicksByDish, pickNotOwned } from "@/lib/pairings";
 // Not the client component it was: with the reason always visible there is
 // no expand state left to hold, and the one interactive part is
 // PairingDecision.
-export default function PairingPicksList({ picks, plannedForTonight = false }) {
+export default function PairingPicksList({ picks }) {
   return (
     <div className="flex flex-col gap-6">
       {groupPicksByDish(picks).map((group) => (
@@ -37,7 +37,7 @@ export default function PairingPicksList({ picks, plannedForTonight = false }) {
                   {pick.bottle ? (
                     <Link
                       href={`/bottles/${pick.bottle.id}`}
-                      className={`block font-medium underline underline-offset-2 ${
+                      className={`-my-2 block py-2 font-medium underline underline-offset-2 ${
                         drinking ? "text-sky-700 dark:text-sky-400" : ""
                       }`}
                     >
@@ -56,13 +56,15 @@ export default function PairingPicksList({ picks, plannedForTonight = false }) {
                     wishlisted ? (
                       <Link
                         href={`/bottles/${pick.bottle.id}`}
-                        className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+                        className="-my-1.5 inline-flex min-h-11 items-center"
                       >
-                        On your wishlist &rarr;
+                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                          On your wishlist &rarr;
+                        </span>
                       </Link>
                     ) : (
                       <span className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
-                        Not in your cellar
+                        Not in cellar
                       </span>
                     )
                   ) : (
@@ -81,23 +83,23 @@ export default function PairingPicksList({ picks, plannedForTonight = false }) {
                   pickId={pick.id}
                   decision={pick.decision}
                   wineLabel={pick.wineLabel}
-                  wishlist={notOwned && !wishlisted}
+                  notOwned={notOwned}
+                  wishlistBottleId={wishlisted ? pick.bottle.id : null}
                 />
-                {/* Only while the evening is actually tonight, and only for a
-                    wine that is in the cellar and has a dish to name: the
-                    ?pairedWith prefill is what the throwaway Suggest result
-                    gives the same wine. A wine on hold is not being tasted. */}
-                {plannedForTonight &&
-                  !held &&
-                  pick.dish &&
-                  pick.bottle?.status === "inventory" && (
-                    <Link
-                      href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish)}`}
-                      className="text-sm text-zinc-500 underline underline-offset-2"
-                    >
-                      Add a tasting note →
-                    </Link>
-                  )}
+                {/* For a wine chosen to drink, in the cellar, with a dish to
+                    name: the ?pairedWith prefill is what the throwaway
+                    Suggest result gives the same wine. It follows the choice
+                    rather than the old tonight flag, so a wine marked Drink
+                    always has the way to write its note, and one nobody has
+                    decided on does not. */}
+                {drinking && pick.dish && pick.bottle?.status === "inventory" && (
+                  <Link
+                    href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish)}`}
+                    className="-my-2 flex min-h-11 items-center text-sm text-zinc-500 underline underline-offset-2"
+                  >
+                    Add a tasting note →
+                  </Link>
+                )}
               </div>
             );
           })}

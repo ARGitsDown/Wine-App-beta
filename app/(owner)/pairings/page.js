@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { db } from "@/lib/scoped-prisma";
-import { pickNotOwned, tonightLabel } from "@/lib/pairings";
+import { decisionCounts, orderPairings, pickNotOwned } from "@/lib/pairings";
+import { toDateInputValue, todayInputValue } from "@/lib/tasting-date";
 import { STATUS_LOOK } from "@/lib/status-look";
-import TonightToggle from "@/app/components/TonightToggle";
+import PairingPlan from "@/app/components/PairingPlan";
+import PlanBadge from "@/app/components/PlanBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,7 @@ export const dynamic = "force-dynamic";
 // Suggest also links here directly, which is where you'd look anyway -
 // you come back to a kept pairing to run it again.
 export default async function PairingsPage() {
-  const pairings = await db.savedPairing.findMany({
+  const pairingsByDate = await db.savedPairing.findMany({
     include: {
       picks: {
         select: {
@@ -26,12 +28,13 @@ export default async function PairingsPage() {
         orderBy: { order: "asc" },
       },
     },
-    // Tonight's pairing(s) first, regardless of when they were kept -
-    // that's the one thing on this list actually worth doing something
-    // about today (BACKLOG #28/#39). Newest-first within each group,
-    // same as before.
-    orderBy: [{ plannedForTonight: "desc" }, { createdAt: "desc" }],
+    orderBy: { createdAt: "desc" },
   });
+  // Planned pairings first, soonest first, regardless of when they were kept
+  // - that's what is actually worth doing something about (BACKLOG #28/#39);
+  // then ones whose day has passed ("Queued"); then the rest, newest first.
+  const today = todayInputValue();
+  const pairings = orderPairings(pairingsByDate, today);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
@@ -53,24 +56,23 @@ export default async function PairingsPage() {
           {pairings.map((pairing) => (
             <li
               key={pairing.id}
-              className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+              className="relative rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
             >
               <div className="flex flex-wrap items-center gap-2">
+                {/* The title link covers the whole row (the ::after), so the
+                    row opens the pairing wherever it is tapped; the one thing
+                    that sits above it is the plan button. */}
                 <Link
                   href={`/pairings/${pairing.id}`}
-                  className="font-medium underline underline-offset-2"
+                  className="font-medium underline underline-offset-2 after:absolute after:inset-0"
                 >
                   {pairing.title}
                 </Link>
-                {/* Teal, matching the Pairings card's own accent on home -
-                    amber was already "needs a check" (Needs research,
-                    unsaved) and Wishlist elsewhere in the app, so the same
-                    color meant two unrelated things on this one screen
-                    (a UX review, 2026-09-27). */}
-                {tonightLabel(pairing) && (
-                  <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs text-teal-800 dark:bg-teal-950 dark:text-teal-400">
-                    {tonightLabel(pairing)}
-                  </span>
+                {pairing.plannedFor && (
+                  <PlanBadge
+                    plannedFor={toDateInputValue(pairing.plannedFor)}
+                    serverToday={today}
+                  />
                 )}
               </div>
               {/* The request, not the model's summary: what you asked for is
@@ -94,7 +96,7 @@ export default async function PairingsPage() {
                       {pickNotOwned(pick) && (
                         <Pill
                           look={STATUS_LOOK.wishlist}
-                          label={pick.bottle ? "Wishlist" : "Not owned"}
+                          label={pick.bottle ? "On wishlist" : "Not in cellar"}
                         />
                       )}
                     </span>
@@ -102,18 +104,13 @@ export default async function PairingsPage() {
                 ))}
               </ul>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-zinc-500">
-                  Kept {new Date(pairing.createdAt).toLocaleDateString()}
-                  {" \u00b7 "}
-                  {pairing.picks.length === 1 ? "1 wine" : `${pairing.picks.length} wines`}
-                </p>
-                {/* On the row itself, not just the detail page - clearing a
-                    stale "Planned ... - done?" shouldn't require opening the
-                    pairing first (a UX review, 2026-09-27). */}
-                <TonightToggle
-                  pairingId={pairing.id}
-                  plannedForTonight={pairing.plannedForTonight}
-                />
+                {/* How far along the choices are - the same count the
+                    pairing's own page leads with - so a pairing nobody has
+                    looked at reads differently from one half decided. */}
+                <ProgressLine picks={pairing.picks} />
+                <span className="relative z-10">
+                  <PairingPlan pairingId={pairing.id} planned={Boolean(pairing.plannedFor)} compact />
+                </span>
               </div>
             </li>
           ))}
@@ -133,5 +130,17 @@ function Pill({ look, label }) {
       <look.Icon className="h-3 w-3" />
       {label}
     </span>
+  );
+}
+
+function ProgressLine({ picks }) {
+  const counts = decisionCounts(picks);
+  return (
+    <p className="text-xs text-zinc-500">
+      <span className={counts.drink > 0 ? "font-medium text-sky-700 dark:text-sky-400" : ""}>
+        {counts.drink} to drink
+      </span>{" "}
+      &middot; {counts.hold} on hold &middot; {counts.undecided} undecided
+    </p>
   );
 }

@@ -700,8 +700,8 @@ model ResearchJob {
 // `reason` is nullable for the hand-added ones. A pairing only ever comes
 // from Suggest. Lifecycle: isOpenFlight() says a flight is a queue while
 // any pick is undrunk and "a record now, not a queue" once they are all
-// done - a pairing has nothing that elaborate, just `plannedForTonight`
-// below, an owner-set flag rather than anything the app derives. Owned vs
+// done - a pairing has nothing that elaborate, just `plannedFor`
+// below, an owner-set day rather than anything the app derives. Owned vs
 // not: FlightPick.bottleId is correctly NOT NULL because you
 // cannot open a wine you do not have, and "buy this for that dish" is the
 // entire point of Suggest's include-outside toggle.
@@ -737,24 +737,20 @@ model SavedPairing {
   // identity: a pairing with its picks and their reasons is still whole
   // without it.
   summary             String?
-  // "Drink tonight" (BACKLOG #28/#39), decided as a real planned state
-  // rather than a pure navigation shortcut: marks the whole pairing, not
-  // one wine within it - a multi-course menu is "tonight's" as a unit,
-  // even worked through course by course. Owner-set and owner-cleared
-  // only ("Done for tonight"); nothing in this app ever flips it back on
-  // its own, on purpose - an auto-clear (every pick's note logged, a
-  // time limit) risks leaving it silently stuck on if one wine's note
-  // never gets written, which is worse than asking for one more tap.
-  plannedForTonight   Boolean   @default(false)
-  // When it was marked - purely so the "Tonight" label can stop claiming
-  // that the moment it was clicked, since plannedForTonight itself never
-  // clears on its own (see the comment above). A pairing marked three
-  // weeks ago and never followed up on now reads "Planned <date> - done?"
-  // instead of an indefinitely stale "Tonight" (a UX review, 2026-09-27).
-  // Cleared alongside plannedForTonight, not just left stale, so a later
-  // re-mark starts the freshness check over rather than reading its old
-  // date.
-  plannedForTonightAt DateTime?
+  // The day this pairing is planned for, as a calendar day anchored at noon
+  // UTC (lib/tasting-date.js: a date the owner picks, not an instant). NULL
+  // means not planned. Replaces the old "drink tonight" flag, which could
+  // only say "now" and then went stale; the day is what lets a pairing be
+  // for tomorrow or Saturday, and lets "Tonight" be worked out against the
+  // reader's own date. Marks the whole pairing, not one wine within it - a
+  // multi-course menu is one evening - and any number of pairings can be
+  // planned for the same day (an aperitif pairing and a dinner pairing).
+  // Owner-set and owner-cleared only ("Done"): nothing in this app ever
+  // clears it, on purpose - an auto-clear risks leaving it silently stuck
+  // on if one wine's note never gets written, which is worse than asking
+  // for one more tap. A day that has passed is shown as "Queued", not
+  // dropped: it is still waiting to be done.
+  plannedFor          DateTime?
 
   // Same pair as Bottle's: the Domaine owns it, ownerId only says who
   // kept it.

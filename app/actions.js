@@ -3190,19 +3190,29 @@ export async function deletePairing(id) {
   redirect("/pairings");
 }
 
-// "Drink tonight" (BACKLOG #28/#39) - marks the whole pairing, not one wine
-// within it (see the schema comment on plannedForTonight), and is the only
-// way the flag is ever set: nothing in this app infers it. More than one
-// pairing can be marked at once, deliberately - a real evening can be an
-// aperitif pairing and a dinner pairing both, and forcing a single choice
-// would just make marking the second one silently un-mark the first.
-export async function markPairingForTonight(id) {
-  await db.savedPairing.update({
-    where: { id },
-    data: { plannedForTonight: true, plannedForTonightAt: new Date() },
-  });
+// Plan a pairing for a day: "Tonight", "Tomorrow", or any date picked. Marks
+// the whole pairing, not one wine within it (see the schema comment on
+// plannedFor), and is the only way the plan is ever set: nothing in this app
+// infers it. More than one pairing can be planned for the same day,
+// deliberately - a real evening can be an aperitif pairing and a dinner
+// pairing both, and forcing a single choice would just make planning the
+// second one silently un-plan the first.
+//
+// `day` is "YYYY-MM-DD", chosen in the browser: "tonight" is the reader's
+// own date, which the server cannot know (it runs on UTC).
+export async function planPairing(id, day) {
+  const planned = parseTastedDate(day);
+  if (!planned) return { error: "That day doesn't look right." };
+  try {
+    await db.savedPairing.update({ where: { id }, data: { plannedFor: planned } });
+  } catch (err) {
+    console.error("Failed to plan a pairing:", err);
+    return { error: "Couldn't save that. Please try again." };
+  }
   revalidatePath(`/pairings/${id}`);
   revalidatePath("/pairings");
+  revalidatePath("/");
+  return { ok: true };
 }
 
 // Decide a wine in a saved pairing: "drink" (planned - the tasting is
@@ -3266,16 +3276,49 @@ export async function setPairingPickDecision(pickId, decision) {
   }
 }
 
-// The only way the flag ever clears - see the schema comment on
-// plannedForTonight for why this is a manual "Done for tonight" rather
-// than something the app decides has happened (every pick's note logged,
-// a time limit): an owner-set state should end on an owner's own say-so,
-// not quietly resolve itself.
-export async function clearPairingForTonight(id) {
-  await db.savedPairing.update({
-    where: { id },
-    data: { plannedForTonight: false, plannedForTonightAt: null },
-  });
+// The only way a plan ever clears - see the schema comment on plannedFor for
+// why this is a manual "Done" rather than something the app decides has
+// happened (every pick's note logged, a time limit): an owner-set state
+// should end on an owner's own say-so, not quietly resolve itself.
+export async function clearPairingPlan(id) {
+  try {
+    await db.savedPairing.update({ where: { id }, data: { plannedFor: null } });
+  } catch (err) {
+    console.error("Failed to clear a pairing's plan:", err);
+    return { error: "Couldn't save that. Please try again." };
+  }
   revalidatePath(`/pairings/${id}`);
   revalidatePath("/pairings");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// Take back the wishlist wine that choosing Drink made for a wine you did
+// not own. Offered as "Still on your wishlist - Remove" once Drink has been
+// cleared, because clearing Drink alone deliberately leaves the wine (see
+// setPairingPickDecision). Only ever removes a bottle that is still on the
+// wishlist: one that has since been bought and moved to the cellar is a real
+// bottle now and is not this action's to delete.
+export async function removePairingPickFromWishlist(pickId) {
+  const pick = await db.pairingPick.findUnique({
+    where: { id: pickId },
+    select: { id: true, pairingId: true, gap: true, bottle: { select: { id: true, status: true } } },
+  });
+  if (!pick) return { error: "That wine is no longer in this pairing." };
+  if (!pick.gap || !pick.bottle || pick.bottle.status !== "wishlist") {
+    return { error: "That wine isn't on your wishlist." };
+  }
+  try {
+    // The pick's bottleId clears itself (onDelete SetNull), and so does
+    // its decision here, so it reads as a wine that is simply not owned.
+    await db.bottle.delete({ where: { id: pick.bottle.id } });
+    await db.pairingPick.update({ where: { id: pick.id }, data: { decision: null } });
+  } catch (err) {
+    console.error("Failed to remove a pairing wine from the wishlist:", err);
+    return { error: "Couldn't remove that. Please try again." };
+  }
+  revalidatePath(`/pairings/${pick.pairingId}`);
+  revalidatePath("/pairings");
+  revalidatePath("/wishlist");
+  return { ok: true };
 }

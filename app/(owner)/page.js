@@ -63,7 +63,7 @@ export default async function HomePage() {
     tastedCount,
     flightCount,
     pairingCount,
-    tonightPairings,
+    plannedPairings,
     unfiledFlightCount,
     researchCount,
   ] = await Promise.all([
@@ -80,15 +80,17 @@ export default async function HomePage() {
       }),
       db.tastingFlight.count(),
       db.savedPairing.count(),
-      // "Drink tonight" (BACKLOG #28/#39) needs somewhere that "surfaces
+      // A planned pairing (BACKLOG #28/#39) needs somewhere that "surfaces
       // prominently", which is what this card already is - the count stays
       // every kept pairing (unchanged), and this only swaps the small
-      // description line beneath it, from "Kept" to naming tonight's. Ids,
+      // description line beneath it, from "Kept" to "N planned". "Planned",
+      // not "tonight": the day is the reader's own and only the browser
+      // knows it, so the server cannot say which of them are tonight. Ids,
       // not just a count, so the card can link straight to the one pairing
       // when there's exactly one (a UX review, 2026-09-27 - the card used
       // to link to the whole list even when there was only one thing on it
       // worth acting on today).
-      db.savedPairing.findMany({ where: { plannedForTonight: true }, select: { id: true } }),
+      db.savedPairing.findMany({ where: { plannedFor: { not: null } }, select: { id: true } }),
       // A flight-status bottle with no pick anywhere is stranded - scanned
       // under "Flight" but never actually linked to one (BACKLOG #37/#38).
       // Nothing on this page said so before (a UX review, 2026-09-27);
@@ -96,7 +98,7 @@ export default async function HomePage() {
       db.bottle.count({ where: { status: "flight", flightPicks: { none: {} } } }),
       getResearchCount(),
     ]);
-  const tonightCount = tonightPairings.length;
+  const plannedCount = plannedPairings.length;
 
   // Two columns, ordered by how often each one is actually reached for
   // (BACKLOG #25) - authored as two plain arrays, left column first, so the
@@ -136,12 +138,12 @@ export default async function HomePage() {
       // this card is "how many kept", but the thing worth acting on is the
       // specific pairing, and a list of one is a click the card can skip
       // (a UX review, 2026-09-27).
-      href: tonightCount === 1 ? `/pairings/${tonightPairings[0].id}` : "/pairings",
+      href: plannedCount === 1 ? `/pairings/${plannedPairings[0].id}` : "/pairings",
       label: "Pairings",
       count: pairingCount,
       description:
-        tonightCount > 0
-          ? `${tonightCount} tonight`
+        plannedCount > 0
+          ? `${plannedCount} planned`
           : "Kept",
       Icon: PairingsIcon,
       accent: "bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-400",
