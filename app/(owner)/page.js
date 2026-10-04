@@ -256,6 +256,9 @@ export default async function HomePage() {
         <a href="/export" className="underline underline-offset-2">
           Export all your data (JSON backup) →
         </a>
+        <Link href="/deleted" className="underline underline-offset-2">
+          Recently deleted →
+        </Link>
         <Link href="/invites" className="underline underline-offset-2 sm:hidden">
           People &amp; Domaine →
         </Link>

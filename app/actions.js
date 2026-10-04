@@ -36,6 +36,7 @@ import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
 import { parseSizeMl } from "@/lib/bottle-sizes";
+import { deleteUntouchedBottles } from "@/lib/untouched-bottles";
 import { reviveSnapshot, snapshotOf, trashCutoff, wineLabel } from "@/lib/bottle-trash";
 import { adoptExistingLocation, cleanLocation, parseCurrency, parsePriceCents } from "@/lib/lot-fields";
 import { uploadLabelPhoto } from "@/lib/blob";
@@ -389,10 +390,29 @@ export async function renameLocation(from, to) {
   // place to its own name in another case is a plain re-spelling.
   const others = names.filter((name) => name !== source);
   const finalName = adoptExistingLocation(target, others);
-  if (finalName === source) return { ok: true };
-  await db.bottle.updateMany({ where: { location: source }, data: { location: finalName } });
+  if (finalName === source) return { ok: true, ids: [], from: source, to: finalName };
+  // The ids are read first so Undo moves back exactly the wines this moved
+  // (after a merge, wines that were already in the target stay there).
+  const moving = await db.bottle.findMany({ where: { location: source }, select: { id: true } });
+  const ids = moving.map((row) => row.id);
+  await db.bottle.updateMany({ where: { id: { in: ids }, location: source }, data: { location: finalName } });
   revalidatePath("/inventory");
-  return { ok: true };
+  return { ok: true, ids, from: source, to: finalName };
+}
+
+// Undo for renameLocation: puts those wines back under the old name, but only
+// those still under the new one (one moved or renamed since is left alone).
+export async function undoRenameLocation(ids, from, to) {
+  const wanted = (Array.isArray(ids) ? ids : []).map(Number).filter(Number.isInteger).slice(0, 5000);
+  const back = cleanLocation(from);
+  const now = cleanLocation(to);
+  if (wanted.length === 0 || !back || !now) return { error: "Nothing to undo." };
+  const result = await db.bottle.updateMany({
+    where: { id: { in: wanted }, location: now },
+    data: { location: back },
+  });
+  revalidatePath("/inventory");
+  return { ok: true, moved: result.count };
 }
 
 // "Bought it" on a wishlist wine: it becomes a cellar wine in place (same row,
@@ -616,42 +636,64 @@ export async function markOneTasted(id) {
 
 // "Add another purchase": the same wine bought again at a different price or
 // kept in another place is a new lot (see the Bottle lot comment in
-// prisma/schema.prisma), so this copies the wine's identity into a fresh
-// cellar row of one bottle and leaves the price empty to be filled in. Notes,
-// photos and research stay with the original: they are about the wine on its
-// page, and the new row carries only what identifies it. Opens the new row's
-// page with Wine details expanded.
-export async function addAnotherPurchase(id) {
+// prisma/schema.prisma). This copies the wine's identity into a fresh cellar
+// row with the count, price and place just entered. Notes, photos and research
+// stay with the original: they are about the wine on its page, and the new row
+// carries only what identifies it. The caller stays on the page and shows an
+// Undo (undoAddedPurchase) rather than navigating to a page that looks
+// identical to the one it left.
+export async function addAnotherPurchase(id, { quantity, price, currency, location } = {}) {
   const source = await db.bottle.findUnique({ where: { id: Number(id) } });
-  if (!source || source.status !== "inventory") return;
-  const created = await db.bottle.create({
-    data: {
-      ownerId: await currentOwnerId(),
-      producer: source.producer,
-      bottling: source.bottling,
-      vintage: source.vintage,
-      type: source.type,
-      variety: source.variety,
-      canonicalVariety: source.canonicalVariety,
-      region: source.region,
-      subRegion: source.subRegion,
-      country: source.country,
-      wineColor: source.wineColor,
-      abv: source.abv,
-      drinkFrom: source.drinkFrom,
-      drinkTo: source.drinkTo,
-      drinkWindowEstimated: source.drinkWindowEstimated,
-      criticNotes: source.criticNotes,
-      photoUrl: source.photoUrl,
-      sizeMl: source.sizeMl,
-      location: source.location,
-      quantity: 1,
-      status: "inventory",
-      acquiredAt: todayAtNoonUtc(),
-    },
-  });
+  if (!source || source.status !== "inventory") {
+    return { error: "That wine isn't in your cellar any more." };
+  }
+  const count = Math.min(999, Math.max(1, parseOptionalInt(quantity) ?? 1));
+  const cents = parsePriceCents(price);
+  try {
+    const created = await db.bottle.create({
+      data: {
+        ownerId: await currentOwnerId(),
+        producer: source.producer,
+        bottling: source.bottling,
+        vintage: source.vintage,
+        type: source.type,
+        variety: source.variety,
+        canonicalVariety: source.canonicalVariety,
+        region: source.region,
+        subRegion: source.subRegion,
+        country: source.country,
+        wineColor: source.wineColor,
+        abv: source.abv,
+        drinkFrom: source.drinkFrom,
+        drinkTo: source.drinkTo,
+        drinkWindowEstimated: source.drinkWindowEstimated,
+        criticNotes: source.criticNotes,
+        photoUrl: source.photoUrl,
+        sizeMl: source.sizeMl,
+        location: await resolveLocation(location),
+        pricePaidCents: cents,
+        priceCurrency: cents === null ? null : parseCurrency(currency),
+        quantity: count,
+        status: "inventory",
+        acquiredAt: todayAtNoonUtc(),
+      },
+    });
+    revalidatePath("/inventory");
+    revalidatePath(`/bottles/${source.id}`);
+    return { ok: true, id: created.id, label: wineLabel(source) };
+  } catch (err) {
+    console.error("Failed to add another purchase:", err);
+    return { error: "Couldn't add that purchase. Please try again." };
+  }
+}
+
+// Takes back an added purchase, only while it is still exactly as created (see
+// deleteUntouchedBottles): once it has a note, a photo or an edit it is real.
+export async function undoAddedPurchase(id) {
+  const { removed } = await deleteUntouchedBottles([id], "inventory");
+  if (removed === 0) return { error: "It has changed since - delete it from its own page." };
   revalidatePath("/inventory");
-  redirect(`/bottles/${created.id}?details=1`);
+  return { ok: true };
 }
 
 // Correcting the count in place (bought two more, miscounted), as opposed

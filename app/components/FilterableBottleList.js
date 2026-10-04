@@ -25,12 +25,6 @@ export default function FilterableBottleList({
 }) {
   const { filters, visible, update, clear } = useBottleFilters(bottles, initialFilters);
 
-  const locationOptions = overview
-    ? [...new Set(bottles.map((bottle) => bottle.location).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b)
-      )
-    : [];
-
   return (
     <div className="flex flex-col gap-4">
       {overview && (
@@ -46,9 +40,9 @@ export default function FilterableBottleList({
         onClear={clear}
         regionOptions={regionOptions}
         showDrinkSoon={showDrinkSoon}
+        showWindowFilter={!overview}
         showEmptied={showEmptied}
         showAcquired={showAcquired}
-        locationOptions={locationOptions}
         resultCount={visible.length}
         totalCount={bottles.length}
       />

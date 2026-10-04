@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
 import { currentDomaineId } from "@/lib/owner";
 import { lotLine } from "@/lib/lot-fields";
+import { wineLabel } from "@/lib/bottle-trash";
 import { getLocationOptions, getRegionOptions } from "@/lib/bottles";
 import {
   updateBottle,
@@ -12,10 +13,10 @@ import {
   updateEmptiedDate,
   updateAcquiredDate,
   deleteBottlePhoto,
-  addAnotherPurchase,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
+import AddPurchase from "@/app/components/AddPurchase";
 import DeleteBottleButton from "@/app/components/DeleteBottleButton";
 import AddToFlight from "@/app/components/AddToFlight";
 import BackButton from "@/app/components/BackButton";
@@ -341,6 +342,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
               bottleId={bottle.id}
               status={bottle.status}
               quantity={bottle.quantity}
+              name={wineLabel(bottle)}
+              priceCents={bottle.pricePaidCents}
+              priceCurrency={bottle.priceCurrency}
             />
           )}
         </div>
@@ -417,14 +421,12 @@ export default async function BottleDetailPage({ params, searchParams }) {
               idPrefix="bottle-details"
             />
             {bottle.status === "inventory" && (
-              <form action={addAnotherPurchase.bind(null, bottle.id)} className="mt-3">
-                <button
-                  type="submit"
-                  className="min-h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-                >
-                  Add another purchase of this wine
-                </button>
-              </form>
+              <AddPurchase
+                bottleId={bottle.id}
+                name={wineLabel(bottle)}
+                location={bottle.location ?? ""}
+                locationOptions={locationOptions}
+              />
             )}
           </div>
         </details>

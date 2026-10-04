@@ -9,7 +9,8 @@ import TastedControls from "@/app/components/TastedControls";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 import { wineDetailOrNone, wineOrigin } from "@/lib/wine-origin";
 import { drinkWindowLabel } from "@/lib/drink-window";
-import { lotLine } from "@/lib/lot-fields";
+import { lotLine, wineSiblingKey } from "@/lib/lot-fields";
+import { wineLabel } from "@/lib/bottle-trash";
 import { formatTastedDate } from "@/lib/tasting-date";
 
 const stepperClass =
@@ -80,9 +81,19 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
     return <p className="text-sm text-zinc-500">{emptyMessage}</p>;
   }
 
+  // A wine held as several lots (bought twice at different prices, or split
+  // across two shelves) shows how its lots differ on each row, since they
+  // otherwise read as the same wine listed twice.
+  const lotsOfWine = new Map();
+  for (const bottle of bottles) {
+    const key = wineSiblingKey(bottle);
+    lotsOfWine.set(key, (lotsOfWine.get(key) ?? 0) + 1);
+  }
+
   return (
     <ul className="flex flex-col gap-1.5">
       {bottles.map((bottle) => {
+        const severalLots = bottle.status === "inventory" && lotsOfWine.get(wineSiblingKey(bottle)) > 1;
         const expanded = expandedIds.has(bottle.id);
         // Origin and the drinking window share one quiet line rather than
         // each getting their own - both are worth scanning by, neither is
@@ -94,7 +105,8 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
         const detailLine = [
           wineOrigin(bottle),
           drinkWindowLabel(bottle),
-          lotLine(bottle, { withPrice: false }),
+          severalLots ? `${bottle.quantity} bottle${bottle.quantity === 1 ? "" : "s"}` : null,
+          lotLine(bottle, { withPrice: severalLots }),
         ]
           .filter(Boolean)
           .join(" · ");
@@ -215,13 +227,20 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
                       uses, not a second implementation - it already
                       self-gates to nothing on a wishlist row. */}
                   {bottle.status === "wishlist" && (
-                    <BoughtIt bottleId={bottle.id} quantity={bottle.quantity} />
+                    <BoughtIt
+                      bottleId={bottle.id}
+                      quantity={bottle.quantity}
+                      name={wineLabel(bottle)}
+                      priceCents={bottle.pricePaidCents}
+                      priceCurrency={bottle.priceCurrency}
+                    />
                   )}
                   {bottle.status === "inventory" && (
                     <TastedControls
                       bottleId={bottle.id}
                       status={bottle.status}
                       quantity={bottle.quantity}
+                      name={wineLabel(bottle)}
                     />
                   )}
                   {flights !== null && bottle.status === "inventory" && (

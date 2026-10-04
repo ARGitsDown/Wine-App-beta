@@ -29,11 +29,11 @@ export default function FilterBar({
   regionOptions = KNOWN_REGIONS,
   showRating = true,
   showDrinkSoon = true,
+  // Off where another control already owns the Drinking filter (the Cellar's
+  // overview chips), so the same filter is not offered twice.
+  showWindowFilter = true,
   showEmptied = false,
   showAcquired = false,
-  // Places in use, for the Place filter; empty (and the filter absent) on a
-  // list with no places - History, the wishlist and the guest view.
-  locationOptions = [],
   resultCount,
   totalCount,
 }) {
@@ -169,7 +169,7 @@ export default function FilterBar({
                 className={inputClass}
               />
             </label>
-            {showDrinkSoon && (
+            {showDrinkSoon && showWindowFilter && (
               <label className={labelClass}>
                 Drinking
                 <select
@@ -181,23 +181,6 @@ export default function FilterBar({
                   {Object.entries(WINDOW_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {locationOptions.length > 0 && (
-              <label className={labelClass}>
-                Place
-                <select
-                  value={filters.location}
-                  onChange={(event) => set("location", event.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Any</option>
-                  {locationOptions.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
                     </option>
                   ))}
                 </select>

@@ -177,6 +177,7 @@ model Domaine {
   researchJobs ResearchJob[]
   usageEvents  UsageEvent[]
   bottleTrash  BottleTrash[]
+  importBatches ImportBatch[]
 }
 
 // Auth.js's own three tables, plus the invite list.
@@ -1009,4 +1010,22 @@ model BottleTrash {
   deletedAt DateTime @default(now())
 
   @@index([domaineId, deletedAt])
+}
+
+// One CSV import, so "Undo import" works after the page is closed and never
+// has to trust ids sent by a browser. `bottleIds` are the wines it created (a
+// plain id list, not a relation: undo is "delete those that are still
+// untouched", and a wine deleted since simply is not there). `status` is the
+// list they went to ("inventory" or "wishlist"), which undo requires them to
+// still be in. Written by commitImport, read by the import page and undoImport,
+// purged lazily after 30 days by the next import; left out of the export.
+model ImportBatch {
+  id        Int      @id @default(autoincrement())
+  domaineId String
+  domaine   Domaine  @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  status    String
+  bottleIds Int[]
+  createdAt DateTime @default(now())
+
+  @@index([domaineId, createdAt])
 }

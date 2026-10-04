@@ -4136,13 +4136,25 @@ edited rows; the offline guard blocked filter-chip removal and let the Import bu
 digest wording, an estimated marker and the weekly option (windows are whole years, so a weekly
 email repeats itself - only Monthly is offered now); imported windows are marked estimated.
 
-**Still open (reviewers' findings not built, small):** "Add another purchase" creates at once
-with no confirmation and no toast; "Recently deleted" has no page (the 12-second toast is the
-only way back, so the 30-day bin is unreachable after that); Rename a place has no Undo; the
-Cellar overview and "More filters" both offer Drinking and Place; offline links are not
-refused; the import's Undo only lives while its page stays open; the Undo bar does not name the
-wine; offline reading (a service worker caching what was seen) is **not** built - 63.12 shipped
-as the banner and refused writes only.
+**Follow-up round (2026-10-04, owner: "build items 1-10"):** all ten built. "Add another
+purchase" is a small form (how many, paid, where) that creates on submit, stays on the page
+and leaves an Undo bar; wines held as several lots show bottles, place and price on each row.
+`/deleted` ("Recently deleted", linked from Home) lists the 30-day bin with Restore. Rename a
+place has an Undo. The Cellar's "More filters" no longer repeats Drinking and Place (the
+overview chips own them). Offline now also refuses links to other pages. Imports are recorded
+in an `ImportBatch` table, so Undo import lives on the import page (Recent imports) and no
+longer trusts ids from the browser; Undo import and Undo add-purchase share
+`deleteUntouchedBottles`. The Undo bar names the wine and "Tasted" uses it too (the inline
+Undo is gone); Bought it offers back a price the wine already carries; the scan strip has the
+place input. Data nits: the quantity CHECK migration now first raises any quantity below 1,
+and an unreadable import purchase date is stored as unknown rather than today.
+
+**Still open:** offline reading (a service worker caching what was seen) is **not** built -
+63.12 shipped as the banner and refused writes only. 63.6 (taste profile) is folded into a
+larger capability by the owner. Earlier carried-over items (not part of #63): Drink offered on
+a wine no longer owned, dimmed Hold contrast, blue meaning both Drink and link, accessibility
+cues on the Drink/Hold tiles, "Drink tonight" wording, pairing search; model testing against
+the live API is paused (#59).
 
 ### 63 review: UX critic, data engineer and AI reviewer on the plan (2026-10-04)
 

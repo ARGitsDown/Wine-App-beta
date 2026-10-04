@@ -72,5 +72,9 @@ t("merge count is reported", per.merged, 1);
 t("quantities never pass 999", mergeLots([{ producer: "A", quantity: 600 }, { producer: "A", quantity: 600 }]).map((w) => w.quantity), [600, 600]);
 t("lot key separates price", lotKey({ producer: "A", pricePaidCents: 1 }) === lotKey({ producer: "A", pricePaidCents: 2 }), false);
 
+const dated = prepareImport("Producer,PurchaseDate\nA,soon\nB,\nC,2024-02-03\n");
+t("an unreadable date is unknown (false), a missing one is null, a good one is a date", [dated.wines[0].acquiredAt, dated.wines[1].acquiredAt, dated.wines[2].acquiredAt?.toISOString()], [false, null, "2024-02-03T12:00:00.000Z"]);
+t("the unreadable date is warned about", dated.warnings.map((x) => x.text.includes("unknown")), [true]);
+
 console.log(`import-wines: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

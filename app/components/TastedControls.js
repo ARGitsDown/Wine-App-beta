@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { markOneTasted, setBottleStatus, undoOneTasted } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
 import BoughtIt from "@/app/components/BoughtIt";
+import { useUndo } from "@/app/components/UndoToast";
 
 const buttonClass =
   "min-h-11 rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
@@ -24,33 +25,52 @@ const secondaryButtonClass =
 // a separate plain `<form>` on the page itself, the one status-change
 // button on this page with no pending state at all, since every other one
 // already lived in this component and got it for free from `isPending`.
-export default function TastedControls({ bottleId, status, quantity }) {
+export default function TastedControls({
+  bottleId,
+  status,
+  quantity,
+  // The wine's name, for the Undo bar ("Tasted one · Rochioli 2019"), and the
+  // price it already carries, which Bought it offers back rather than blank.
+  name = null,
+  priceCents = null,
+  priceCurrency = null,
+}) {
   const [isPending, startTransition] = useTransition();
-  const [justActed, setJustActed] = useState(false);
+  const showUndo = useUndo();
+  const suffix = name ? ` \u00b7 ${name}` : "";
+
+  // The Undo lives in the shared bar, not in this component: tasting the last
+  // bottle (or "Tasted all") moves the wine to History and the list this sits
+  // in re-renders without it, which is the moment an inline Undo would vanish.
+  async function undoTasted() {
+    await undoOneTasted(bottleId);
+    return { ok: true };
+  }
 
   function tasteOne() {
     startTransition(async () => {
       await markOneTasted(bottleId);
-      setJustActed(true);
+      showUndo(`Tasted one${suffix}`, undoTasted);
     });
   }
 
   function tasteAll() {
     startTransition(async () => {
       await setBottleStatus(bottleId, "consumed");
-      setJustActed(true);
-    });
-  }
-
-  function undo() {
-    startTransition(async () => {
-      await undoOneTasted(bottleId);
-      setJustActed(false);
+      showUndo(`Tasted all ${quantity}${suffix}`, undoTasted);
     });
   }
 
   if (status === "wishlist") {
-    return <BoughtIt bottleId={bottleId} quantity={quantity} />;
+    return (
+      <BoughtIt
+        bottleId={bottleId}
+        quantity={quantity}
+        name={name}
+        priceCents={priceCents}
+        priceCurrency={priceCurrency}
+      />
+    );
   }
 
   return (
@@ -82,19 +102,6 @@ export default function TastedControls({ bottleId, status, quantity }) {
             </button>
           )}
         </>
-      )}
-      {justActed && (
-        <span className="flex items-center gap-2 text-sm text-zinc-500">
-          Tasted.
-          <button
-            type="button"
-            onClick={undo}
-            disabled={isPending}
-            className="underline underline-offset-2"
-          >
-            Undo
-          </button>
-        </span>
       )}
       {isPending && <Spinner label="Saving…" />}
     </div>

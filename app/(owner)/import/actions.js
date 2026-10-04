@@ -7,6 +7,7 @@ import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { acquiredAtForStatus } from "@/lib/bottle-dates";
 import { MAX_IMPORT_BYTES, duplicateKey, lotKey, prepareImport } from "@/lib/import-wines";
 import { adoptExistingLocation } from "@/lib/lot-fields";
+import { deleteUntouchedBottles } from "@/lib/untouched-bottles";
 
 // Import from a CSV (CellarTracker, Vivino, or a spreadsheet): a preview that
 // writes nothing, then the import, then an undo. The file is read again on
@@ -136,13 +137,22 @@ export async function commitImport(prevState, formData) {
     location: status === "inventory" ? wine.location : null,
     pricePaidCents: status === "inventory" ? wine.pricePaidCents : null,
     priceCurrency: status === "inventory" ? wine.priceCurrency : null,
-    acquiredAt: acquiredAtForStatus(status, status === "inventory" ? wine.acquiredAt : null),
+    acquiredAt:
+      // false = the file had a date that could not be read: unknown, not today.
+      wine.acquiredAt === false ? null : acquiredAtForStatus(status, status === "inventory" ? wine.acquiredAt : null),
   }));
 
   try {
     const created = await db.bottle.createManyAndReturn({ data: rows, select: { id: true } });
+    // Remembered server-side so the Undo outlives this page and never has to
+    // trust ids sent back by a browser; old batches are purged here.
+    const batch = await db.importBatch.create({
+      data: { status, bottleIds: created.map((row) => row.id) },
+    });
+    await db.importBatch.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86400000) } } });
     revalidatePath(status === "inventory" ? "/inventory" : "/wishlist");
-    return { done: { count: created.length, status, destination: DESTINATIONS[status], ids: created.map((row) => row.id) } };
+    revalidatePath("/import");
+    return { done: { count: created.length, status, destination: DESTINATIONS[status], batchId: batch.id } };
   } catch (err) {
     console.error("Import failed:", err);
     return { error: "Couldn't import that file. Nothing was added." };
@@ -150,35 +160,17 @@ export async function commitImport(prevState, formData) {
 }
 
 // Takes back what an import added, but only wines still exactly as the import
-// left them. Anything the person has since added to or changed is kept and
-// counted, so an undo can never delete work.
-export async function undoImport(ids, status) {
-  const wanted = (Array.isArray(ids) ? ids : []).map(Number).filter(Number.isInteger).slice(0, 2000);
-  if (wanted.length === 0 || !Object.hasOwn(DESTINATIONS, status)) return { error: "Nothing to undo." };
-  // Still where the import put them, with nothing attached (a research
-  // proposal counts), and not edited since: a row touched after it was created
-  // (a corrected price, a changed count) is the person's own work now.
-  const candidates = await db.bottle.findMany({
-    where: {
-      id: { in: wanted },
-      status,
-      researchProposal: null,
-      tastingNotes: { none: {} },
-      photos: { none: {} },
-      favorites: { none: {} },
-      flightPicks: { none: {} },
-      pairingPicks: { none: {} },
-    },
-    select: { id: true, createdAt: true, updatedAt: true },
-  });
-  const untouched = candidates
-    .filter((row) => row.updatedAt.getTime() - row.createdAt.getTime() < 5000)
-    .map((row) => row.id);
-  const removed = untouched.length
-    ? await db.bottle.deleteMany({ where: { id: { in: untouched }, status } })
-    : { count: 0 };
-  const kept = await db.bottle.count({ where: { id: { in: wanted } } });
+// left them (see deleteUntouchedBottles). Anything the person has since added
+// to or changed is kept and counted, so an undo can never delete work.
+export async function undoImport(batchId) {
+  const id = Number(batchId);
+  if (!Number.isInteger(id)) return { error: "Nothing to undo." };
+  const batch = await db.importBatch.findUnique({ where: { id } });
+  if (!batch) return { error: "That import can't be undone any more." };
+  const { removed, kept } = await deleteUntouchedBottles(batch.bottleIds, batch.status);
+  await db.importBatch.deleteMany({ where: { id } });
   revalidatePath("/inventory");
   revalidatePath("/wishlist");
-  return { ok: true, removed: removed.count, kept };
+  revalidatePath("/import");
+  return { ok: true, removed, kept };
 }

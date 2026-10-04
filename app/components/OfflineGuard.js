@@ -40,18 +40,30 @@ const READ_ONLY = "[aria-expanded], [aria-pressed], [data-offline-ok], summary";
 // so rather than pretending otherwise. Reading what is already loaded works.
 export default function OfflineGuard() {
   const offline = useOffline();
-  const [nudge, setNudge] = useState(0);
+  const [nudge, setNudge] = useState({ n: 0, text: "" });
 
   useEffect(() => {
     if (!offline) return undefined;
     document.documentElement.dataset.offline = "true";
 
-    function refuse(event) {
+    function refuse(event, text = "Can\u2019t save while you\u2019re offline. Nothing was changed.") {
       event.preventDefault();
       event.stopPropagation();
-      setNudge((n) => n + 1);
+      setNudge((prev) => ({ n: prev.n + 1, text }));
     }
     function onClick(event) {
+      // A link to another page cannot load without a network, and would end
+      // on the browser's own error page; say so instead. Same-page links and
+      // anything marked data-offline-ok are left alone.
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (link && !link.closest("[data-offline-ok]") && link.target !== "_blank") {
+        const url = new URL(link.href, window.location.href);
+        const samePage = url.origin === window.location.origin && url.pathname === window.location.pathname;
+        if (!samePage) {
+          refuse(event, "Can\u2019t open other pages while you\u2019re offline.");
+          return;
+        }
+      }
       const button = event.target instanceof Element ? event.target.closest("button") : null;
       if (!button || button.closest(READ_ONLY) || button.type === "reset") return;
       // A button inside a form is either a control for the form (stars, a
@@ -60,11 +72,12 @@ export default function OfflineGuard() {
       if (button.form && !button.hasAttribute("data-offline-write")) return;
       refuse(event);
     }
-    document.addEventListener("submit", refuse, true);
+    const onSubmit = (event) => refuse(event);
+    document.addEventListener("submit", onSubmit, true);
     document.addEventListener("click", onClick, true);
     return () => {
       delete document.documentElement.dataset.offline;
-      document.removeEventListener("submit", refuse, true);
+      document.removeEventListener("submit", onSubmit, true);
       document.removeEventListener("click", onClick, true);
     };
   }, [offline]);
@@ -73,13 +86,13 @@ export default function OfflineGuard() {
   return (
     <div
       role="status"
-      key={nudge}
+      key={nudge.n}
       className={`sticky top-0 z-50 border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 print:hidden dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200 ${
-        nudge > 0 ? "font-medium" : ""
+        nudge.n > 0 ? "font-medium" : ""
       }`}
     >
-      {nudge > 0
-        ? "Can’t save while you’re offline. Nothing was changed."
+      {nudge.n > 0
+        ? nudge.text
         : "You’re offline. What’s already open still reads; changes can’t be saved until you’re back."}
     </div>
   );

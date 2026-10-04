@@ -1,12 +1,36 @@
 import BackButton from "@/app/components/BackButton";
 import ImportPanel from "@/app/components/ImportPanel";
+import RecentImports from "@/app/components/RecentImports";
+import { db } from "@/lib/scoped-prisma";
 
 export const dynamic = "force-dynamic";
 
 // For someone arriving with a list: a CellarTracker or Vivino export, or a
 // spreadsheet saved as CSV. Scanning is better for a few bottles; this is for
 // a few hundred.
-export default function ImportPage() {
+export default async function ImportPage() {
+  // Batches older than 30 days are purged by the next import, so this is the
+  // recent few.
+  const batches = await db.importBatch.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+  // Only batches that still have wines in them: one whose wines are all gone
+  // (undone, or deleted one by one) has nothing left to undo.
+  const remaining = await Promise.all(
+    batches.map((batch) =>
+      db.bottle.count({ where: { id: { in: batch.bottleIds }, status: batch.status } })
+    )
+  );
+  const recent = batches
+    .map((batch, i) => ({
+      id: batch.id,
+      remaining: remaining[i],
+      destination: batch.status === "inventory" ? "Cellar" : "Wishlist",
+      when: batch.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    }))
+    .filter((batch) => batch.remaining > 0);
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
       <BackButton fallbackHref="/inventory" />
@@ -18,6 +42,7 @@ export default function ImportPage() {
         </p>
       </div>
       <ImportPanel />
+      <RecentImports batches={recent} />
       <p className="text-xs text-zinc-500">
         Understood columns: Producer or Winery, Wine name, Vintage, Quantity, Size, Price, Currency,
         Location, Region, Sub-region or Appellation, Country, Varietal, Color, Begin and End Consume,

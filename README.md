@@ -294,14 +294,16 @@ or multiple locations in one cellar.
   (its notes, photos, guest favorites, flight picks, research proposal, and
   which pairing picks pointed at it) in a 30-day recycle bin, and leaves
   "Deleted X · Undo" on the list you land on; Undo puts it back with the same
-  id and re-links its pairings. The bin is a `BottleTrash` table, not a
+  id and re-links its pairings. After the bar is gone, **Recently deleted**
+  (linked from Home) lists the bin with a Restore on each. The bin is a `BottleTrash` table, not a
   `deletedAt` column, so a deleted wine never leaks into a list or a count.
 - **Size, place and price** — "Wine details" holds the bottle size (a split to
   a double magnum, stored as millilitres), where it is ("Rack B", "Fridge"),
   and what one bottle cost with its currency. A row is a *lot*: identical
   bottles sharing size, place and price, so a second purchase at a different
-  price is its own row ("Add another purchase of this wine" copies the wine
-  into a fresh row). The place shows quietly on a cellar row and in search, a
+  price is its own row ("Add another purchase of this wine" asks how many,
+  what each cost and where, and adds a line with the same wine details; a wine
+  held as several lots shows bottles, place and price on each row). The place shows quietly on a cellar row and in search, a
   size only when it is not a standard bottle, and a cellar scan can file the
   whole batch under one place. Nothing is estimated and nothing is shown to
   Guests.
@@ -330,8 +332,8 @@ or multiple locations in one cellar.
   Vivino (or a spreadsheet saved as CSV) is mapped onto the wine and lot
   fields and previewed before anything is written; wines already on the list
   are skipped, values it cannot read are left blank with a named warning, and
-  "Undo import" removes only what the import added that you have not since
-  added notes or links to.
+  "Undo import" (under Recent imports, which outlives the page) removes only
+  what the import added that you have not since changed or added to.
 - **Data export** (`/export`, linked from the home page) — downloads every
   bottle with its tasting notes and photo links, every guest who favorited
   one of this Domaine's bottles (with their favorites), the Domaine's name

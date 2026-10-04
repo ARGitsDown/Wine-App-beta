@@ -1129,6 +1129,28 @@ export default function ScanPanel({
             className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           />
           )}
+          {/* The batch's place, reachable here for the same reason: moving
+              from Rack B to the fridge mid-batch used to keep filing under
+              Rack B with no way to change it. Only for the Cellar. */}
+          {!flight && intent === "cellar" && (
+          <input
+            type="text"
+            value={location}
+            onChange={(event) => setLocation(event.target.value)}
+            list="scan-location-options"
+            maxLength={80}
+            placeholder="Put the next ones in (optional)"
+            aria-label="Where the next wines are going, such as Rack B or Fridge"
+            className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          />
+          )}
+          {!flight && intent === "cellar" && (
+            <datalist id="scan-location-options">
+              {locationOptions.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          )}
         </div>
       )}
 

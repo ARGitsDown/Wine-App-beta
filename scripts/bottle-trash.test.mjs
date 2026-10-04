@@ -1,6 +1,6 @@
 // The recycle-bin snapshot: what is kept, that dates survive the JSON round
 // trip, and that the date-field lists cover every date a row carries.
-import { snapshotOf, reviveSnapshot, wineLabel, isoStringFields, dateFieldsFor, trashCutoff, TRASH_DAYS } from "../lib/bottle-trash.js";
+import { snapshotOf, reviveSnapshot, wineLabel, isoStringFields, dateFieldsFor, trashCutoff, TRASH_DAYS, daysLeftInBin } from "../lib/bottle-trash.js";
 
 let pass = 0, fail = 0;
 function t(name, got, want) {
@@ -47,6 +47,8 @@ t("no date column is missing from the revive lists", unknown.filter(([, f]) => f
 t("a wine with nothing attached", snapshotOf({ id: 1, producer: "X" }), { bottle: { id: 1, producer: "X" }, tastingNotes: [], photos: [], favorites: [], flightPicks: [], researchProposal: null, pairingPickIds: [] });
 t("cutoff is 30 days back", trashCutoff(d("2026-10-31T00:00:00Z")).toISOString(), "2026-10-01T00:00:00.000Z");
 t("retention", TRASH_DAYS, 30);
+
+t("days left in the bin", [daysLeftInBin(d("2026-10-01T00:00:00Z"), d("2026-10-04T12:00:00Z").getTime()), daysLeftInBin(d("2026-08-01T00:00:00Z"), d("2026-10-04T00:00:00Z").getTime())], [27, 0]);
 
 console.log(`bottle-trash: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

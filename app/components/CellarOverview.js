@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { renameLocation } from "@/app/actions";
+import { renameLocation, undoRenameLocation } from "@/app/actions";
+import { useUndo } from "@/app/components/UndoToast";
 import { summarizeCellar } from "@/lib/cellar-overview";
 import { WINDOW_LABELS } from "@/lib/filter-bottles";
 
@@ -20,6 +21,7 @@ const chipBase =
 export default function CellarOverview({ bottles, filters, onFilter }) {
   const summary = useMemo(() => summarizeCellar(bottles), [bottles]);
   const detailsRef = useRef(null);
+  const showUndo = useUndo();
   const [renaming, setRenaming] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -78,7 +80,15 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
         return;
       }
       // A filter on the old name would now match nothing.
-      if (filters.location === from) onFilter("location", to.trim());
+      if (filters.location === from) onFilter("location", result.to);
+      if (result.ids?.length > 0) {
+        const n = result.ids.length;
+        showUndo(`Moved ${n} wine${n === 1 ? "" : "s"} from ${result.from} to ${result.to}`, async () => {
+          const undone = await undoRenameLocation(result.ids, result.from, result.to);
+          if (undone?.ok && filters.location === result.to) onFilter("location", result.from);
+          return undone;
+        });
+      }
       setRenaming(false);
       setFrom("");
       setTo("");

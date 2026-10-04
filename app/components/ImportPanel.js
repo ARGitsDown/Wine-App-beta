@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
-import { commitImport, previewImport, undoImport } from "@/app/(owner)/import/actions";
+import { commitImport, previewImport } from "@/app/(owner)/import/actions";
 import Spinner from "@/app/components/Spinner";
 
 const buttonClass =
@@ -23,8 +23,6 @@ export default function ImportPanel() {
   const [, startAction] = useTransition();
   const fileKey = file ? `${file.name}:${file.size}` : null;
   const [destination, setDestination] = useState("inventory");
-  const [undone, setUndone] = useState(null);
-  const [undoing, startUndo] = useTransition();
 
   const preview = previewState?.preview;
   // A preview describes the file and destination it was made for; changing
@@ -41,40 +39,21 @@ export default function ImportPanel() {
     startAction(() => action(data));
   }
 
-  function undo() {
-    startUndo(async () => {
-      setUndone(await undoImport(done.ids, done.status));
-    });
-  }
-
   if (done) {
     return (
       <div role="status" className="flex flex-col gap-3 rounded-lg border border-green-300 p-4 dark:border-green-900">
-        {undone?.ok ? (
-          <p className="text-sm">
-            Undone: removed {undone.removed} wine{undone.removed === 1 ? "" : "s"}.
-            {undone.kept > 0 &&
-              ` Kept ${undone.kept} that you've changed or added to since - delete those by hand if you want them gone.`}
-          </p>
-        ) : (
-          <>
-            <p className="text-sm">
-              Imported <strong>{done.count}</strong> wine{done.count === 1 ? "" : "s"} to the {done.destination}.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href={done.status === "inventory" ? "/inventory" : "/wishlist"}
-                className="flex min-h-11 items-center text-sm underline underline-offset-2"
-              >
-                View the {done.destination}
-              </Link>
-              <button type="button" onClick={undo} disabled={undoing} className={quietButtonClass}>
-                {undoing ? "Undoing…" : "Undo import"}
-              </button>
-            </div>
-            {undone?.error && <p className="text-sm text-red-600 dark:text-red-400">{undone.error}</p>}
-          </>
-        )}
+        <p className="text-sm">
+          Imported <strong>{done.count}</strong> wine{done.count === 1 ? "" : "s"} to the {done.destination}. You can
+          undo it under Recent imports below.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={done.status === "inventory" ? "/inventory" : "/wishlist"}
+            className="flex min-h-11 items-center text-sm underline underline-offset-2"
+          >
+            View the {done.destination}
+          </Link>
+        </div>
       </div>
     );
   }

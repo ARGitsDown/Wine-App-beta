@@ -19,7 +19,7 @@ so nothing caught it until the owner opened the deployed app.
 
 `npm run verify` is the unit checks (the sign-in policy, the usage-limit
 arithmetic, the AI answer guards), then lint, then a production build,
-then `next start`, then `scripts/smoke.mjs` opening all 18 pages in a real
+then `next start`, then `scripts/smoke.mjs` opening all 19 pages in a real
 browser and failing on any error boundary, page error or 5xx. It takes
 about a minute. Run it
 before claiming a change works, and always after touching:
