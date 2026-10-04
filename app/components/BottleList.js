@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { adjustBottleQuantity } from "@/app/actions";
 import AddToFlight from "@/app/components/AddToFlight";
+import BoughtIt from "@/app/components/BoughtIt";
 import TastedControls from "@/app/components/TastedControls";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 import { wineDetailOrNone, wineOrigin } from "@/lib/wine-origin";
@@ -213,6 +214,9 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
                       component and the same markOneTasted the bottle page
                       uses, not a second implementation - it already
                       self-gates to nothing on a wishlist row. */}
+                  {bottle.status === "wishlist" && (
+                    <BoughtIt bottleId={bottle.id} quantity={bottle.quantity} />
+                  )}
                   {bottle.status === "inventory" && (
                     <TastedControls
                       bottleId={bottle.id}

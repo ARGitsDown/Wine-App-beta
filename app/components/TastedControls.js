@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { markOneTasted, setBottleStatus, undoOneTasted } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
+import BoughtIt from "@/app/components/BoughtIt";
 
 const buttonClass =
   "min-h-11 rounded bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900";
@@ -27,12 +28,6 @@ export default function TastedControls({ bottleId, status, quantity }) {
   const [isPending, startTransition] = useTransition();
   const [justActed, setJustActed] = useState(false);
 
-  function boughtIt() {
-    startTransition(async () => {
-      await setBottleStatus(bottleId, "inventory");
-    });
-  }
-
   function tasteOne() {
     startTransition(async () => {
       await markOneTasted(bottleId);
@@ -55,14 +50,7 @@ export default function TastedControls({ bottleId, status, quantity }) {
   }
 
   if (status === "wishlist") {
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={boughtIt} disabled={isPending} className={buttonClass}>
-          Bought it → move to inventory
-        </button>
-        {isPending && <Spinner label="Moving…" />}
-      </div>
-    );
+    return <BoughtIt bottleId={bottleId} quantity={quantity} />;
   }
 
   return (

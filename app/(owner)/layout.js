@@ -9,6 +9,7 @@ import { getResearchCount } from "@/lib/bottles";
 import NavLinks from "@/app/components/NavLinks";
 import TabBar from "@/app/components/TabBar";
 import NavigationDepthTracker from "@/app/components/NavigationDepthTracker";
+import UndoProvider from "@/app/components/UndoToast";
 
 // The badge is the only part of the shell that needs the database, so it
 // renders on its own and streams in: awaiting it in the layout put a DB
@@ -66,7 +67,7 @@ export default async function OwnerLayout({ children }) {
   }
 
   return (
-    <>
+    <UndoProvider>
       <NavigationDepthTracker />
       {/* Two navs, one at a time. The row of text links was a desktop nav
           on a phone-first app: at 375px it wrapped to two lines above every
@@ -102,6 +103,6 @@ export default async function OwnerLayout({ children }) {
           widths where the bar exists. */}
       <main className="flex flex-1 flex-col pb-20 sm:pb-0">{children}</main>
       <TabBar />
-    </>
+    </UndoProvider>
   );
 }

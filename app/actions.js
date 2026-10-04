@@ -368,6 +368,80 @@ export async function setBottleStatus(id, status) {
   }
 }
 
+// "Bought it" on a wishlist wine: it becomes a cellar wine in place (same row,
+// so a pairing pick that points at it stays linked), with how many arrived,
+// what one cost, and today as the date. setBottleStatus cannot do this - it
+// has no quantity, price or lot - and the move is conditional on the wine
+// still being on the wishlist, so a second tab or a double tap cannot
+// re-stamp a wine already bought. Returns what undoBought needs to put the
+// row back exactly.
+export async function markBought(id, { quantity, price, currency } = {}) {
+  const bottleId = Number(id);
+  if (!Number.isInteger(bottleId)) return { error: "That wine is no longer on your wishlist." };
+  const count = Math.min(999, Math.max(1, parseOptionalInt(quantity) ?? 1));
+  const cents = parsePriceCents(price);
+  try {
+    const existing = await db.bottle.findUnique({
+      where: { id: bottleId },
+      select: { status: true, quantity: true },
+    });
+    if (!existing || existing.status !== "wishlist") {
+      return { error: "That wine is no longer on your wishlist." };
+    }
+    const moved = await db.bottle.updateMany({
+      where: { id: bottleId, status: "wishlist" },
+      data: {
+        status: "inventory",
+        quantity: count,
+        acquiredAt: acquiredAtForStatus("inventory", null),
+        pricePaidCents: cents,
+        priceCurrency: cents === null ? null : parseCurrency(currency),
+      },
+    });
+    if (moved.count === 0) return { error: "That wine is no longer on your wishlist." };
+    revalidatePath("/wishlist");
+    revalidatePath("/inventory");
+    revalidatePath("/pairings");
+    revalidatePath(`/bottles/${bottleId}`);
+    return { ok: true, boughtQuantity: count, previousQuantity: existing.quantity };
+  } catch (err) {
+    console.error("Failed to move a wine to the cellar:", err);
+    return { error: "Couldn't move that wine. Please try again." };
+  }
+}
+
+// Puts a just-bought wine back on the wishlist, only while it is still
+// exactly as markBought left it (a cellar row of the same count): once a
+// bottle has been opened or the count changed, quietly rewinding would lose
+// that, so it is refused and the person edits it by hand.
+export async function undoBought(id, { boughtQuantity, previousQuantity } = {}) {
+  const bottleId = Number(id);
+  const bought = Number(boughtQuantity);
+  const previous = Number(previousQuantity);
+  if (![bottleId, bought, previous].every((n) => Number.isInteger(n) && n >= 1)) {
+    return { error: "Couldn't undo that." };
+  }
+  const reverted = await db.bottle.updateMany({
+    where: { id: bottleId, status: "inventory", quantity: bought },
+    data: {
+      status: "wishlist",
+      quantity: previous,
+      acquiredAt: null,
+      pricePaidCents: null,
+      priceCurrency: null,
+      location: null,
+    },
+  });
+  if (reverted.count === 0) {
+    return { error: "It has changed since - edit it on its own page." };
+  }
+  revalidatePath("/wishlist");
+  revalidatePath("/inventory");
+  revalidatePath("/pairings");
+  revalidatePath(`/bottles/${bottleId}`);
+  return { ok: true };
+}
+
 // Correcting when a bottle was actually emptied, the same way a tasting
 // note's date can be corrected - the button stamps "now", which is right
 // when you log as you drink and wrong when you're catching up later.
