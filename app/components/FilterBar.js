@@ -227,12 +227,12 @@ export default function FilterBar({
         </div>
       </details>
 
-        <label className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2.5 text-sm dark:border-zinc-800">
+        <label className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-200 px-3 text-sm dark:border-zinc-800">
           <span className="text-zinc-500">Sort</span>
           <select
             value={filters.sort}
             onChange={(event) => set("sort", event.target.value)}
-            className="min-h-11 bg-transparent text-base"
+            className="min-h-9 bg-transparent text-base"
           >
             {sortOptions.map((option) => (
               <option key={option.value} value={option.value}>

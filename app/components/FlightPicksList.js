@@ -259,7 +259,7 @@ export default function FlightPicksList({ flightId, picks }) {
                 </button>
                 {pick.consumed && (
                   <div className="flex shrink-0 flex-col items-end">
-                    <span className="px-2 py-1 text-sm font-medium text-sky-700 opacity-60 dark:text-sky-400">
+                    <span className="px-2 py-1 text-sm font-medium text-sky-700 dark:text-sky-400">
                       ✓ Tasted
                     </span>
                     {/* "Note" and, from the same note, how it was rated: a
