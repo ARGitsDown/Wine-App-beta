@@ -33,7 +33,7 @@ export default async function ResearchQueuePage() {
   // flagged - you can research anything from its own page - so the review
   // list is driven by the proposals, not by the flag.
   const domaineId = await currentDomaineId();
-  const [proposals, toResearch, regionOptions, activeJob] = await Promise.all([
+  const [proposals, toResearch, regionOptions, activeJobs] = await Promise.all([
     db.researchProposal.findMany({
       include: { bottle: true },
       orderBy: { createdAt: "desc" },
@@ -46,9 +46,9 @@ export default async function ResearchQueuePage() {
     // A bulk run outlives the tab that started it, so the page has to be
     // able to find one already in flight - otherwise coming back to watch
     // it would show an idle button while the server was mid-queue, which
-    // is the exact confusion this whole feature exists to end. Newest
-    // first, and only one: two overlapping runs would be a mistake worth
-    // showing as one bar rather than two.
+    // is the exact confusion this whole feature exists to end. All of them,
+    // not one: "Research all" and each wine researched from its own row are
+    // separate runs going at once, and the bar adds them up (summarizeRuns).
     //
     // researchJob isn't a model lib/scoped-prisma.js's extension covers
     // (see that file for why), so it's filtered by domaineId explicitly
@@ -56,12 +56,14 @@ export default async function ResearchQueuePage() {
     // progress bar would react to, another Domaine's job in flight. A run
     // another Cellarmaster of this Domaine started is this cellar's run
     // too, so it shows here the same as one's own.
-    prisma.researchJob.findFirst({
+    prisma.researchJob.findMany({
       where: { status: "running", domaineId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
+      take: 25,
       select: {
         id: true,
         bottleIds: true,
+        pendingIds: true,
         researched: true,
         failed: true,
         status: true,
@@ -72,16 +74,15 @@ export default async function ResearchQueuePage() {
 
   return (
     <ResearchRunProvider
-      activeJob={
-        activeJob && {
-          id: activeJob.id,
-          total: activeJob.bottleIds.length,
-          researched: activeJob.researched,
-          failed: activeJob.failed,
-          status: activeJob.status,
-          updatedAt: activeJob.updatedAt.toISOString(),
-        }
-      }
+      activeJobs={activeJobs.map((job) => ({
+        id: job.id,
+        total: job.bottleIds.length,
+        researched: job.researched,
+        failed: job.failed,
+        status: job.status,
+        updatedAt: job.updatedAt.toISOString(),
+        pendingIds: job.pendingIds,
+      }))}
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
         <div className="flex flex-col gap-4">

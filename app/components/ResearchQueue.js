@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { researchBottle, dismissResearch } from "@/app/actions";
+import { dismissResearch } from "@/app/actions";
 import { useResearchRun } from "@/app/components/research-run-context";
 import Spinner from "@/app/components/Spinner";
 import StatusBadge from "@/app/components/StatusBadge";
@@ -21,39 +21,47 @@ function bottleHeader(bottle) {
 }
 
 export default function ResearchQueue({ bottles }) {
-  // Which bottle is mid-research, not merely "something is running": one
-  // shared flag would disable every row's button while any one of them
-  // worked.
-  const [busyId, setBusyId] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [starting, setStarting] = useState(false);
+  // Wines whose tap has gone out and whose run has not come back yet, so a
+  // second tap in that gap does nothing.
+  const [sending, setSending] = useState(() => new Set());
   const [error, setError] = useState(null);
-  const [, startTransition] = useTransition();
 
-  // The run itself belongs to the page, not to this list - its progress
-  // bar is rendered up at the top, where it isn't buried under the results
-  // it produces. What this needs from it is only whether one is live.
-  const { running, start } = useResearchRun();
+  // The runs belong to the page, not to this list - their progress bar is
+  // rendered up at the top, where it isn't buried under the results it
+  // produces. What this needs from them is where each wine stands.
+  const { stateOf, start } = useResearchRun();
 
-  function researchOne(id) {
+  const stateFor = (id) => (sending.has(id) ? "queued" : stateOf(id));
+
+  // One wine from its own row joins the same background queue as "Research
+  // all": it runs on the server, several can be asked for in a row without
+  // waiting on each other's answer, and a wine already being researched is
+  // refused rather than paid for twice.
+  async function researchOne(id) {
     setError(null);
-    setBusyId(id);
-    startTransition(async () => {
-      const result = await researchBottle(id);
-      if (result?.error) setError(result.error);
-      setBusyId(null);
+    setSending((prev) => new Set(prev).add(id));
+    const message = await start([id]);
+    setSending((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
     });
+    if (message) setError(message);
   }
 
-  // One call, and what comes back is a job to watch rather than a tally:
+  // One call, and what comes back is a run to watch rather than a tally:
   // the queue lives in a row now and each step asks for its own invocation
   // to run in (see researchBottles in app/actions.js), so there is nothing
-  // for this tab to drive and nothing it can stop by closing.
+  // for this tab to drive and nothing it can stop by closing. Only wines not
+  // already in a run: the others are being paid for.
+  const idle = bottles.filter((bottle) => !stateFor(bottle.id));
   async function researchAll() {
     setError(null);
     setConfirming(false);
     setStarting(true);
-    const message = await start(bottles.map((bottle) => bottle.id));
+    const message = await start(idle.map((bottle) => bottle.id));
     setStarting(false);
     if (message) setError(message);
   }
@@ -64,13 +72,13 @@ export default function ResearchQueue({ bottles }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Hidden while a run is live, shown again the moment it isn't - a
-          finished or interrupted run leaves whatever it couldn't get to
-          listed below, and starting again is how those get picked up. */}
-      {!running &&
+      {/* Hidden only when every wine is already in a run; a run that is live
+          for a few leaves the rest to start, and a finished or interrupted run
+          leaves whatever it couldn't get to listed below. */}
+      {idle.length > 0 &&
         (starting ? (
           <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-            <Spinner label={`Starting research for ${bottles.length} bottle${bottles.length === 1 ? "" : "s"}…`} />
+            <Spinner label={`Starting research for ${idle.length} bottle${idle.length === 1 ? "" : "s"}…`} />
           </div>
         ) : confirming ? (
           /* Named outright, because this is the app's only web-search call and
@@ -78,23 +86,23 @@ export default function ResearchQueue({ bottles }) {
              bottle, not one search. */
           <div className="flex flex-col gap-2 rounded-lg border border-amber-300 p-3 text-sm dark:border-amber-900">
             <p>
-              This runs a live web search for each of the {bottles.length}{" "}
-              bottle{bottles.length === 1 ? "" : "s"} below — {bottles.length}{" "}
-              search{bottles.length === 1 ? "" : "es"} in total. Results wait
+              This runs a live web search for each of the {idle.length}{" "}
+              bottle{idle.length === 1 ? "" : "s"} below — {idle.length}{" "}
+              search{idle.length === 1 ? "" : "es"} in total. Results wait
               for your review; nothing is saved automatically.
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={researchAll}
-                className="rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+                className="min-h-11 rounded bg-zinc-900 px-3 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
               >
-                Research all {bottles.length}
+                Research all {idle.length}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+                className="min-h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
               >
                 Cancel
               </button>
@@ -104,9 +112,9 @@ export default function ResearchQueue({ bottles }) {
           <button
             type="button"
             onClick={() => setConfirming(true)}
-            className="self-start rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+            className="min-h-11 self-start rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
           >
-            Research all {bottles.length} →
+            Research all {idle.length} →
           </button>
         ))}
 
@@ -129,10 +137,14 @@ export default function ResearchQueue({ bottles }) {
               <button
                 type="button"
                 onClick={() => researchOne(bottle.id)}
-                disabled={busyId === bottle.id || starting || running}
+                disabled={Boolean(stateFor(bottle.id)) || starting}
                 className={secondaryButtonClass}
               >
-                {busyId === bottle.id ? "Researching…" : "Research"}
+                {stateFor(bottle.id) === "researching"
+                  ? "Researching…"
+                  : stateFor(bottle.id) === "queued"
+                    ? "Queued"
+                    : "Research"}
               </button>
               <form action={dismissResearch.bind(null, bottle.id)}>
                 <button

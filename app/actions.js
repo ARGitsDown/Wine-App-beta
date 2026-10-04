@@ -42,7 +42,7 @@ import { deleteUntouchedBottles } from "@/lib/untouched-bottles";
 import { reviveSnapshot, snapshotOf, trashCutoff, wineLabel } from "@/lib/bottle-trash";
 import { MAX_LOCATION, MAX_LOT_QUANTITY, adoptExistingLocation, cleanLocation, parseCurrency, parsePriceCents } from "@/lib/lot-fields";
 import { uploadLabelPhoto } from "@/lib/blob";
-import { STEP_SLICE, STEP_BUDGET_MS } from "@/lib/research-job";
+import { STALLED_AFTER_MS, STEP_SLICE, STEP_BUDGET_MS } from "@/lib/research-job";
 import { newResearchJobToken, dispatchResearchStep } from "@/lib/research-dispatch";
 
 function parseOptionalInt(value) {
@@ -2086,8 +2086,35 @@ const BULK_RESEARCH_EFFORT = "low";
 // what is left, does what it can afford, writes back, and asks for a fresh
 // invocation to carry on - so the total run is bounded by nothing, and
 // what the page shows is real server state rather than a tally in a tab.
-// How recently a research run must have moved to count as still running.
-const ACTIVE_JOB_MS = 15 * 60 * 1000;
+// How recently a research run must have moved to count as still running: the
+// same line the page draws for "stopped", so a button never offers what the
+// server then refuses.
+const ACTIVE_JOB_MS = STALLED_AFTER_MS;
+
+// What a run is, as the page and the progress bar read it.
+const RESEARCH_JOB_SELECT = {
+  id: true,
+  bottleIds: true,
+  pendingIds: true,
+  researched: true,
+  failed: true,
+  status: true,
+  updatedAt: true,
+};
+
+// Serialized here rather than handed over as a Date so the client gets the
+// same shape whether it polls or receives the run from the page's own query.
+function serializeResearchJob(job) {
+  return {
+    id: job.id,
+    total: job.bottleIds.length,
+    researched: job.researched,
+    failed: job.failed,
+    status: job.status,
+    updatedAt: job.updatedAt.toISOString(),
+    pendingIds: job.pendingIds,
+  };
+}
 
 export async function researchBottles(ids) {
   const { id: ownerId, domaineId } = await currentCellarmaster();
@@ -2151,7 +2178,7 @@ export async function researchBottles(ids) {
   }
 
   revalidatePath("/research");
-  return { data: { jobId: job.id, total: bottleIds.length } };
+  return { data: { jobId: job.id, total: bottleIds.length, pendingIds: bottleIds } };
 }
 
 // One step of a job: take what it can afford off the front of the queue,
@@ -2244,45 +2271,25 @@ async function runResearchJobInProcess(jobId, token) {
   }
 }
 
-// What the progress bar reads. Deliberately never returns the token - the
-// browser is given a job id to watch and nothing it could use to drive the
-// job with.
-export async function getResearchJob(jobId) {
-  if (!Number.isInteger(jobId)) return { error: "That research run is no longer on file." };
+// What the progress bar reads: the runs it is watching, by id. Deliberately
+// never returns the token - the browser is given job ids to watch and nothing
+// it could use to drive a job with.
+export async function getResearchJobs(jobIds) {
+  const ids = (Array.isArray(jobIds) ? jobIds : []).filter(Number.isInteger).slice(0, 25);
+  if (ids.length === 0) return { data: [] };
 
   // researchJob isn't scoped by lib/scoped-prisma.js's extension (see that
   // file), so it's filtered here explicitly - without this, the polling
   // Server Action behind the progress bar would happily read back another
-  // Domaine's job by id, guessed or otherwise. By Domaine, not by who
+  // Domaine's jobs by id, guessed or otherwise. By Domaine, not by who
   // started it: a run another Cellarmaster of this Domaine started is
   // researching this cellar too.
   const { domaineId } = await currentCellarmaster();
-  const job = await prisma.researchJob.findUnique({
-    where: { id: jobId, domaineId },
-    select: {
-      id: true,
-      bottleIds: true,
-      researched: true,
-      failed: true,
-      status: true,
-      updatedAt: true,
-    },
+  const jobs = await prisma.researchJob.findMany({
+    where: { id: { in: ids }, domaineId },
+    select: RESEARCH_JOB_SELECT,
   });
-  if (!job) return { error: "That research run is no longer on file." };
-
-  return {
-    data: {
-      id: job.id,
-      total: job.bottleIds.length,
-      researched: job.researched,
-      failed: job.failed,
-      status: job.status,
-      // Serialized here rather than handed over as a Date so the client
-      // gets the same shape whether it polls this or receives the job
-      // from the page's own query.
-      updatedAt: job.updatedAt.toISOString(),
-    },
-  };
+  return { data: jobs.map(serializeResearchJob) };
 }
 
 // One step's worth of work: group identical questions, run the search,

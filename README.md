@@ -75,7 +75,10 @@ or multiple locations in one cellar.
   form.
 - **Research** (`/research`) — bottles the scan feature wasn't confident
   about, and what a web search turned up for them. Each can be researched
-  in one click from the list, or all at once behind a confirmation that
+  in one click from the list - tap several in a row and they join the same
+  background queue (the row reads "Researching…" or "Queued", a wine already
+  in progress is never paid for twice, and the progress bar at the top adds
+  the runs up) - or all at once behind a confirmation that
   says how many bottles that covers - at most that many live searches, and
   fewer when two rows turn out to be the same wine with the same details on
   file, since those share one lookup. Results wait in a review
@@ -370,9 +373,10 @@ or multiple locations in one cellar.
   won't update a bookmark that already exists.
 - **Design touches** — the home page is eight cards and nothing else: no
   title, no section labels, since eight labelled cards say what the app holds
-  better than a heading above them does (plus a few plain links underneath
-  - export, "Recently deleted (N)" when the bin has something, and on a phone People & Domaine and Sign out - which aren't
-  cards; see **Data export** above).
+  better than a heading above them does (plus one quiet **Settings** link
+  underneath, which opens `/settings`: People & Domaine, Recently deleted (N),
+  the JSON export, Import a list and Sign out. The link says how many wines are
+  in the bin when there are any; see **Data export** above).
   Each card carries its icon and
   name top-left, its count bottom-left (centered under the icon, so the
   figure reads as belonging to it) and its description bottom-right, each cut

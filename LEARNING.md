@@ -496,11 +496,11 @@ nothing about whether a model reads labels well. That distinction -
   `next start` is how production actually runs. **They differ**, and things
   that work in dev can fail in production. So the rule in `AGENTS.md`:
   *`npm run verify` before you say it works.*
-- **`npm run verify`** runs, in order: twelve unit checks (the sign-in policy,
+- **`npm run verify`** runs, in order: thirteen unit checks (the sign-in policy,
   usage arithmetic, AI guards, constants, pairings, lot fields, cellar overview,
-  the recycle bin, print cards, the digest, CSV import, the same-wine key; `npm run test:policy`
+  the recycle bin, print cards, the digest, CSV import, the same-wine key, research runs; `npm run test:policy`
   runs just these), lint, a production build,
-  starts the built app, then opens all 19 pages in a real browser and fails on
+  starts the built app, then opens all 20 pages in a real browser and fails on
   any error. The same runs on GitHub on every push (`verify.yml`), against an
   *empty* database on purpose: the bugs a full database hides are the
   empty-state ones.

@@ -4593,3 +4593,22 @@ shows them, work continues if the tab is closed, a wine already in progress is r
 than paid for twice, and several wines run in sequence by design. The alternative, a set of busy
 ids per row, fixes the labels and the double tap but leaves the serial behaviour and the tab
 dependence. Also decide whether a row's Research should show "Queued" vs "Researching…".
+
+### 68 built (2026-10-04)
+
+**68.1 Settings:** home now ends with one "Settings" link (with "· N recently deleted" when the bin
+has something) opening `/settings`: People & Domaine, Recently deleted, Export all your data,
+Import a list and Sign out. The desktop header is unchanged (People, Sign out). `/settings` is the
+20th page in the smoke test.
+
+**68.2 Research queue:** a row's Research no longer runs inline. It starts a background run
+through `researchBottles([id])`, the same machinery as "Research all": tapping several wines in a
+row creates several runs that work at once on the server, each row reads "Researching…" (the
+front of a run) or "Queued", a wine already in a run is refused (and "Research all" counts only
+wines not in one), and the bar adds the runs up (`summarizeRuns`, `researchStates` in
+`lib/research-job.js`; `getResearchJobs` replaces `getResearchJob`). The "already being
+researched" window is now the same 3 minutes the page uses to call a run stopped. **Still
+inline, unchanged:** the single-bottle Research on a wine's own page and the scan card's "look it
+up" (`researchBottle`), which want their answer there and then. Two runs going at once means two
+searches in flight against the API at once; if that ever meets a rate limit, the fix is a lock per
+Domaine in `runResearchJobStep`.

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { researchBottles, getResearchJob } from "@/app/actions";
-import { isResearchJobStalled } from "@/lib/research-job";
+import { researchBottles, getResearchJobs } from "@/app/actions";
+import { isResearchJobStalled, researchStates, summarizeRuns } from "@/lib/research-job";
 import { ResearchRunContext, useResearchRun } from "@/app/components/research-run-context";
 import ProgressBar from "@/app/components/ProgressBar";
 
@@ -30,69 +30,87 @@ import ProgressBar from "@/app/components/ProgressBar";
 // number this reads changes on that timescale, not this one.
 const POLL_MS = 3000;
 
-export function ResearchRunProvider({ activeJob = null, children }) {
-  // Seeded from the page, so arriving at (or returning to) /research while
-  // a run is in flight shows the run rather than an idle button. From then
-  // on the poll below owns it, which is why this isn't kept in sync with
-  // the prop: the poll is always the fresher of the two.
-  const [job, setJob] = useState(activeJob);
+export function ResearchRunProvider({ activeJobs = [], children }) {
+  // The runs being watched: "Research all" is one, each wine researched from
+  // its own row is another, and they all run at once on the server. Seeded
+  // from the page, so arriving at (or returning to) /research while runs are
+  // in flight shows them rather than an idle button. From then on the poll
+  // below owns them, which is why this isn't kept in sync with the prop: the
+  // poll is always the fresher of the two.
+  const [jobs, setJobs] = useState(activeJobs);
   const router = useRouter();
 
-  const stalled = isResearchJobStalled(job);
-  const running = job?.status === "running" && !stalled;
+  const summary = summarizeRuns(jobs);
+  const states = researchStates(jobs);
 
-  // Depends on the id and status rather than on `job` itself: every poll
-  // sets a fresh object, and depending on that would tear down and rebuild
-  // the interval on each tick.
-  const jobId = job?.id ?? null;
-  const jobStatus = job?.status ?? null;
+  // Depends on which runs are still moving rather than on `jobs` itself:
+  // every poll sets fresh objects, and depending on those would tear down and
+  // rebuild the interval on each tick.
+  const movingKey = jobs
+    .filter((job) => job.status === "running")
+    .map((job) => job.id)
+    .join(",");
 
   useEffect(() => {
-    if (jobId == null || jobStatus !== "running") return;
+    if (!movingKey) return;
+    const ids = movingKey.split(",").map(Number);
 
     let cancelled = false;
     const timer = setInterval(async () => {
-      const result = await getResearchJob(jobId);
+      const result = await getResearchJobs(ids);
       // A run whose row has gone (or whose read failed) shouldn't wipe the
       // last good numbers off the screen - it should just stop updating
       // them, and let the stalled check say so.
-      if (!cancelled && result?.data) setJob(result.data);
+      if (cancelled || !result?.data) return;
+      const fresh = new Map(result.data.map((job) => [job.id, job]));
+      setJobs((prev) => prev.map((job) => fresh.get(job.id) ?? job));
     }, POLL_MS);
 
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [jobId, jobStatus]);
+  }, [movingKey]);
 
   // Every few bottles that land are a few new proposals in "Ready to
   // review", so pull the server page again whenever the count moves. Keyed
   // on the count rather than on a timer: no movement, no refresh.
-  const finishedCount = job ? job.researched + job.failed : 0;
+  const finishedCount = summary ? summary.researched + summary.failed : 0;
   useEffect(() => {
     if (finishedCount > 0) router.refresh();
   }, [finishedCount, router]);
 
   // Returns an error message or null, so the caller can put it where its
   // own controls are rather than having errors surface up here, away from
-  // the button that caused them.
+  // the button that caused them. A new run joins the ones still moving; runs
+  // that have finished are dropped, so the bar starts again from the new work
+  // rather than adding it to yesterday's total.
   async function start(ids) {
     const result = await researchBottles(ids);
     if (result?.error) return result.error;
-    setJob({
+    const added = {
       id: result.data.jobId,
       total: result.data.total,
       researched: 0,
       failed: 0,
       status: "running",
       updatedAt: new Date().toISOString(),
-    });
+      pendingIds: result.data.pendingIds,
+    };
+    setJobs((prev) => [...prev.filter((job) => job.status === "running" && !isResearchJobStalled(job)), added]);
     return null;
   }
 
   return (
     <ResearchRunContext.Provider
-      value={{ job, running, stalled, start, dismiss: () => setJob(null) }}
+      value={{
+        run: summary,
+        running: Boolean(summary?.running),
+        stalled: Boolean(summary?.stalled),
+        stateOf: (bottleId) => states.get(bottleId) ?? null,
+        start,
+        dismiss: () => setJobs([]),
+      }}
     >
       {children}
     </ResearchRunContext.Provider>
@@ -103,14 +121,14 @@ export function ResearchRunProvider({ activeJob = null, children }) {
 // "finished" and "stopped partway" are genuinely different news and a bar
 // that just sits at 40% tells you neither.
 export function ResearchRunProgress() {
-  const { job, running, stalled, dismiss } = useResearchRun();
+  const { run: job, running, stalled, dismiss } = useResearchRun();
   if (!job) return null;
 
   const done = job.researched + job.failed;
   // The Domaine reached its hard stop partway through. Distinct from
   // "stalled" (something broke) and from "done" (everything was tried):
   // nothing here failed, the rest are simply still waiting.
-  const paused = job.status === "paused";
+  const paused = job.paused;
 
   const barClass = stalled || paused
     ? "bg-amber-500"

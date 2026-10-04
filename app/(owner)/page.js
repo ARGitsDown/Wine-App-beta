@@ -14,8 +14,6 @@ import { getResearchCount } from "@/lib/bottles";
 import { windowBucket } from "@/lib/drink-window";
 import { readyNowText } from "@/lib/cellar-overview";
 import { trashCutoff } from "@/lib/bottle-trash";
-import { isAuthConfigured } from "@/lib/auth";
-import { signOutOfCellar } from "@/app/signin/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -249,33 +247,14 @@ export default async function HomePage() {
         ))}
       </div>
 
-      {/* The account-level links, in the same quiet style as the export
-          link. On a phone these were nowhere at all - the desktop header
-          that carries them is hidden below 640px and the tab bar has no
-          room to spare for things used a few times a year - so a phone
-          had no way to manage people and no way to sign out, which
-          matters most for someone signed in on a borrowed phone
-          (BACKLOG #53). Hidden on desktop, where the header has both. */}
-      <div className="flex flex-col items-start gap-3 text-sm text-zinc-500">
-        <a href="/export" className="flex min-h-11 items-center underline underline-offset-2">
-          Export all your data (JSON backup) →
-        </a>
-        {binCount > 0 && (
-          <Link href="/deleted" className="flex min-h-11 items-center underline underline-offset-2">
-            Recently deleted ({binCount}) →
-          </Link>
-        )}
-        <Link href="/invites" className="flex min-h-11 items-center underline underline-offset-2 sm:hidden">
-          People &amp; Domaine →
-        </Link>
-        {isAuthConfigured() && (
-          <form action={signOutOfCellar} className="sm:hidden">
-            <button type="submit" className="min-h-11 underline underline-offset-2">
-              Sign out
-            </button>
-          </form>
-        )}
-      </div>
+      {/* One quiet link to everything about the cellar rather than in it: the
+          backup, the bin, the people, signing out (BACKLOG #68.1). The bin's
+          count rides along, because "you can restore it from Recently
+          deleted" has to be findable from here. */}
+      <Link href="/settings" className="flex min-h-11 items-center self-start text-sm text-zinc-500 underline underline-offset-2">
+        Settings
+        {binCount > 0 ? ` \u00b7 ${binCount} recently deleted` : ""} &rarr;
+      </Link>
     </div>
   );
 }
