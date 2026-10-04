@@ -5,6 +5,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ROLE, ROLE_VALUES, ACCESS, ACCESS_VALUES } from "../lib/roles.js";
 import { FEATURE, FEATURE_VALUES, HELD_FEATURES } from "../lib/usage-features.js";
+import { BOTTLE_STATUS_VALUES, isBottleStatus } from "../lib/bottle-status.js";
 import { INVITE_ACCESS_OPTIONS, INVITE_ACCESS_VALUES } from "../lib/invite-access.js";
 
 let pass = 0, fail = 0;
@@ -57,6 +58,11 @@ for (const path of files) {
   }
 }
 t("no raw role/access/feature literals in app/ or lib/", offenders, []);
+
+t("the four stored bottle statuses", [...BOTTLE_STATUS_VALUES].sort(), ["consumed", "flight", "inventory", "wishlist"]);
+t("a status is checked", [isBottleStatus("inventory"), isBottleStatus("Inventory"), isBottleStatus("gone"), isBottleStatus(null)], [true, false, false, false]);
+const migration = readFileSync("prisma/migrations/20261004090000_bottle_status_known/migration.sql", "utf8");
+t("the CHECK lists exactly the same words", [...BOTTLE_STATUS_VALUES].every((word) => migration.includes(`'${word}'`)), true);
 
 console.log(`constants: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

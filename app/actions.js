@@ -30,6 +30,7 @@ import { resolveGuestView } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
 import { wineKey } from "@/lib/wine-key";
+import { isBottleStatus } from "@/lib/bottle-status";
 import { RESEARCH_FIELDS, holdOwnersWindow, researchChanges } from "@/lib/research-fields";
 import { plausibleWindow } from "@/lib/drink-window";
 import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
@@ -39,7 +40,7 @@ import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 import { parseSizeMl } from "@/lib/bottle-sizes";
 import { deleteUntouchedBottles } from "@/lib/untouched-bottles";
 import { reviveSnapshot, snapshotOf, trashCutoff, wineLabel } from "@/lib/bottle-trash";
-import { MAX_LOCATION, adoptExistingLocation, cleanLocation, parseCurrency, parsePriceCents } from "@/lib/lot-fields";
+import { MAX_LOCATION, MAX_LOT_QUANTITY, adoptExistingLocation, cleanLocation, parseCurrency, parsePriceCents } from "@/lib/lot-fields";
 import { uploadLabelPhoto } from "@/lib/blob";
 import { STEP_SLICE, STEP_BUDGET_MS } from "@/lib/research-job";
 import { newResearchJobToken, dispatchResearchStep } from "@/lib/research-dispatch";
@@ -108,7 +109,7 @@ function bottleDataFromForm(formData) {
     region: String(formData.get("region") || "").trim() || null,
     subRegion: String(formData.get("subRegion") || "").trim() || null,
     country: String(formData.get("country") || "").trim() || null,
-    quantity: Math.max(1, parseOptionalInt(formData.get("quantity")) || 1),
+    quantity: Math.min(MAX_LOT_QUANTITY, Math.max(1, parseOptionalInt(formData.get("quantity")) || 1)),
     notes: String(formData.get("notes") || "").trim() || null,
     abv: parseOptionalFloat(formData.get("abv")),
     wineColor: normalizeWineColor(formData.get("wineColor")),
@@ -204,6 +205,7 @@ function bottleDataFromWine(wine) {
 }
 
 async function insertBottle(status, formData) {
+  if (!isBottleStatus(status)) return null;
   const data = { ...bottleDataFromForm(formData), ...(await lotFieldsFromForm(formData)) };
   if (!data.producer) return null;
   // Only set on creation (e.g. from the scan flow, when extraction wasn't
@@ -344,6 +346,7 @@ export async function updateBottle(id, prevState, formData) {
 // reading Wishlist while the database still said Cellar, with nothing on
 // screen disagreeing. The caller puts the radio back on { error }.
 export async function setBottleStatus(id, status) {
+  if (!isBottleStatus(status)) return { error: "That isn't a place a wine can be moved to." };
   try {
     const existing = await db.bottle.findUnique({
       where: { id },
@@ -432,7 +435,7 @@ export async function undoRenameLocation(ids, from, to) {
 export async function markBought(id, { quantity, price, currency, location } = {}) {
   const bottleId = Number(id);
   if (!Number.isInteger(bottleId)) return { error: "That wine is no longer on your wishlist." };
-  const count = Math.min(999, Math.max(1, parseOptionalInt(quantity) ?? 1));
+  const count = Math.min(MAX_LOT_QUANTITY, Math.max(1, parseOptionalInt(quantity) ?? 1));
   const cents = parsePriceCents(price);
   const placeText = await resolveLocation(location);
   try {
@@ -555,7 +558,9 @@ export async function updateEmptiedDate(id, formData) {
   if (!emptiedAt) return { error: "That date doesn't look right." };
 
   try {
-    await db.bottle.update({ where: { id }, data: { emptiedAt } });
+    // Only a wine that has been tasted has a date it was emptied.
+    const updated = await db.bottle.updateMany({ where: { id, status: "consumed" }, data: { emptiedAt } });
+    if (updated.count === 0) return { error: "That wine isn't in your tasting notes." };
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/consumed");
     return { success: true };
@@ -668,7 +673,7 @@ export async function addAnotherPurchase(id, { quantity, price, currency, locati
   if (!source || source.status !== "inventory") {
     return { error: "That wine isn't in your cellar any more." };
   }
-  const count = Math.min(999, Math.max(1, parseOptionalInt(quantity) ?? 1));
+  const count = Math.min(MAX_LOT_QUANTITY, Math.max(1, parseOptionalInt(quantity) ?? 1));
   const cents = parsePriceCents(price);
   try {
     const created = await db.bottle.create({
@@ -731,7 +736,8 @@ export async function adjustBottleQuantity(id, delta) {
   });
   if (!bottle) return;
 
-  const next = Math.max(1, bottle.quantity + delta);
+  // Past the most a lot holds anywhere else the stepper simply stops.
+  const next = Math.min(MAX_LOT_QUANTITY, Math.max(1, bottle.quantity + delta));
   if (next === bottle.quantity) return;
 
   await db.bottle.update({ where: { id }, data: { quantity: next } });
@@ -2080,6 +2086,9 @@ const BULK_RESEARCH_EFFORT = "low";
 // what is left, does what it can afford, writes back, and asks for a fresh
 // invocation to carry on - so the total run is bounded by nothing, and
 // what the page shows is real server state rather than a tally in a tab.
+// How recently a research run must have moved to count as still running.
+const ACTIVE_JOB_MS = 15 * 60 * 1000;
+
 export async function researchBottles(ids) {
   const { id: ownerId, domaineId } = await currentCellarmaster();
 
@@ -2102,8 +2111,23 @@ export async function researchBottles(ids) {
     where: { id: { in: requestedIds } },
     select: { id: true },
   });
-  const bottleIds = owned.map((bottle) => bottle.id);
-  if (bottleIds.length === 0) return { error: "There's nothing waiting to be researched." };
+  // Not a bottle a run of this Domaine is already working through (a double
+  // click, a second tab): the same question twice is the same money twice. A
+  // run that has not moved in a while is treated as broken, not as in progress,
+  // so it never blocks starting again.
+  const running = await prisma.researchJob.findMany({
+    where: { domaineId, status: "running", updatedAt: { gte: new Date(Date.now() - ACTIVE_JOB_MS) } },
+    select: { pendingIds: true },
+  });
+  const inProgress = new Set(running.flatMap((job) => job.pendingIds));
+  const bottleIds = owned.map((bottle) => bottle.id).filter((id) => !inProgress.has(id));
+  if (bottleIds.length === 0) {
+    return {
+      error: owned.length > 0
+        ? "Those bottles are already being researched."
+        : "There's nothing waiting to be researched.",
+    };
+  }
 
   const job = await prisma.researchJob.create({
     data: {

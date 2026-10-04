@@ -4545,3 +4545,21 @@ same wine (`followOtherLots`, `siblingLotFor`: moved when the pairing is read, l
 and a gone wine that had Drink is no longer counted "to drink" (or given the blue Drink edge).
 A deleted wine keeps no producer or vintage to match on, so it only comes back by restoring it
 from Recently deleted.
+
+### 67 data-hardening bundle (2026-10-04)
+
+Built from the data reviewer's leftovers: `Bottle.status` is checked against its four words
+(`lib/bottle-status.js`) in `createBottle`'s insert path and `setBottleStatus`, and held by a
+new CHECK, `Bottle_status_known`, added NOT VALID so a deploy never fails on old rows (run
+`ALTER TABLE "Bottle" VALIDATE CONSTRAINT "Bottle_status_known"` once to prove them);
+`MAX_LOT_QUANTITY` (999) is one constant for the form, the stepper, Bought it, Add purchase and
+import; "Research all" skips bottles an active run (moved in the last 15 minutes) of the same
+Domaine is already working through; `binAndDelete` re-tests "not edited since created" inside the
+transaction and deletes each row only at the `updatedAt` it read, and its leftover read names the
+Domaine; `updateEmptiedDate` refuses a wine that has not been tasted; `BottleTrash.listedIn` is
+backfilled from snapshots by migration 20261004090000 (still nullable, but no entry is null);
+`wineName` in the digest is `wineLabel` plus the count; and `schema.prisma` now lists every CHECK
+constraint by name. **Left:** a call killed by the function time limit is billed but not
+recorded; `runResearchJobStep` still has no lock of its own (the guard above stops the common
+double start, not a handoff racing the `after()` fallback); the status vocabulary is still
+about 110 string literals around the app (the new constant exists, nothing is migrated onto it).

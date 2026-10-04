@@ -12,6 +12,15 @@ datasource db {
   provider = "postgresql"
 }
 
+// CHECK constraints Prisma does not model - they live only in the migrations,
+// so `migrate diff` cannot see them. Every one, by name:
+//   Bottle_lot_sane, Bottle_quantity_positive, Bottle_status_known (NOT VALID)
+//   Domaine_limits_sane, UsageEvent_nonnegative
+//   PairingPick_decision_known, PairingPick_drank_was_planned,
+//   PairingPick_took_bottle_was_drunk
+//   User_digestFrequency_known
+// Each is explained on the field it guards.
+
 // The person a cellar belongs to.
 //
 // Phases 0 through 3 of separate cellars (FUTURE_CAPABILITIES.md) are
@@ -343,6 +352,9 @@ model Bottle {
   // "how many were in the lot when it was finished", not a number to sum for
   // value. Totals of money or litres count cellar rows only.
   quantity             Int       @default(1)
+  // "inventory" (Cellar), "wishlist", "consumed" (Tasting notes) or "flight":
+  // lib/bottle-status.js. Held by the CHECK Bottle_status_known, added NOT VALID
+  // so a deploy never fails on old rows; run VALIDATE CONSTRAINT to prove them.
   status               String    @default("wishlist")
   // The owner's own words about the bottle, as opposed to criticNotes
   // (someone else's words, written by Research) or a TastingNote (about one
@@ -1013,8 +1025,9 @@ model BottleTrash {
   label     String
   // The list the wine was on when it was deleted ("inventory", "wishlist",
   // "consumed", "flight"), so the Recently deleted page can say where a
-  // restore puts it without reading the snapshot. NULL on entries made before
-  // this column existed.
+  // restore puts it without reading the snapshot. Entries made before this
+  // column existed were filled in from their snapshot by a migration, so every
+  // entry has one; it stays nullable only because the column was added later.
   listedIn  String?
   snapshot  Json
   deletedAt DateTime @default(now())
