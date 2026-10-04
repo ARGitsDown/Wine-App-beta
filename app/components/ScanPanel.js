@@ -393,18 +393,19 @@ function destinationLabelFor(status) {
 function DestinationPicker({ name, legend, status, onChange }) {
   return (
     <fieldset>
-      <legend className="mb-1.5 text-sm text-zinc-500">{legend}</legend>
-      {/* Two rows of two rather than four across - this row is icon and
-          label side by side, not stacked like the picker at the top of the
-          page, and "Wishlist" doesn't have the room to spare at quarter
-          width on a phone. */}
-      <div className="grid grid-cols-2 gap-1.5">
+      <legend className="mb-1 text-xs text-zinc-500">{legend}</legend>
+      {/* One row of four, icon over label: a correction here is rare (the
+          batch's destination was already chosen above), so it should cost one
+          line of the card, not two rows. Icon-over-label is what lets
+          "Wishlist" fit at a quarter of a phone's width; each tile is still
+          44px tall. */}
+      <div className="grid grid-cols-4 gap-1.5">
         {DESTINATIONS.map((option) => {
           const selected = status === option.value;
           return (
             <label
               key={option.value}
-              className={`flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-1.5 text-sm transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-zinc-900 dark:has-[:focus-visible]:outline-zinc-100 ${
+              className={`flex min-h-11 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-0.5 py-1 text-xs transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-zinc-900 dark:has-[:focus-visible]:outline-zinc-100 ${
                 selected
                   ? `border-transparent font-medium ${option.accent}`
                   : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600"
