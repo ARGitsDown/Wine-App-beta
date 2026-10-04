@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
 import { completeTastingFlight, deleteTastingFlight } from "@/app/actions";
@@ -124,7 +125,17 @@ export default async function FlightDetailPage({ params }) {
           needs said once, not per row. */}
       <div className="flex items-center justify-between gap-3">
         <BackButton fallbackHref="/flights" />
-        <StatusBadge status="flight" />
+        <div className="flex items-center gap-3">
+          {flight.picks.length > 0 && (
+            <Link
+              href={`/flights/${flight.id}/print`}
+              className="flex min-h-11 items-center text-sm text-zinc-600 underline underline-offset-2 dark:text-zinc-400"
+            >
+              Print card
+            </Link>
+          )}
+          <StatusBadge status="flight" />
+        </div>
       </div>
 
       <div className="flex flex-col gap-1">

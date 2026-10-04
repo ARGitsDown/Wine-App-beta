@@ -23,3 +23,17 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* While OfflineGuard reports no network, anything that would save looks it. */
+html[data-offline] main button[type="submit"] {
+  opacity: 0.5;
+}
+
+/* Paper is white whatever the screen theme: a dark-mode page would print
+   near-white text, and some print-to-PDF paths keep backgrounds. */
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+}

@@ -28,6 +28,7 @@ export default function BackButton({ fallbackHref, label = "Back" }) {
 
   return (
     <button
+      data-offline-ok
       type="button"
       onClick={handleClick}
       className="-ml-2 inline-flex min-h-11 w-fit items-center gap-1 px-2 text-left text-sm text-zinc-500 underline underline-offset-2"

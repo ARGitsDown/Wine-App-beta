@@ -22,7 +22,7 @@ export default function TabBarLinks({ items }) {
       // Sits above the content, and out of the way of an iPhone's home
       // indicator - without the safe-area inset the last row of a list ends
       // up under the bar on exactly the device this is for.
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden dark:border-zinc-800 dark:bg-zinc-950/95"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden print:hidden dark:border-zinc-800 dark:bg-zinc-950/95"
     >
       <ul className="mx-auto flex max-w-3xl">
         {items.map((item) => {

@@ -117,6 +117,14 @@ export default async function PairingDetailPage({ params }) {
           >
             Ask again, with changes
           </Link>
+          {pairing.picks.length > 0 && (
+            <Link
+              href={`/pairings/${pairing.id}/print`}
+              className="flex min-h-11 items-center text-sm text-zinc-600 underline underline-offset-2 dark:text-zinc-400"
+            >
+              Print card
+            </Link>
+          )}
           <ConfirmButton
             action={deletePairing.bind(null, pairing.id)}
             label="Delete"

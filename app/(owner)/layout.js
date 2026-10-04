@@ -10,6 +10,7 @@ import NavLinks from "@/app/components/NavLinks";
 import TabBar from "@/app/components/TabBar";
 import NavigationDepthTracker from "@/app/components/NavigationDepthTracker";
 import UndoProvider from "@/app/components/UndoToast";
+import OfflineGuard from "@/app/components/OfflineGuard";
 
 // The badge is the only part of the shell that needs the database, so it
 // renders on its own and streams in: awaiting it in the layout put a DB
@@ -69,12 +70,13 @@ export default async function OwnerLayout({ children }) {
   return (
     <UndoProvider>
       <NavigationDepthTracker />
+      <OfflineGuard />
       {/* Two navs, one at a time. The row of text links was a desktop nav
           on a phone-first app: at 375px it wrapped to two lines above every
           screen, permanently, and pushed the first bottle in the cellar to
           441px. Below 640px it is gone and the tab bar has it; above, it
           comes back unchanged and the bar is the one that hides. */}
-      <header className="hidden border-b border-zinc-200 sm:block dark:border-zinc-800">
+      <header className="hidden border-b border-zinc-200 sm:block print:hidden dark:border-zinc-800">
         <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
           <NavLinks />
           <Suspense fallback={null}>
@@ -101,7 +103,7 @@ export default async function OwnerLayout({ children }) {
       {/* The bar is fixed, so it sits over the end of the page unless the
           page ends above it. 56px of bar plus a little air, and only on the
           widths where the bar exists. */}
-      <main className="flex flex-1 flex-col pb-20 sm:pb-0">{children}</main>
+      <main className="flex flex-1 flex-col pb-20 sm:pb-0 print:pb-0">{children}</main>
       <TabBar />
     </UndoProvider>
   );
