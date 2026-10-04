@@ -7,6 +7,7 @@ import {
   decisionCounts,
   pickNotOwned,
   pickGone,
+  siblingLotFor,
   daysFromToday,
   planLabel,
   orderPairings,
@@ -131,7 +132,17 @@ t("owned when kept, since tasted out: gone", pickGone({ gap: null, bottle: { sta
 t("a gap suggestion is not 'gone', it is not owned", pickGone({ gap: { producer: "X" }, bottle: null }), false);
 t("a wishlist wine made from a gap is not gone", pickGone({ gap: { producer: "X" }, bottle: { status: "wishlist" } }), false);
 t("gone, undecided picks are not counted as undecided work", decisionCounts([{ bottle: null, gap: null, decision: null }, { bottle: own }]), { done: 0, drink: 0, hold: 0, undecided: 1 });
-t("a gone pick that had been given Drink still counts as chosen", decisionCounts([{ bottle: null, gap: null, decision: "drink" }]), { done: 0, drink: 1, hold: 0, undecided: 0 });
+t("a gone pick that had been given Drink is not 'to drink' - nothing to pour", decisionCounts([{ bottle: null, gap: null, decision: "drink" }]), { done: 0, drink: 0, hold: 0, undecided: 0 });
+t("a gone pick that was drunk stays done", decisionCounts([{ bottle: { status: "consumed" }, gap: null, decision: "drink", drankAt: "2026-10-04T12:00:00Z" }]), { done: 1, drink: 0, hold: 0, undecided: 0 });
+const tasted = { id: 1, status: "consumed", producer: "Rochioli", bottling: "Sweetwater", vintage: 2019 };
+const lotA = { id: 5, status: "inventory", producer: "ROCHIOLI", bottling: "sweetwater", vintage: 2019 };
+const lotOther = { id: 6, status: "inventory", producer: "Rochioli", bottling: "Sweetwater", vintage: 2020 };
+t("a finished wine follows another lot of the same wine", siblingLotFor({ gap: null, bottle: tasted }, [lotOther, lotA])?.id, 5);
+t("a different vintage is not the same wine", siblingLotFor({ gap: null, bottle: tasted }, [lotOther]), null);
+t("a wine still in the cellar keeps its own bottle", siblingLotFor({ gap: null, bottle: lotA }, [lotA]), null);
+t("a drunk pick stays on what was drunk", siblingLotFor({ gap: null, bottle: tasted, drankAt: "2026-10-04" }, [lotA]), null);
+t("a gap suggestion never follows a lot", siblingLotFor({ gap: { producer: "X" }, bottle: null }, [lotA]), null);
+t("a deleted wine has nothing to match on", siblingLotFor({ gap: null, bottle: null }, [lotA]), null);
 
 console.log(`pairings: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

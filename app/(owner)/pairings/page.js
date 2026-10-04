@@ -1,3 +1,4 @@
+import { followOtherLots } from "@/lib/pairing-relink";
 import Link from "next/link";
 import { db } from "@/lib/scoped-prisma";
 import { orderPairings, pickNotOwned } from "@/lib/pairings";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 // Suggest also links here directly, which is where you'd look anyway -
 // you come back to a kept pairing to run it again.
 export default async function PairingsPage() {
-  const pairingsByDate = await db.savedPairing.findMany({
+  const found = await db.savedPairing.findMany({
     include: {
       picks: {
         select: {
@@ -25,13 +26,21 @@ export default async function PairingsPage() {
           decision: true,
           drankAt: true,
           gap: true,
-          bottle: { select: { status: true } },
+          bottle: { select: { id: true, status: true, producer: true, bottling: true, vintage: true, quantity: true } },
         },
         orderBy: { order: "asc" },
       },
     },
     orderBy: { createdAt: "desc" },
   });
+  // A finished wine follows another purchase of itself, so a card does not
+  // count a pick as gone while the wine is still on the shelf.
+  const followed = await followOtherLots(found.flatMap((pairing) => pairing.picks));
+  const byId = new Map(followed.map((pick) => [pick.id, pick]));
+  const pairingsByDate = found.map((pairing) => ({
+    ...pairing,
+    picks: pairing.picks.map((pick) => byId.get(pick.id) ?? pick),
+  }));
   // Planned pairings first, soonest first, regardless of when they were kept
   // - that's what is actually worth doing something about (BACKLOG #28/#39);
   // then ones whose day has passed ("Queued"); then the rest, newest first.

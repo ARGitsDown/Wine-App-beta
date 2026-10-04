@@ -1,3 +1,4 @@
+import { followOtherLots } from "@/lib/pairing-relink";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
@@ -37,7 +38,7 @@ export default async function PairingDetailPage({ params }) {
           picks: {
             include: {
               bottle: {
-                select: { id: true, producer: true, status: true, quantity: true },
+                select: { id: true, producer: true, bottling: true, vintage: true, status: true, quantity: true },
               },
             },
             orderBy: { order: "asc" },
@@ -47,6 +48,7 @@ export default async function PairingDetailPage({ params }) {
     : null;
 
   if (!pairing) notFound();
+  pairing.picks = await followOtherLots(pairing.picks);
 
   const plannedDay = pairing.plannedFor ? toDateInputValue(pairing.plannedFor) : null;
 

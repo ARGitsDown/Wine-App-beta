@@ -41,7 +41,7 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
               <div
                 key={pick.id}
                 className={`flex flex-col gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800 ${
-                  drinking || drank ? "border-l-4 border-l-sky-500 dark:border-l-sky-500" : ""
+                  (drinking && !gone) || drank ? "border-l-4 border-l-sky-500 dark:border-l-sky-500" : ""
                 }`}
               >
                 <div>

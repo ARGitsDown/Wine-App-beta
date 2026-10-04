@@ -4540,6 +4540,8 @@ case ignored), used by the lots list, the overview count, import duplicates, the
 and the drinking-window cache. The cache key lost grape and region, so migration
 20261004080000 empties the cache (it refills on the next estimate). One place it cannot
 apply: matching a Suggest gap (producer and style only, no bottling or vintage) in
-`setPairingPickDecision`. **Still open:** the pairings question (a pick whose purchase was
-finished while another purchase of the same wine is still held; and whether a gone wine that
-had Drink still counts as "to drink") - asked again in plainer words.
+`setPairingPickDecision`. **Pairings, then built:** a pick whose purchase was finished follows another purchase of the
+same wine (`followOtherLots`, `siblingLotFor`: moved when the pairing is read, lowest id wins),
+and a gone wine that had Drink is no longer counted "to drink" (or given the blue Drink edge).
+A deleted wine keeps no producer or vintage to match on, so it only comes back by restoring it
+from Recently deleted.

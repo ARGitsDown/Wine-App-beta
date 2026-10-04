@@ -209,7 +209,9 @@ or multiple locations in one cellar.
   The Drink and Hold tiles are toggle buttons with a check mark when chosen.
   A wine on a saved pairing that has since been deleted or finished gets no
   Drink or Hold buttons; the card says "No longer in your cellar" or
-  "Already tasted", so a plan is never made on a wine you cannot pour. A tasting-flight result can be
+  "Already tasted", so a plan is never made on a wine you cannot pour, and it
+  is left out of the "to drink" count. If you still hold another purchase of
+  the same wine, the pick follows that purchase instead and works as normal. A tasting-flight result can be
   saved the same way via "Save this flight" - see **Tasting flights**
   below.
 - **Tasting flights** (`/flights`) — a themed flight kept as a queue to
