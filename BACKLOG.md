@@ -4059,3 +4059,57 @@ Checked on a production build: every item above has a browser test (plan clear/u
 progress wording, Queued date, the single-dish note link, the duplicate guard in both directions,
 the deleted-wishlist Add, Remove refusing a wine with a note and keeping Hold, the four-device
 race), plus 49 unit checks for the helpers.
+
+## 63. Features the app lacks today (raised 2026-10-04, owner: "add all to backlog")
+
+Asked "what features should this app have that it lacks today?". Checked first against the
+schema, README and this file: there is no price, location or bottle-size field; no reminders,
+import or cellar overview; "drink soon" sorting already exists (so is not here). Nothing below is
+scoped or decided yet; the order within a group is not a priority order. My suggested next
+order: 63.1, then 63.3 and 63.4 together, then 63.6.
+
+### Close the loops already started
+- **63.1 "We drank it" on a pairing.** Drink means *planned*; nothing turns it into a tasted wine.
+  One tap would take a bottle off the quantity (the same action as "Tasted one"), offer the
+  tasting note, and record the wine as drunk. It is the missing end of the pairings work, and it
+  fixes "2 to drink" standing forever once a day is cleared. Needs a decision on what Drink then
+  shows (done / still planned) and whether a whole pairing can be "finished" at once.
+- **63.2 A "bought it" step for the wishlist.** Moving a wishlist wine into the cellar when it is
+  bought, with a price and a shop, so "Drink" on a wine you do not own has a real end to its
+  trip. Today the wine has to be edited to change its status by hand.
+
+### What a real cellar needs
+- **63.3 Where is it?** A location per bottle (bin, shelf, "fridge", "storage unit") and a filter.
+  Already described in FUTURE_CAPABILITIES.md ("Multiple locations within one cellar"): a column
+  and a filter, no ownership model. Becomes the first thing missed once the cellar is large.
+- **63.4 Bottle size / format.** Already #5 above: two half-bottles and two magnums both read
+  "quantity: 2". Likely a size on the bottle, with quantity meaning bottles of that size.
+- **63.5 Price paid and purchase source.** `notes` ("Source") is free text; there is no number.
+  A price would give cellar value, spend per year and cost per bottle drunk; a target price on
+  wishlist wines would help with buying. Interacts with 63.2 and 63.4 (price per what?).
+
+### Make the data already collected work harder
+- **63.6 A taste profile for Suggest.** Ratings are collected and never used. A short summary of
+  the owner's 4 and 5 star wines passed into the Suggest prompt (a few cached tokens) would make
+  recommendations personal. Touches the prompt, so needs the owner's go-ahead; model testing is
+  paused (#59).
+- **63.7 A cellar overview page.** Counts by region, grape, vintage and colour, and how many
+  bottles are in, approaching or past their window. Filtering exists; the shape of the cellar does
+  not. Would also show what is missing, which Suggest's gap idea already uses.
+- **63.8 Window reminders.** A monthly email digest ("3 bottles enter their window this month, 2
+  are past peak"). Resend is already wired for sign-in email, so the sending side exists; needs a
+  scheduler, per-person opt-in, and to respect Domaine scoping and guest access.
+
+### Convenience and safety
+- **63.9 A printable dinner or flight card.** One page: the menu or flight with the wines chosen,
+  for hosting.
+- **63.10 Import.** A CSV from CellarTracker or Vivino for someone arriving with an existing
+  list. Scanning handles new bottles but is slow for a 200-bottle cellar.
+- **63.11 Undo for deletes.** Deleting is permanent once confirmed. A recently-deleted list (soft
+  delete) would be the safety net; touches every query that lists bottles.
+- **63.12 Offline reading.** The app installs to the home screen but nothing says it works
+  without signal, which matters in a cellar or basement. Read-only first.
+
+Already tracked elsewhere and not repeated: pairing search, "Drink offered on a wine you no longer
+have", the dimmed Hold contrast, "Drink tonight" wording (see the end of #62's saved-pairings
+sections), sharing a single flight or tasting notes (FUTURE_CAPABILITIES.md).
