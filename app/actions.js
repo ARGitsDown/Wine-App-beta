@@ -1153,6 +1153,11 @@ export async function extractWinesFromPhoto(
     intent = "flight";
   }
 
+  // Where the batch is going ("Rack B"): the owner's own typing, settled
+  // against the places on file before the paid call like the flight above, so
+  // a failed lookup costs nothing. Only a cellar row has a place.
+  const batchLocation = intent === "flight" ? null : await resolveLocation(rawLocation);
+
   const messages = [
     {
       role: "user",
@@ -1253,9 +1258,6 @@ export async function extractWinesFromPhoto(
         // not the model's, so the tool-injection guard that exists for is
         // beside the point.
         const eventLabel = String(rawEventLabel ?? "").trim() || null;
-        // Where the batch is going ("Rack B"), settled once against the
-        // places already on file; only a cellar row has a place.
-        const batchLocation = await resolveLocation(rawLocation);
 
         const results = [];
         for (const wine of wines) {
