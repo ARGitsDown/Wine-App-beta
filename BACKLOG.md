@@ -3817,10 +3817,17 @@ right, the new-note form, then the saved notes. Changes from before:
   longer than a screen now, and the `#note-id` anchor does not reliably scroll once the
   page streams in.
 
-Not changed: the scan flow's tasting-note box in `BottleForm` still has the number
-field for rating. Worth matching if C is liked, but it was not asked for.
+The scan flow's tasting-note box (in `BottleForm`, used by the manual-entry card)
+uses the same stars, so a rating is entered one way everywhere. `StarRating` also
+sends a bubbling `input` event when a star is tapped: the scan cards' "unsaved edits"
+tracking listens for input/change on a wrapper, and a tap is neither, so without it
+setting a rating alone would not have counted as an edit.
 
 Checked on a production build: heading and button on one row, stars and date level and
 equal, star set / clear, header button saving (text and 5 stars), the saved panel and
 "Add another note", form before notes, the arrival layout with a single form, and the
 note editing path from the flight pill.
+
+Checked for the scan card on a production build: the number field is gone, the stars
+and "Rating (opt.)" are there, a star tap alone makes Done ask before discarding, and
+a manual card saves with its note and the chosen rating.

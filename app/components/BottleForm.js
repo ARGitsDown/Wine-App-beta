@@ -6,6 +6,7 @@ import { KNOWN_REGIONS, countryForRegion } from "@/lib/regions";
 import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 import Spinner from "@/app/components/Spinner";
 import AutoTextarea from "@/app/components/AutoTextarea";
+import StarRating from "@/app/components/StarRating";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -52,6 +53,9 @@ export default function BottleForm({
   // plain defaultValue, which never sees what's typed afterward.
   const [region, setRegion] = useState(defaultValues.region || "");
   const [country, setCountry] = useState(defaultValues.country || "");
+  // "" or "1".."5", the shape StarRating works in; the server still reads the
+  // same `rating` field it always did.
+  const [rating, setRating] = useState(defaultValues.rating == null ? "" : String(defaultValues.rating));
   const impliedCountry = countryForRegion(region);
   // Soft, not blocking: a region genuinely can move countries over time
   // (a producer relocating, an appellation redrawn), and the curated list
@@ -319,17 +323,10 @@ export default function BottleForm({
               className={inputClass}
             />
           </label>
-          <label className={`${labelClass} max-w-[8rem]`}>
-            Rating (1–5)
-            <input
-              name="rating"
-              type="number"
-              min="1"
-              max="5"
-              defaultValue={defaultValues.rating ?? ""}
-              className={inputClass}
-            />
-          </label>
+          <div className={`${labelClass} max-w-[12rem]`}>
+            <span id={`${idPrefix}-rating`}>Rating (opt.)</span>
+            <StarRating value={rating} onChange={setRating} labelledBy={`${idPrefix}-rating`} />
+          </div>
         </div>
       )}
       {state?.error && (
