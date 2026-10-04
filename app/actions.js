@@ -3687,6 +3687,14 @@ export async function setPairingPickDecision(pickId, decision) {
       // A wine that has been drunk stays a Drink pick: the tasting has to be
       // undone first, or the page would say "hold" about a wine already gone.
       if (current.drankAt && next !== PICK_DECISION.DRINK) return { drunk: true };
+      // Nothing to drink: a wine owned when kept that is no longer on the
+      // Cellar list. Clearing a choice is still allowed.
+      if (next && !current.gap) {
+        const bottle = current.bottleId
+          ? await tx.bottle.findUnique({ where: { id: current.bottleId }, select: { status: true } })
+          : null;
+        if (!bottle || bottle.status !== "inventory") return { unavailable: true };
+      }
 
       let linkId = null;
       let kind = null;
@@ -3741,6 +3749,7 @@ export async function setPairingPickDecision(pickId, decision) {
     });
     if (outcome.gone) return { error: "That wine is no longer in this pairing." };
     if (outcome.drunk) return { error: "It has been tasted - undo that first." };
+    if (outcome.unavailable) return { error: "That wine is no longer in your cellar." };
 
     if (outcome.kind === "created") invalidateRegionOptions();
     revalidatePath(`/pairings/${pick.pairingId}`);

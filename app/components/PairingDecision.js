@@ -126,15 +126,18 @@ export default function PairingDecision({ pickId, decision, wineLabel, notOwned 
           )}
         </div>
       )}
-      <div role="radiogroup" aria-label={`Decision for ${wineLabel}`} className="grid grid-cols-2 gap-1.5">
+      {/* Toggle buttons, not radios: tapping the chosen one again clears it, which
+          a radio group cannot do, so the screen reader is told "pressed" rather
+          than "selected one of two". The selected tile also carries a check mark,
+          so the state is not only a colour. */}
+      <div role="group" aria-label={`Decision for ${wineLabel}`} className="grid grid-cols-2 gap-1.5">
         {OPTIONS.map((option) => {
           const selected = shown === option.value;
           return (
             <button
               key={option.value}
               type="button"
-              role="radio"
-              aria-checked={selected}
+              aria-pressed={selected}
               onClick={() => choose(option.value)}
               className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border px-1.5 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100 ${
                 selected
@@ -144,6 +147,7 @@ export default function PairingDecision({ pickId, decision, wineLabel, notOwned 
             >
               <option.Icon className="h-4 w-4 shrink-0" />
               {option.label}
+              {selected && <span aria-hidden="true">&#10003;</span>}
             </button>
           );
         })}

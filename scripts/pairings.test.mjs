@@ -6,6 +6,7 @@ import {
   groupPicksByDish,
   decisionCounts,
   pickNotOwned,
+  pickGone,
   daysFromToday,
   planLabel,
   orderPairings,
@@ -25,12 +26,13 @@ const t = (name, got, want) => {
 t("stored words", [...PICK_DECISION_VALUES].sort(), ["drink", "hold"]);
 t("the constants can't be reassigned", (() => { try { "use strict"; PICK_DECISION.DRINK = "x"; } catch {} return PICK_DECISION.DRINK; })(), "drink");
 
+const own = { status: "inventory" };
 const picks = [
-  { id: 1, dish: "Starter", decision: "drink" },
-  { id: 2, dish: "Main", decision: null },
-  { id: 3, dish: "Main", decision: "hold" },
-  { id: 4, dish: "Starter ", decision: null },
-  { id: 5, dish: null, decision: null },
+  { id: 1, dish: "Starter", decision: "drink", bottle: own },
+  { id: 2, dish: "Main", decision: null, bottle: own },
+  { id: 3, dish: "Main", decision: "hold", bottle: own },
+  { id: 4, dish: "Starter ", decision: null, bottle: own },
+  { id: 5, dish: null, decision: null, bottle: own },
 ];
 const groups = groupPicksByDish(picks);
 t("groups in first-seen order", groups.map((g) => g.dish), ["Starter", "Main", null]);
@@ -40,8 +42,8 @@ t("a single-dish pairing is one group with no heading", groupPicksByDish([{ id: 
 t("no picks, no groups", groupPicksByDish([]), []);
 
 t("counts", decisionCounts(picks), { done: 0, drink: 1, hold: 1, undecided: 3 });
-t("unknown stored value counts as undecided", decisionCounts([{ decision: "x" }]), { done: 0, drink: 0, hold: 0, undecided: 1 });
-t("a drunk pick is done, not still to drink", decisionCounts([{ decision: "drink", drankAt: "2026-10-04T12:00:00Z" }, { decision: "drink" }]), { done: 1, drink: 1, hold: 0, undecided: 0 });
+t("unknown stored value counts as undecided", decisionCounts([{ decision: "x", bottle: own }]), { done: 0, drink: 0, hold: 0, undecided: 1 });
+t("a drunk pick is done, not still to drink", decisionCounts([{ decision: "drink", drankAt: "2026-10-04T12:00:00Z", bottle: own }, { decision: "drink", bottle: own }]), { done: 1, drink: 1, hold: 0, undecided: 0 });
 
 t("owned wine is not 'not owned'", pickNotOwned({ gap: null, bottle: { status: "inventory" } }), false);
 t("a gap with no bottle is not owned", pickNotOwned({ gap: { producer: "p" }, bottle: null }), true);
@@ -121,6 +123,15 @@ t("only holds", progressParts(C(0, 2, 0), false).map((p) => p.text), ["2 on hold
 t("tasted leads, then to drink", progressParts(C(1, 1, 1, 2), true).map((p) => p.text), ["2 tasted", "1 to drink", "1 on hold", "1 undecided"]);
 t("only the tasted count is strong once there is one", progressParts(C(1, 0, 0, 2), true).map((p) => p.strong), [true, false]);
 t("everything tasted", progressParts(C(0, 0, 0, 3), false).map((p) => p.text), ["3 tasted"]);
+
+// ---- a wine that is no longer in the cellar
+t("owned and in the cellar is not gone", pickGone({ gap: null, bottle: own }), false);
+t("owned when kept, bottle deleted since: gone", pickGone({ gap: null, bottle: null }), true);
+t("owned when kept, since tasted out: gone", pickGone({ gap: null, bottle: { status: "consumed" } }), true);
+t("a gap suggestion is not 'gone', it is not owned", pickGone({ gap: { producer: "X" }, bottle: null }), false);
+t("a wishlist wine made from a gap is not gone", pickGone({ gap: { producer: "X" }, bottle: { status: "wishlist" } }), false);
+t("gone, undecided picks are not counted as undecided work", decisionCounts([{ bottle: null, gap: null, decision: null }, { bottle: own }]), { done: 0, drink: 0, hold: 0, undecided: 1 });
+t("a gone pick that had been given Drink still counts as chosen", decisionCounts([{ bottle: null, gap: null, decision: "drink" }]), { done: 0, drink: 1, hold: 0, undecided: 0 });
 
 console.log(`pairings: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

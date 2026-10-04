@@ -326,7 +326,8 @@ or multiple locations in one cellar.
 - **Cellar digest** — an opt-in email (People page; off for everyone until they
   choose) listing wines in their last year, opening this year, or past their
   window. Windows are whole years, so it says "this year". It needs the email
-  door and `CRON_SECRET` (a daily Vercel Cron, see `.env.example`), claims each
+  door, `CRON_SECRET` and a daily Vercel Cron entry (not in `vercel.json` by
+  default - see `.env.example` for the line to add), claims each
   send atomically, sends nothing when there is nothing to say, and never
   includes a price, a note or a place.
 - **Import a list** (`/import`, from the Cellar) — a CSV from CellarTracker or

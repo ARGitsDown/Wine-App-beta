@@ -12,7 +12,7 @@ const linkButtonClass =
 
 // Planning a pairing for a day, and finishing it.
 //
-// Unplanned: "Drink tonight" (one tap, the reader's own today) and, on the
+// Unplanned: "Plan for tonight" (one tap, the reader's own today) and, on the
 // detail page, "Pick a day". Planned: "Clear day", which removes the plan,
 // and on the detail page "Change day". Clearing says what it did and offers
 // Undo for a few seconds, which puts the same day back: the row moves in the
@@ -111,7 +111,7 @@ export default function PairingPlan({ pairingId, plannedDay = null, compact = fa
         </button>
       ) : (
         <button type="button" onClick={tonight} disabled={pending} className={buttonClass}>
-          Drink tonight
+          Plan for tonight
         </button>
       )}
       {!compact && (

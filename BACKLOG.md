@@ -4062,7 +4062,7 @@ The owner asked for all three reviewers' findings to be built ("build all of it"
   BACKLOG #59). A one-off check with `npm run compare-suggest` on a three-course menu, reading the
   `pairingContext` strings side by side, is the way to see whether the labels really now repeat.
 
-**Still open from the reviews:** Drink offered on a wine you no longer have, the dimmed Hold card's
+**Still open from the reviews (built in #66, except pairing search):** Drink offered on a wine you no longer have, the dimmed Hold card's
 contrast, blue meaning both Drink and link, radio-vs-toggle semantics and a check icon on the
 selected tile, the "Drink tonight" wording colliding with the per-wine Drink, "We drank it", and
 pairing search.
@@ -4453,3 +4453,29 @@ type string the code sends (`web_search_20260318`) is not one I could confirm fr
 (5) a new per-model cache write on first use. **Opportunity noted, not taken:** Sonnet 5.5's
 minimum cacheable prompt is 512 tokens (1,024 before), so the drinking-window prompt (about 600
 tokens) could now be cached, which the #23 note had ruled out.
+
+## 66. Pairings carry-overs built, and the digest cron removed (2026-10-04, owner: "proceed")
+
+**Built** (all five items left open from the pairings reviews, #28 / #61 / #62):
+- **Drink was offered on a wine no longer owned.** `pickGone` (`lib/pairings.js`) is a wine that was
+  in the cellar when the pairing was kept and no longer is (deleted, or finished). It gets no
+  Drink / Hold tiles; the card says "No longer in your cellar" or "Already tasted", plus what had
+  been chosen. `setPairingPickDecision` refuses a new choice for it server-side, and the progress
+  line (`decisionCounts`) no longer counts it as undecided work.
+- **The dimmed Hold card was under readable contrast.** It was faded with `opacity-60`, which
+  measured 2.9:1 on the reason text (3.4 in dark mode). It now uses quieter colours that stay at or
+  above 4.5:1 (7.5 measured in the browser, dark mode) and says "On hold" in words.
+- **Blue meant both Drink and link.** A Drink wine's name no longer turns blue; it keeps the page's
+  text colour, and the card gets a Tasted-coloured left edge instead.
+- **Radio vs toggle, and a check icon.** The Drink / Hold tiles are `aria-pressed` toggle buttons in a
+  group (tapping the chosen one clears it, which a radio group cannot do), and the pressed tile shows
+  a check mark.
+- **"Drink tonight" collided with the per-wine Drink.** The whole-pairing button now reads
+  "Plan for tonight".
+
+**Still open:** pairing search; "a one-screen index of pairings and flights" (#20).
+
+**Digest cron removed from `vercel.json`.** It called `/api/digest` daily and returned 503 on a
+deploy with no `CRON_SECRET`, so every run logged a failure. The route, the setting and the email are
+unchanged; to switch the digest on, set `CRON_SECRET` in Vercel and add the `crons` entry back (the
+line is in `.env.example`).

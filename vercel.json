@@ -6,11 +6,5 @@
       "claude/great-meitner-j2tbow": true,
       "main": true
     }
-  },
-  "crons": [
-    {
-      "path": "/api/digest",
-      "schedule": "0 14 * * *"
-    }
-  ]
+  }
 }

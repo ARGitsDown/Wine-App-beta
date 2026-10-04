@@ -1,15 +1,18 @@
 import Link from "next/link";
 import PairingDecision from "@/app/components/PairingDecision";
 import PairingTasted from "@/app/components/PairingTasted";
-import { groupPicksByDish, pickNotOwned } from "@/lib/pairings";
+import { groupPicksByDish, pickGone, pickNotOwned } from "@/lib/pairings";
 
 // A pairing's wines, grouped under the dish or course each is for, so a
 // menu's alternatives for the lamb sit together and the dish is said once
 // instead of on every wine. One card per wine: its name (a link to the
 // bottle when there is one), the reason it was suggested - shown in full,
 // not behind a tap, because it is what the choice below is made on - and
-// the Drink / Hold choice. A wine on hold is dimmed; one to drink wears
-// the Tasted colour.
+// the Drink / Hold choice. A wine on hold reads quieter and says "On hold";
+// one to drink has a Tasted-coloured edge. Neither is dimmed with opacity,
+// which took the reason text under readable contrast (it measured 2.9:1);
+// the quieter colours below all stay above 4.5:1 - and the name keeps the
+// page's text colour either way, so blue is never both "Drink" and "link".
 //
 // Not the client component it was: with the reason always visible there is
 // no expand state left to hold, and the one interactive part is
@@ -28,6 +31,7 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
             const notOwned = pickNotOwned(pick);
             const wishlisted = notOwned && Boolean(pick.bottle);
             const held = pick.decision === "hold";
+            const gone = pickGone(pick);
             const drank = Boolean(pick.drankAt);
             const drinking = pick.decision === "drink";
             const noteHref = pick.bottle
@@ -36,20 +40,22 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
             return (
               <div
                 key={pick.id}
-                className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+                className={`flex flex-col gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800 ${
+                  drinking || drank ? "border-l-4 border-l-sky-500 dark:border-l-sky-500" : ""
+                }`}
               >
-                <div className={held ? "opacity-60" : ""}>
+                <div>
                   {pick.bottle ? (
                     <Link
                       href={`/bottles/${pick.bottle.id}`}
                       className={`-my-2 block py-2 font-medium underline underline-offset-2 ${
-                        drinking ? "text-sky-700 dark:text-sky-400" : ""
+                        held ? "text-zinc-600 dark:text-zinc-400" : ""
                       }`}
                     >
                       {pick.wineLabel}
                     </Link>
                   ) : (
-                    <span className={`block font-medium ${drinking ? "text-sky-700 dark:text-sky-400" : ""}`}>
+                    <span className={`block font-medium ${held ? "text-zinc-600 dark:text-zinc-400" : ""}`}>
                       {pick.wineLabel}
                     </span>
                   )}
@@ -67,8 +73,11 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
                       Not in cellar
                     </span>
                   ) : (
-                    !pick.bottle && (
-                      <span className="mt-1 block text-xs text-zinc-500">No longer in your cellar</span>
+                    gone && (
+                      <span className="mt-1 block text-xs text-zinc-600 dark:text-zinc-400">
+                        {pick.bottle?.status === "consumed" ? "Already tasted" : "No longer in your cellar"}
+                        {pick.decision ? ` \u00b7 you had chosen ${pick.decision === "drink" ? "Drink" : "Hold"}` : ""}
+                      </span>
                     )
                   )}
                   {pick.gap && (pick.gap.region || pick.gap.country) && (
@@ -76,7 +85,16 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
                       {[pick.gap.region, pick.gap.country].filter(Boolean).join(", ")}
                     </p>
                   )}
-                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{pick.reason}</p>
+                  {held && !gone && (
+                    <span className="mt-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">On hold</span>
+                  )}
+                  <p
+                    className={`mt-1 text-sm ${
+                      held ? "text-zinc-500 dark:text-zinc-400" : "text-zinc-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    {pick.reason}
+                  </p>
                 </div>
                 {/* Drunk: the tiles give way to "Tasted, N left, Undo". Not yet:
                     the choice, and for a wine chosen Drink that is in the
@@ -94,13 +112,18 @@ export default function PairingPicksList({ picks, pairingTitle = null }) {
                   />
                 ) : (
                   <>
-                    <PairingDecision
-                      pickId={pick.id}
-                      decision={pick.decision}
-                      wineLabel={pick.wineLabel}
-                      notOwned={notOwned}
-                      wishlistBottleId={wishlisted ? pick.bottle.id : null}
-                    />
+                    {/* No tiles for a wine that is no longer in the cellar:
+                        there is nothing to drink or hold, and offering Drink
+                        planned an evening around a bottle that was gone. */}
+                    {!gone && (
+                      <PairingDecision
+                        pickId={pick.id}
+                        decision={pick.decision}
+                        wineLabel={pick.wineLabel}
+                        notOwned={notOwned}
+                        wishlistBottleId={wishlisted ? pick.bottle.id : null}
+                      />
+                    )}
                     {drinking && pick.bottle && !notOwned && pick.bottle.status !== "wishlist" && (
                       <PairingTasted pickId={pick.id} drank={false} noteHref={noteHref} />
                     )}
