@@ -116,12 +116,19 @@ drank it tonight". It's visible on the bottle's page and clearable there —
 the acquired-date editor takes an empty submission, because a wrong date
 is worse than none.
 
-## 5. Bottle size / format
+## ~~5. Bottle size / format~~ — done (2026-10-04, see #63)
 
-`quantity` counts bottles but doesn't distinguish sizes (375ml half,
+`quantity` counted bottles but didn't distinguish sizes (375ml half,
 750ml standard, 1.5L magnum, etc.) — two half-bottles and two magnums
-both just read "quantity: 2" today, which understates or overstates how
-much wine you actually have.
+both read "quantity: 2". Built as part of the lot migration (#63.3-63.5):
+`Bottle.sizeMl` holds the size in millilitres (null is "not recorded", not
+750), and a row is now a *lot* - identical bottles sharing a size, a place
+and a unit price - so `quantity` means "bottles of this row's size". The
+size is set in Wine details and shown on a cellar row only when it isn't a
+standard bottle; `lib/bottle-sizes.js` has the vocabulary and the litre
+totals the Cellar overview shows. Not built, deliberately: reading the size
+from a scanned label (the scan never asks the model for size, place or
+price).
 
 ## ~~6. Alcohol % (ABV)~~ — done
 
@@ -2266,11 +2273,16 @@ deep-link-vs-click-through distinction is subtle and handled correctly."
 
 ## Lower priority / optional
 
-- **Price tracking** — what you paid, or current market value. Useful for
-  cellar valuation, but a bigger feature than a hygiene fix. The
-  tasting-sheet scan already sees "Regular $X / Sale $Y" pricing and
-  currently just folds it into free-text notes.
-- **Critic scores** — a wine's Wine Spectator/Parker/etc. score, distinct
+- ~~**Price tracking**~~ — **what you paid is built** (2026-10-04, #63.5):
+  `pricePaidCents` + `priceCurrency` per bottle on a lot, entered in Wine
+  details, "Bought it" and "Add another purchase", and imported from a CSV;
+  it never reaches guests, the digest email or a print card. **Not built, on
+  purpose:** current market value (a model must never estimate value), and
+  reading a price from a scan - if scan ever does, it is a *listed* price,
+  never the price paid. The tasting-sheet scan still folds "Regular $X /
+  Sale $Y" into free-text notes.
+- **Critic scores** (still open; the *words* a critic wrote are kept - Research
+  fills `criticNotes` - but there is no numeric score field) — a wine's Wine Spectator/Parker/etc. score, distinct
   from your own personal rating. Nice-to-have, not urgent for a personal
   cellar app.
 
