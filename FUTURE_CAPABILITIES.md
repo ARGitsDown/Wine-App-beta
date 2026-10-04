@@ -276,8 +276,9 @@ Research step has no session, so it passes the job's own `ownerId` and
   drinking-window estimate costs about 0.3 of a cent, so rounding each row
   to whole cents would have summed to nothing. The *limits* stay in cents
   (`Domaine.monthlySpendCapCents`, `monthlyHardStopCents`), as planned.
-- **The rates** (`lib/usage-pricing.js`, as of 2026-09-25: Opus 5 $5/$25,
-  Sonnet 5 $2/$10, Haiku 4.5 $1/$5 per MTok, cache writes 1.25x/2x, reads
+- **The rates** (`lib/usage-pricing.js`, as of 2026-09-25: Opus 5.5 $4/$20
+  (Opus 5 $5/$25 is kept for old ledger rows and as the unknown-model
+  fallback), Sonnet 5.5 $2/$10, Haiku 4.5 $1/$5 per MTok, cache writes 1.25x/2x, reads
   0.1x, web search $10 per 1,000) were taken from the claude-api skill's
   model table, not from an invoice. A model it doesn't recognise is priced
   as the dearest one and logged, so a new model id over-counts rather than
@@ -428,8 +429,8 @@ BACKLOG #55 has the detail:
    of theirs to count.
 2. **Over the cap, a Domaine moves to cheaper models - it is never
    blocked.** Every AI feature keeps working, one rung down. Today's two
-   tiers are `REASONING_MODEL` (`claude-opus-5`: Suggest's "sommelier"
-   depth) and `EXTRACTION_MODEL` (`claude-sonnet-5`: Scan, Research,
+   tiers are `REASONING_MODEL` (`claude-opus-5-5`: Suggest's "sommelier"
+   depth) and `EXTRACTION_MODEL` (`claude-sonnet-5-5`: Scan, Research,
    drinking windows, photo details, Suggest's "standard" depth), both in
    `lib/anthropic.js`. Over the cap, each drops one tier: Opus work runs
    on Sonnet, and Sonnet work runs on Haiku 4.5. The swap belongs in one

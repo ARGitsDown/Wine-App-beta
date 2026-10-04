@@ -4415,3 +4415,29 @@ what has to be grounded first. The order is a suggested priority, not a plan.
   `designation` as sparse or high-cardinality, and excluded rows with no price; the app keeps
   sub-region and bottling because they tell a producer's own wines apart. Both are a reminder
   that their schema is shaped by what one review dataset happens to contain.
+
+## 65. Moved the Sonnet and Opus tiers from 5.0 to 5.5 (2026-10-04, owner's request)
+
+`EXTRACTION_MODEL` is now `claude-sonnet-5-5` and `REASONING_MODEL` `claude-opus-5-5`
+(`lib/ai-models.js`); Haiku 4.5 is unchanged and stays the over-cap tier for extraction. Both new
+ids were already in the rate table; `scripts/usage.test.mjs` now pins the three ids and checks
+each has a rate row. Opus 5.5 is cheaper ($4/$20 against $5/$25), Sonnet 5.5 the same ($2/$10).
+
+**Checked against the 5.5 migration notes in the claude-api reference, and fine as is:** no call
+sets a forced `tool_choice` (it 400s on 5.5); thinking is adaptive and never disabled (disabling
+400s); the Suggest, Scan and Research loops replay each assistant turn append-only with the system
+prompt and tools unchanged, which is what the new "preserved thinking" binding requires; an
+over-cap switch only ever moves *down* to Haiku or *back up* to the normal model, both readable.
+
+**Not measured, and worth a live run before trusting:** nothing has run against the real API
+since the key was never supplied (#59). Specifically (1) effort is **recalibrated** on Sonnet
+5.5 - every call here sends an explicit `high` (bulk research `low`), which no longer means the
+same amount of thinking, so speed and cost per call may differ in either direction (the notes
+suggest `low` for extraction and search work); (2) Opus 5.5's own default effort is `medium`
+but this app always sends `high`, so Master Sommelier is set higher than the model's default;
+(3) the #23 per-query costs and timings were taken on the 5.0 models; (4) the web-search tool
+type string the code sends (`web_search_20260318`) is not one I could confirm from the reference
+(it lists `web_search_20260209`) - a pre-existing risk for Research that a live run settles;
+(5) a new per-model cache write on first use. **Opportunity noted, not taken:** Sonnet 5.5's
+minimum cacheable prompt is 512 tokens (1,024 before), so the drinking-window prompt (about 600
+tokens) could now be cached, which the #23 note had ruled out.

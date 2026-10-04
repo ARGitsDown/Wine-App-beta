@@ -8,7 +8,7 @@ import {
   nextMonthStartUTC,
   usageState,
 } from "../lib/usage-policy.js";
-import { LIGHTER_MODEL, requestShape } from "../lib/ai-models.js";
+import { EXTRACTION_MODEL, LIGHTER_MODEL, REASONING_MODEL, requestShape } from "../lib/ai-models.js";
 
 let pass = 0, fail = 0;
 const t = (name, got, want) => {
@@ -86,13 +86,13 @@ t("cents to dollars", formatCents(500), "$5.00");
 // --- The model downgrade
 const reasoning = requestShape("reasoning", { effort: "high" });
 t("reasoning normally: Opus, thinking and effort", [reasoning.model, reasoning.params, reasoning.webSearchType, reasoning.lighter],
-  ["claude-opus-5", { thinking: { type: "adaptive" }, output_config: { effort: "high" } }, "web_search_20260318", false]);
+  ["claude-opus-5-5", { thinking: { type: "adaptive" }, output_config: { effort: "high" } }, "web_search_20260318", false]);
 const reasoningDown = requestShape("reasoning", { lighter: true, effort: "high" });
 t("reasoning over the cap: one tier down to Sonnet, still thinking", [reasoningDown.model, reasoningDown.params.thinking, reasoningDown.lighter],
-  ["claude-sonnet-5", { type: "adaptive" }, true]);
+  ["claude-sonnet-5-5", { type: "adaptive" }, true]);
 const extraction = requestShape("extraction", { effort: "xhigh" });
 t("extraction normally: Sonnet, the requested effort", [extraction.model, extraction.params.output_config],
-  ["claude-sonnet-5", { effort: "xhigh" }]);
+  ["claude-sonnet-5-5", { effort: "xhigh" }]);
 const extractionDown = requestShape("extraction", { lighter: true, effort: "xhigh" });
 t("extraction over the cap: Haiku", extractionDown.model, LIGHTER_MODEL);
 t("Haiku gets neither thinking nor effort, which it doesn't take", extractionDown.params, {});
@@ -103,6 +103,15 @@ t("an effort level the API doesn't know falls back, not 400s",
 let threw = false;
 try { requestShape("nonsense"); } catch { threw = true; }
 t("an unknown tier is a bug, loudly", threw, true);
+
+// --- Every model the app can send is priced (an unpriced one is recorded at
+// the fallback's higher price and marked assumed)
+t("the app's three models", [EXTRACTION_MODEL, REASONING_MODEL, LIGHTER_MODEL], ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5"]);
+for (const model of [EXTRACTION_MODEL, REASONING_MODEL, LIGHTER_MODEL]) {
+  t(`${model} has a rate row`, costMicros(model, { input_tokens: 1000, output_tokens: 1000 }).assumed, false);
+}
+t("Opus 5.5 is priced at $4 / $20 per MTok", costMicros(REASONING_MODEL, { input_tokens: 1_000_000, output_tokens: 1_000_000 }).micros, 24_000_000);
+t("Sonnet 5.5 is priced at $2 / $10 per MTok", costMicros(EXTRACTION_MODEL, { input_tokens: 1_000_000, output_tokens: 1_000_000 }).micros, 12_000_000);
 
 console.log(`usage: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
