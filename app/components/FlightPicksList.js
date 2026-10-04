@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   markFlightPickConsumed,
@@ -10,6 +10,7 @@ import {
   moveFlightPick,
 } from "@/app/actions";
 import ConfirmButton from "@/app/components/ConfirmButton";
+import { useUndo } from "@/app/components/UndoToast";
 import { wineDetailOrNone } from "@/lib/wine-origin";
 import { drinkWindowLabel } from "@/lib/drink-window";
 
@@ -127,6 +128,24 @@ export default function FlightPicksList({ flightId, picks }) {
     setDrag(null);
   }
 
+  const showUndo = useUndo();
+  const [pendingTaste, startTaste] = useTransition();
+
+  // The same Undo bar as the cellar's Tasted: it says where the wine went and
+  // outlives the row, which re-renders as tasted the moment this resolves.
+  function taste(pick) {
+    startTaste(async () => {
+      const result = await markFlightPickConsumed(pick.id);
+      if (!result) return;
+      const where = result.last
+        ? " \u00b7 now in Tasting notes"
+        : result.left != null
+          ? ` \u00b7 ${result.left} left`
+          : "";
+      showUndo(`Tasted ${bottleHeader(pick.bottle)}${where}`, () => unmarkFlightPickConsumed(pick.id));
+    });
+  }
+
   function toggle(id) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -167,19 +186,18 @@ export default function FlightPicksList({ flightId, picks }) {
                   style={{ width: ACTION_W }}
                   inert={!isOpen}
                 >
-                  <form
-                    action={markFlightPickConsumed.bind(null, pick.id)}
-                    className="flex h-full flex-1"
-                  >
+                  <div className="flex h-full flex-1">
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={() => taste(pick)}
+                      disabled={pendingTaste}
                       aria-label={`${tastedLabel(pick.bottle)}: ${bottleHeader(pick.bottle)}`}
-                      className="flex h-full w-full flex-col items-center justify-center gap-1 bg-green-700 text-sm font-medium text-white"
+                      className="flex h-full w-full flex-col items-center justify-center gap-1 bg-sky-700 text-sm font-medium text-white disabled:opacity-60"
                     >
                       <CheckIcon />
                       Tasted
                     </button>
-                  </form>
+                  </div>
                   <form
                     action={markFlightPickConsumedAndNote.bind(null, pick.id)}
                     className="flex h-full flex-1"
@@ -187,7 +205,7 @@ export default function FlightPicksList({ flightId, picks }) {
                     <button
                       type="submit"
                       aria-label={`Add a tasting note, and mark tasted: ${bottleHeader(pick.bottle)}`}
-                      className="flex h-full w-full flex-col items-center justify-center gap-1 bg-blue-700 text-sm font-medium text-white"
+                      className="flex h-full w-full flex-col items-center justify-center gap-1 bg-sky-900 text-sm font-medium text-white"
                     >
                       <PenIcon />
                       With note
@@ -241,13 +259,13 @@ export default function FlightPicksList({ flightId, picks }) {
                 </button>
                 {pick.consumed && (
                   <div className="flex shrink-0 flex-col items-end">
-                    <span className="px-2 py-1 text-sm font-medium text-green-700 opacity-60 dark:text-green-400">
+                    <span className="px-2 py-1 text-sm font-medium text-sky-700 opacity-60 dark:text-sky-400">
                       ✓ Tasted
                     </span>
                     {/* "Note" and, from the same note, how it was rated: a
                         filled star and the number, or an empty star when
                         the note has no rating. Blue and outlined so it
-                        sits apart from the green tasted and the amber
+                        sits apart from the sky-blue tasted and the amber
                         needs-a-check. Only when this tasting produced a
                         note (see noteInfoFor on the page). A link to that
                         note on the wine's page, already open to read or

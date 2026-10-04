@@ -236,9 +236,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
       {arrivedTasted && (
         <div
           role="status"
-          className="-mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-green-300 px-4 py-2 text-sm dark:border-green-900"
+          className="-mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-sky-300 px-4 py-2 text-sm dark:border-sky-900"
         >
-          <span className="font-medium text-green-800 dark:text-green-400">
+          <span className="font-medium text-sky-800 dark:text-sky-400">
             &#10003; Tasted in {fromFlight.name}
           </span>
           <span className="text-zinc-600 dark:text-zinc-400">&middot; {tastedWhere}</span>
@@ -385,6 +385,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
               name={wineLabel(bottle)}
               priceCents={bottle.pricePaidCents}
               priceCurrency={bottle.priceCurrency}
+              locationOptions={locationOptions}
             />
           )}
         </div>

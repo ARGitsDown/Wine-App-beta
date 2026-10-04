@@ -1,14 +1,12 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addAnotherPurchase, undoAddedPurchase } from "@/app/actions";
 import { useUndo } from "@/app/components/UndoToast";
 import Spinner from "@/app/components/Spinner";
-import { CURRENCIES, DEFAULT_CURRENCY, MAX_LOCATION } from "@/lib/lot-fields";
-
-const inputClass =
-  "min-h-11 rounded border border-zinc-300 px-2 text-base dark:border-zinc-700 dark:bg-zinc-900";
+import PurchaseFields from "@/app/components/PurchaseFields";
+import { DEFAULT_CURRENCY } from "@/lib/lot-fields";
 
 // The same wine bought again (another price, another shelf) as its own lot. A
 // small form rather than a one-tap copy: the count, the price and the place
@@ -25,7 +23,6 @@ export default function AddPurchase({ bottleId, name, location = "", locationOpt
   const [pending, startTransition] = useTransition();
   const showUndo = useUndo();
   const router = useRouter();
-  const listId = useId();
 
   function submit(event) {
     event.preventDefault();
@@ -62,64 +59,17 @@ export default function AddPurchase({ bottleId, name, location = "", locationOpt
         Bought more at a different price, or keeping some somewhere else? It becomes its own line, with the same wine
         details.
       </p>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          How many
-          <input
-            type="number"
-            min="1"
-            max="999"
-            inputMode="numeric"
-            value={count}
-            onChange={(event) => setCount(event.target.value)}
-            className={`${inputClass} w-20`}
-          />
-        </label>
-        <div className="flex flex-col gap-1 text-sm">
-          <span id={`${listId}-price`}>Paid per bottle (optional)</span>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              inputMode="decimal"
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
-              aria-labelledby={`${listId}-price`}
-              className={`${inputClass} w-24`}
-              placeholder="24.50"
-            />
-            <select
-              value={currency}
-              onChange={(event) => setCurrency(event.target.value)}
-              aria-label="Currency"
-              className={inputClass}
-            >
-              {CURRENCIES.map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <label className="flex flex-col gap-1 text-sm">
-          Where it is
-          <input
-            value={place}
-            onChange={(event) => setPlace(event.target.value)}
-            list={`${listId}-places`}
-            maxLength={MAX_LOCATION}
-            className={`${inputClass} w-40`}
-            placeholder="Rack B, Fridge"
-          />
-          <datalist id={`${listId}-places`}>
-            {locationOptions.map((option) => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
-        </label>
-      </div>
+      <PurchaseFields
+        count={count}
+        onCount={setCount}
+        price={price}
+        onPrice={setPrice}
+        currency={currency}
+        onCurrency={setCurrency}
+        place={place}
+        onPlace={setPlace}
+        locationOptions={locationOptions}
+      />
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex items-center gap-2">
         <button

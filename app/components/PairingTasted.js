@@ -35,7 +35,7 @@ export default function PairingTasted({ pickId, drank, left, bottleHref, noteHre
   if (drank) {
     return (
       <div className="flex flex-col gap-1">
-        <p className="flex flex-wrap items-center gap-x-2 text-sm text-green-700 dark:text-green-400">
+        <p className="flex flex-wrap items-center gap-x-2 text-sm text-sky-700 dark:text-sky-400">
           <span className="font-medium">
             &#10003; Tasted
             {left > 0 ? ` · ${left} left` : left === 0 ? " · that was the last one" : ""}
@@ -74,7 +74,7 @@ export default function PairingTasted({ pickId, drank, left, bottleHref, noteHre
           type="button"
           disabled={pending}
           onClick={() => run(() => markPairingPickDrank(pickId, localDayInputValue()))}
-          className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-green-300 px-1.5 text-sm font-medium text-green-800 disabled:opacity-50 dark:border-green-900 dark:text-green-400"
+          className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-sky-300 px-1.5 text-sm font-medium text-sky-800 disabled:opacity-50 dark:border-sky-900 dark:text-sky-400"
         >
           {pending ? <Spinner label="Saving…" /> : <>&#10003; Tasted</>}
         </button>

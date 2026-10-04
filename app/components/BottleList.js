@@ -71,6 +71,8 @@ export default function BottleList({
   // screen made a wine look like a single lot as soon as a filter hid the
   // other one.
   lotCounts = null,
+  // Places already in use, offered by Bought it on a wishlist row.
+  locationOptions = [],
 }) {
   const [expandedIds, setExpandedIds] = useState(new Set());
 
@@ -256,6 +258,7 @@ export default function BottleList({
                       name={wineLabel(bottle)}
                       priceCents={bottle.pricePaidCents}
                       priceCurrency={bottle.priceCurrency}
+                      locationOptions={locationOptions}
                     />
                   )}
                   {bottle.status === "inventory" && (

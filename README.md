@@ -63,8 +63,8 @@ or multiple locations in one cellar.
   reviewed one by one, and marked "estimated" on the bottle's own page
   afterward so it's clear which windows are a rough guess worth
   double-checking versus a confirmed one - see [`BACKLOG.md`](./BACKLOG.md)
-  #7. Each answer is remembered against the wine (producer/bottling/grape/
-  region/vintage), so owning the same wine as two separate entries, or
+  #7. Each answer is remembered against the wine (producer, bottling and
+  vintage - the app's one definition of "the same wine"), so owning the same wine as two separate entries, or
   re-adding it months later, reuses the earlier estimate instead of paying
   to ask the same question again.
 - **Wishlist** (`/wishlist`) — bottles to try or buy, same filtering. A
@@ -246,7 +246,8 @@ or multiple locations in one cellar.
   signs in with their own address and lands here: a read-only view of the
   Domaine's cellar where they can favorite bottles they'd like pulled for
   their next visit. Favorites show up back on `/inventory` as a ❤️ with
-  who picked it. Guests get the same instant search and filtering as the
+  who picked it. Guests see one row per wine - a wine held as two purchases is
+  still one wine to them, and a favorite goes on all its purchases. Guests get the same instant search and filtering as the
   Cellar (minus the rating filter and the drink-soon sort, since your own
   scores and drinking windows aren't shown to them). A guest sees only
   this page — the owner pages send them back here, and the data layer
@@ -315,8 +316,9 @@ or multiple locations in one cellar.
   size only when it is not a standard bottle, and a cellar scan can file the
   whole batch under one place. Nothing is estimated and nothing is shown to
   Guests.
-- **Bought it** — on a wishlist wine (its row or its page): how many, and what
-  each cost, then it moves to the Cellar in place (so a pairing that points at
+- **Bought it** — on a wishlist wine (its row or its page): how many, what
+  each cost and where it is (the same three questions as "Add another
+  purchase"), then it moves to the Cellar in place (so a pairing that points at
   it stays linked) with "Moved to Cellar · Undo".
 - **Cellar at a glance** — a collapsed summary at the top of the Cellar
   (wines, bottles, "8 ready now (5 estimated)") whose counts by drinking

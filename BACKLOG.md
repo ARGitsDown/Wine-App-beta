@@ -4527,3 +4527,19 @@ truncation rate (2048 single estimate, 4096 photo read, 8192 Master Sommelier),
 `web_search_20260318` accepted (it is in the installed SDK's types, so #65 item 4 is
 narrower), `cache_read_input_tokens > 0` on turn two, one ledger row per call, and the
 photo-read window by hand.
+
+### 67 decisions (2026-10-04, same day)
+
+The owner settled the open questions: **built** - one guest row per wine (a favorite goes on
+every purchase of it); the flight's "Tasted" now uses the shared Undo bar ("Tasted … · 2 left" /
+"now in Tasting notes"); "Bought it" and "Add another purchase" share one `PurchaseFields`
+form and Bought it now asks where the wine is (Undo takes the place back off); Tasted is sky
+blue everywhere (the flight swipe, "We drank it", the arrival line - it was green); and "the
+same wine" is one definition, `lib/wine-key.js` (producer, bottling and vintage, accents and
+case ignored), used by the lots list, the overview count, import duplicates, the guest list
+and the drinking-window cache. The cache key lost grape and region, so migration
+20261004080000 empties the cache (it refills on the next estimate). One place it cannot
+apply: matching a Suggest gap (producer and style only, no bottling or vintage) in
+`setPairingPickDecision`. **Still open:** the pairings question (a pick whose purchase was
+finished while another purchase of the same wine is still held; and whether a gone wine that
+had Drink still counts as "to drink") - asked again in plainer words.

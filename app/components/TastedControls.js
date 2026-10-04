@@ -34,6 +34,8 @@ export default function TastedControls({
   name = null,
   priceCents = null,
   priceCurrency = null,
+  // Places already in use, offered by Bought it.
+  locationOptions = [],
 }) {
   const [isPending, startTransition] = useTransition();
   const showUndo = useUndo();
@@ -83,6 +85,7 @@ export default function TastedControls({
         name={name}
         priceCents={priceCents}
         priceCurrency={priceCurrency}
+        locationOptions={locationOptions}
       />
     );
   }

@@ -21,6 +21,8 @@ export default function FilterableBottleList({
   showAcquired = false,
   // Only the cellar supplies this; see BottleList for why.
   flights = null,
+  // Places already in use, offered by Bought it on a wishlist row.
+  locationOptions = [],
   // Only the cellar shows the at-a-glance summary (and its Place filter).
   overview = false,
 }) {
@@ -54,7 +56,7 @@ export default function FilterableBottleList({
         resultCount={new Set(visible.map(wineSiblingKey)).size}
         totalCount={Object.keys(lotCounts).length}
       />
-      <BottleList bottles={visible} emptyMessage={emptyMessage} flights={flights} lotCounts={lotCounts} />
+      <BottleList bottles={visible} emptyMessage={emptyMessage} flights={flights} lotCounts={lotCounts} locationOptions={locationOptions} />
     </div>
   );
 }

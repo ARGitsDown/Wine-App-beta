@@ -1,3 +1,4 @@
+import { wineKey } from "@/lib/wine-key";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth, isAuthConfigured } from "@/lib/auth";
@@ -58,13 +59,26 @@ export default async function GuestPage({ searchParams }) {
     searchParams,
   ]);
 
-  const bottles = rows.map(({ favorites, ...bottle }) => ({
-    ...bottle,
-    favorited: favorites.length > 0,
-    // Same fallback as getBottles(): an older row saved before this column
-    // existed still filters by grape synonym correctly.
-    canonicalVariety: bottle.canonicalVariety ?? canonicalizeVarietal(bottle.type, bottle.variety),
-  }));
+  // One row per wine: a wine held as more than one purchase (another price,
+  // another shelf) is still one wine to a guest, who sees neither. The first
+  // row stands for it, and a favorite on any purchase counts.
+  const wines = new Map();
+  for (const { favorites, ...bottle } of rows) {
+    const key = wineKey(bottle);
+    const seen = wines.get(key);
+    if (seen) {
+      seen.favorited ||= favorites.length > 0;
+      continue;
+    }
+    wines.set(key, {
+      ...bottle,
+      favorited: favorites.length > 0,
+      // Same fallback as getBottles(): an older row saved before this column
+      // existed still filters by grape synonym correctly.
+      canonicalVariety: bottle.canonicalVariety ?? canonicalizeVarietal(bottle.type, bottle.variety),
+    });
+  }
+  const bottles = [...wines.values()];
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">

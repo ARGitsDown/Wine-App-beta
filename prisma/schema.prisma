@@ -628,8 +628,8 @@ model FlightPick {
 }
 
 // A drinking-window estimate Claude has already produced for a given wine,
-// keyed on what actually determines the answer (producer, bottling, grape,
-// region, vintage - see drinkWindowCacheKey in lib/drink-window-cache.js)
+// keyed on which wine it is (producer, bottling, vintage - the app's one
+// definition of "the same wine", lib/wine-key.js; see drinkWindowCacheKey)
 // rather than on a bottle id. Two rows for the same wine, or the same wine
 // re-added months later, then reuse the earlier answer instead of paying
 // for an identical question - see BACKLOG.md #7.

@@ -29,6 +29,7 @@ import { after } from "next/server";
 import { resolveGuestView } from "@/lib/guest";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { drinkWindowCacheKey } from "@/lib/drink-window-cache";
+import { wineKey } from "@/lib/wine-key";
 import { RESEARCH_FIELDS, holdOwnersWindow, researchChanges } from "@/lib/research-fields";
 import { plausibleWindow } from "@/lib/drink-window";
 import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
@@ -38,7 +39,7 @@ import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 import { parseSizeMl } from "@/lib/bottle-sizes";
 import { deleteUntouchedBottles } from "@/lib/untouched-bottles";
 import { reviveSnapshot, snapshotOf, trashCutoff, wineLabel } from "@/lib/bottle-trash";
-import { adoptExistingLocation, cleanLocation, parseCurrency, parsePriceCents } from "@/lib/lot-fields";
+import { MAX_LOCATION, adoptExistingLocation, cleanLocation, parseCurrency, parsePriceCents } from "@/lib/lot-fields";
 import { uploadLabelPhoto } from "@/lib/blob";
 import { STEP_SLICE, STEP_BUDGET_MS } from "@/lib/research-job";
 import { newResearchJobToken, dispatchResearchStep } from "@/lib/research-dispatch";
@@ -428,15 +429,16 @@ export async function undoRenameLocation(ids, from, to) {
 // still being on the wishlist, so a second tab or a double tap cannot
 // re-stamp a wine already bought. Returns what undoBought needs to put the
 // row back exactly.
-export async function markBought(id, { quantity, price, currency } = {}) {
+export async function markBought(id, { quantity, price, currency, location } = {}) {
   const bottleId = Number(id);
   if (!Number.isInteger(bottleId)) return { error: "That wine is no longer on your wishlist." };
   const count = Math.min(999, Math.max(1, parseOptionalInt(quantity) ?? 1));
   const cents = parsePriceCents(price);
+  const placeText = await resolveLocation(location);
   try {
     const existing = await db.bottle.findUnique({
       where: { id: bottleId },
-      select: { status: true, quantity: true, pricePaidCents: true, priceCurrency: true },
+      select: { status: true, quantity: true, pricePaidCents: true, priceCurrency: true, location: true },
     });
     if (!existing || existing.status !== "wishlist") {
       return { error: "That wine is no longer on your wishlist." };
@@ -447,6 +449,8 @@ export async function markBought(id, { quantity, price, currency } = {}) {
         status: "inventory",
         quantity: count,
         acquiredAt: acquiredAtForStatus("inventory", null),
+        // Where it went, when said; a blank leaves any place already on the row.
+        ...(placeText ? { location: placeText } : {}),
         // A price typed now replaces one the wishlist row already held (a
         // target price, say); a blank box leaves it alone rather than wiping it.
         ...(cents === null ? {} : { pricePaidCents: cents, priceCurrency: parseCurrency(currency) }),
@@ -463,6 +467,7 @@ export async function markBought(id, { quantity, price, currency } = {}) {
       previousQuantity: existing.quantity,
       previousPriceCents: existing.pricePaidCents,
       previousPriceCurrency: existing.priceCurrency,
+      previousLocation: existing.location,
     };
   } catch (err) {
     console.error("Failed to move a wine to the cellar:", err);
@@ -476,7 +481,7 @@ export async function markBought(id, { quantity, price, currency } = {}) {
 // that, so it is refused and the person edits it by hand.
 export async function undoBought(
   id,
-  { boughtQuantity, previousQuantity, previousPriceCents = null, previousPriceCurrency = null } = {}
+  { boughtQuantity, previousQuantity, previousPriceCents = null, previousPriceCurrency = null, previousLocation = null } = {}
 ) {
   const bottleId = Number(id);
   const bought = Number(boughtQuantity);
@@ -496,6 +501,9 @@ export async function undoBought(
       status: "wishlist",
       quantity: previous,
       acquiredAt: acquiredAtForStatus("wishlist", null),
+      // The place the wishlist row held before (normally none): what Bought it
+      // wrote is taken back with the rest.
+      location: typeof previousLocation === "string" && previousLocation.trim() ? previousLocation.slice(0, MAX_LOCATION) : null,
       ...priceBack,
     },
   });
@@ -3080,22 +3088,39 @@ export async function toggleFavorite(bottleId) {
   // - otherwise a favorite could attach to a bottle in a different
   // Domaine's cellar entirely.
   const bottle = await prisma.bottle.findFirst({
-    where: { id: bottleId, domaineId },
-    select: { id: true },
+    where: { id: bottleId, domaineId, status: "inventory" },
+    select: { id: true, producer: true, bottling: true, vintage: true },
   });
   if (!bottle) return;
 
-  const existing = await prisma.favorite.findUnique({
-    where: { guestId_bottleId: { guestId: guest.id, bottleId } },
+  // The guest list shows one row per wine, so a favorite is on the wine: every
+  // purchase of it in the cellar (lib/wine-key.js), not just the row shown.
+  const candidates = await prisma.bottle.findMany({
+    where: {
+      domaineId,
+      status: "inventory",
+      producer: { equals: bottle.producer, mode: "insensitive" },
+    },
+    select: { id: true, producer: true, bottling: true, vintage: true },
   });
-  if (existing) {
-    await prisma.favorite.delete({ where: { id: existing.id } });
+  const key = wineKey(bottle);
+  const lotIds = candidates.filter((lot) => wineKey(lot) === key).map((lot) => lot.id);
+
+  const existing = await prisma.favorite.findMany({
+    where: { guestId: guest.id, bottleId: { in: lotIds } },
+    select: { bottleId: true },
+  });
+  if (existing.length > 0) {
+    await prisma.favorite.deleteMany({ where: { guestId: guest.id, bottleId: { in: lotIds } } });
   } else {
-    await prisma.favorite.create({ data: { guestId: guest.id, bottleId } });
+    await prisma.favorite.createMany({
+      data: lotIds.map((id) => ({ guestId: guest.id, bottleId: id })),
+      skipDuplicates: true,
+    });
   }
   revalidatePath("/guest");
   revalidatePath("/inventory");
-  revalidatePath(`/bottles/${bottleId}`);
+  for (const id of lotIds) revalidatePath(`/bottles/${id}`);
 }
 
 // Saves a Suggest tasting-flight result as a queue to pull bottles from
@@ -3354,7 +3379,7 @@ export async function markFlightPickConsumed(pickId) {
     where: { id: pickId },
     select: { id: true, flightId: true, bottleId: true, consumed: true, originFlightOnly: true },
   });
-  if (!pick || pick.consumed) return;
+  if (!pick || pick.consumed) return null;
 
   // The flag flips only if it is still false, so a double-tap (or the same
   // wine ticked from two tabs) takes one bottle off, not two.
@@ -3362,7 +3387,10 @@ export async function markFlightPickConsumed(pickId) {
     where: { id: pickId, consumed: false },
     data: { consumed: true },
   });
-  if (claimed.count === 0) return;
+  if (claimed.count === 0) return null;
+  // What the Undo bar says: where the wine went. A flight-only wine has no
+  // count; it graduates to Tasting notes, which is "the last".
+  let outcome = { last: true, left: 0 };
   if (pick.originFlightOnly) {
     // The same bottle can end up in more than one open flight (nothing
     // stops it), so this can run on a bottle that's already consumed with
@@ -3380,10 +3408,11 @@ export async function markFlightPickConsumed(pickId) {
     revalidatePath(`/bottles/${pick.bottleId}`);
     revalidatePath("/consumed");
   } else {
-    await markOneTasted(pick.bottleId);
+    outcome = (await markOneTasted(pick.bottleId)) ?? outcome;
   }
   revalidatePath(`/flights/${pick.flightId}`);
   revalidatePath("/flights");
+  return outcome;
 }
 
 // "Tasted + note", one tap from the flight page: marks the pick tasted exactly

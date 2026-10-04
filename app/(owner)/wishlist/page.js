@@ -1,4 +1,4 @@
-import { getBottles, getRegionOptions } from "@/lib/bottles";
+import { getBottles, getLocationOptions, getRegionOptions } from "@/lib/bottles";
 import { currentDomaineId } from "@/lib/owner";
 import { createBottle } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
@@ -10,9 +10,10 @@ export const dynamic = "force-dynamic";
 export default async function WishlistPage({ searchParams }) {
   const filters = await searchParams;
   const domaineId = await currentDomaineId();
-  const [bottles, regionOptions] = await Promise.all([
+  const [bottles, regionOptions, locationOptions] = await Promise.all([
     getBottles("wishlist"),
     getRegionOptions(domaineId),
+    getLocationOptions(),
   ]);
 
   return (
@@ -39,6 +40,7 @@ export default async function WishlistPage({ searchParams }) {
         bottles={bottles}
         regionOptions={regionOptions}
         initialFilters={filters}
+        locationOptions={locationOptions}
         emptyMessage="No bottles match. Add one above, or clear your filters."
       />
     </div>
