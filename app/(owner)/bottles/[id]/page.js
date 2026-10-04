@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
 import { currentDomaineId } from "@/lib/owner";
-import { getRegionOptions } from "@/lib/bottles";
+import { lotLine } from "@/lib/lot-fields";
+import { getLocationOptions, getRegionOptions } from "@/lib/bottles";
 import {
   updateBottle,
   deleteBottle,
@@ -12,6 +13,7 @@ import {
   updateEmptiedDate,
   updateAcquiredDate,
   deleteBottlePhoto,
+  addAnotherPurchase,
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
@@ -92,7 +94,8 @@ export default async function BottleDetailPage({ params, searchParams }) {
   // `tastingFlight` (arriving to write a note about a flight wine) and `flight`
   // (any other link from a flight's page) both say which flight the person came
   // from; `flight` carries no note prefill.
-  const { pairedWith, tastingFlight, flight: flightParam, note: noteParam } = await searchParams;
+  const { pairedWith, tastingFlight, flight: flightParam, note: noteParam, details: detailsParam } =
+    await searchParams;
   const domaineId = await currentDomaineId();
   const [flightName, allFlights] = await Promise.all([
     flightNameFor(tastingFlight),
@@ -114,7 +117,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
   // by a bare id in the URL, so a foreign id has to read exactly like a
   // deleted one - notFound() below - rather than rendering someone else's
   // bottle.
-  const [bottle, regionOptions] = await Promise.all([
+  const [bottle, regionOptions, locationOptions] = await Promise.all([
     Number.isInteger(bottleId)
       ? db.bottle.findUnique({
           where: { id: bottleId },
@@ -135,6 +138,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
         })
       : null,
     getRegionOptions(domaineId),
+    getLocationOptions(),
   ]);
 
   if (!bottle) notFound();
@@ -246,6 +250,9 @@ export default async function BottleDetailPage({ params, searchParams }) {
               {heading}
             </h1>
             {facts && <p className="mt-1 text-sm text-zinc-500">{facts}</p>}
+            {lotLine(bottle) && (
+              <p className="mt-1 text-sm text-zinc-500">{lotLine(bottle)}</p>
+            )}
             {/* Source is otherwise only inside "Edit details"; a line of it
                 here means where a wine came from is something you can see. */}
             {bottle.notes && (
@@ -391,7 +398,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
           list of inputs, but looks nothing like it once it's several
           thousand pixels tall on a phone. */}
       <section className="border-y border-zinc-200 dark:border-zinc-800">
-        <details className="group">
+        <details className="group" open={detailsParam === "1"}>
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded px-1 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100">
             <span className="inline-block text-sm text-zinc-400 transition-transform group-open:rotate-90">
               &#9656;
@@ -404,8 +411,21 @@ export default async function BottleDetailPage({ params, searchParams }) {
               defaultValues={bottle}
               submitLabel="Save changes"
               regionOptions={regionOptions}
+              showLotFields
+              showLocation={bottle.status === "inventory"}
+              locationOptions={locationOptions}
               idPrefix="bottle-details"
             />
+            {bottle.status === "inventory" && (
+              <form action={addAnotherPurchase.bind(null, bottle.id)} className="mt-3">
+                <button
+                  type="submit"
+                  className="min-h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+                >
+                  Add another purchase of this wine
+                </button>
+              </form>
+            )}
           </div>
         </details>
       </section>

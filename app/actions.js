@@ -35,6 +35,8 @@ import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
 import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
+import { parseSizeMl } from "@/lib/bottle-sizes";
+import { adoptExistingLocation, cleanLocation, parseCurrency, parsePriceCents } from "@/lib/lot-fields";
 import { uploadLabelPhoto } from "@/lib/blob";
 import { STEP_SLICE, STEP_BUDGET_MS } from "@/lib/research-job";
 import { newResearchJobToken, dispatchResearchStep } from "@/lib/research-dispatch";
@@ -54,6 +56,37 @@ function parseOptionalFloat(value) {
 function parseOptionalRating(value) {
   const n = parseOptionalInt(value);
   return n !== null && n >= 1 && n <= 5 ? n : null;
+}
+
+// Where the bottles are, what one cost and in what currency, and the size.
+// Only read from a form that actually shows those fields (the Wine details
+// form carries a hidden lotFields=1): the scan cards and the research and
+// photo applies share bottleDataFromForm, and a form that never had the
+// fields must not blank them on save. Price is entered per bottle; it is
+// stored with its currency or not at all (the CHECK constraint enforces
+// that pairing too).
+async function lotFieldsFromForm(formData) {
+  if (formData.get("lotFields") !== "1") return {};
+  const priceCents = parsePriceCents(formData.get("price"));
+  return {
+    sizeMl: parseSizeMl(formData.get("sizeMl")),
+    location: await resolveLocation(formData.get("location")),
+    pricePaidCents: priceCents,
+    priceCurrency: priceCents === null ? null : parseCurrency(formData.get("currency")),
+  };
+}
+
+// A place spelled with different capitalisation from one already on file
+// files under the existing spelling (see adoptExistingLocation).
+async function resolveLocation(value) {
+  const clean = cleanLocation(value);
+  if (!clean) return null;
+  const rows = await db.bottle.findMany({
+    where: { location: { not: null } },
+    distinct: ["location"],
+    select: { location: true },
+  });
+  return adoptExistingLocation(clean, rows.map((row) => row.location));
 }
 
 function bottleDataFromForm(formData) {
@@ -162,7 +195,7 @@ function bottleDataFromWine(wine) {
 }
 
 async function insertBottle(status, formData) {
-  const data = bottleDataFromForm(formData);
+  const data = { ...bottleDataFromForm(formData), ...(await lotFieldsFromForm(formData)) };
   if (!data.producer) return null;
   // Only set on creation (e.g. from the scan flow, when extraction wasn't
   // confident) - editing a bottle afterward never touches this flag one
@@ -271,7 +304,7 @@ export async function createBottleInFlight(flightId, prevState, formData) {
 }
 
 export async function updateBottle(id, prevState, formData) {
-  const data = bottleDataFromForm(formData);
+  const data = { ...bottleDataFromForm(formData), ...(await lotFieldsFromForm(formData)) };
   if (!data.producer) return { error: "Producer is required." };
 
   try {
@@ -471,6 +504,46 @@ export async function markOneTasted(id) {
 // zero is the same thing as no longer owning any, which is what
 // markOneTasted is for, and doing it here would strand a bottle in
 // the cellar at quantity 0.
+// "Add another purchase": the same wine bought again at a different price or
+// kept in another place is a new lot (see the Bottle lot comment in
+// prisma/schema.prisma), so this copies the wine's identity into a fresh
+// cellar row of one bottle and leaves the price empty to be filled in. Notes,
+// photos and research stay with the original: they are about the wine on its
+// page, and the new row carries only what identifies it. Opens the new row's
+// page with Wine details expanded.
+export async function addAnotherPurchase(id) {
+  const source = await db.bottle.findUnique({ where: { id: Number(id) } });
+  if (!source || source.status !== "inventory") return;
+  const created = await db.bottle.create({
+    data: {
+      ownerId: await currentOwnerId(),
+      producer: source.producer,
+      bottling: source.bottling,
+      vintage: source.vintage,
+      type: source.type,
+      variety: source.variety,
+      canonicalVariety: source.canonicalVariety,
+      region: source.region,
+      subRegion: source.subRegion,
+      country: source.country,
+      wineColor: source.wineColor,
+      abv: source.abv,
+      drinkFrom: source.drinkFrom,
+      drinkTo: source.drinkTo,
+      drinkWindowEstimated: source.drinkWindowEstimated,
+      criticNotes: source.criticNotes,
+      photoUrl: source.photoUrl,
+      sizeMl: source.sizeMl,
+      location: source.location,
+      quantity: 1,
+      status: "inventory",
+      acquiredAt: todayAtNoonUtc(),
+    },
+  });
+  revalidatePath("/inventory");
+  redirect(`/bottles/${created.id}?details=1`);
+}
+
 export async function adjustBottleQuantity(id, delta) {
   const bottle = await db.bottle.findUnique({
     where: { id },
@@ -845,7 +918,8 @@ export async function extractWinesFromPhoto(
   mediaType,
   intent = DEFAULT_SCAN_INTENT,
   rawEventLabel = null,
-  flightId = null
+  flightId = null,
+  rawLocation = null
 ) {
   // Claude is called before anything touches the database, so
   // lib/scoped-prisma.js's own Cellarmaster check would only fire after
@@ -970,6 +1044,9 @@ export async function extractWinesFromPhoto(
         // not the model's, so the tool-injection guard that exists for is
         // beside the point.
         const eventLabel = String(rawEventLabel ?? "").trim() || null;
+        // Where the batch is going ("Rack B"), settled once against the
+        // places already on file; only a cellar row has a place.
+        const batchLocation = await resolveLocation(rawLocation);
 
         const results = [];
         for (const wine of wines) {
@@ -989,6 +1066,7 @@ export async function extractWinesFromPhoto(
                 ownerId,
                 ...bottleDataFromWine(wine),
                 status,
+                location: status === "inventory" ? batchLocation : null,
                 emptiedAt: emptiedAtForStatus(status, null),
                 acquiredAt: acquiredAtForStatus(status, null),
                 needsResearch: wine.confident === false,

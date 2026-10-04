@@ -3,6 +3,7 @@ import AiLimitNotice from "@/app/components/AiLimitNotice";
 import { normalizeScanIntent } from "@/lib/scan-intent";
 import { FEATURE } from "@/lib/usage-features";
 import { db } from "@/lib/scoped-prisma";
+import { getLocationOptions } from "@/lib/bottles";
 import { flightName, isOpenFlight } from "@/lib/flights";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,13 @@ export const dynamic = "force-dynamic";
 // one small indexed query either way.
 export default async function ScanPage({ searchParams }) {
   const { intent } = await searchParams;
-  const allFlights = await db.tastingFlight.findMany({
-    select: { id: true, title: true, summary: true, picks: { select: { consumed: true } } },
-    orderBy: { createdAt: "desc" },
-  });
+  const [allFlights, locationOptions] = await Promise.all([
+    db.tastingFlight.findMany({
+      select: { id: true, title: true, summary: true, picks: { select: { consumed: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    getLocationOptions(),
+  ]);
   const openFlights = allFlights
     .filter(isOpenFlight)
     .map((flight) => ({ id: flight.id, name: flightName(flight) }));
@@ -30,7 +34,11 @@ export default async function ScanPage({ searchParams }) {
   return (
     <>
       <AiLimitNotice feature={FEATURE.SCAN} />
-      <ScanPanel initialIntent={normalizeScanIntent(intent)} openFlights={openFlights} />
+      <ScanPanel
+        initialIntent={normalizeScanIntent(intent)}
+        openFlights={openFlights}
+        locationOptions={locationOptions}
+      />
     </>
   );
 }

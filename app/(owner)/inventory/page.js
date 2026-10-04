@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getBottles, getRegionOptions } from "@/lib/bottles";
+import { getBottles, getLocationOptions, getRegionOptions } from "@/lib/bottles";
 import { db } from "@/lib/scoped-prisma";
 import { currentDomaineId } from "@/lib/owner";
 import { isAuthConfigured } from "@/lib/auth";
@@ -14,9 +14,10 @@ export const dynamic = "force-dynamic";
 export default async function CellarPage({ searchParams }) {
   const filters = await searchParams;
   const domaineId = await currentDomaineId();
-  const [bottles, regionOptions, missingWindowCount, allFlights] = await Promise.all([
+  const [bottles, regionOptions, locationOptions, missingWindowCount, allFlights] = await Promise.all([
     getBottles("inventory"),
     getRegionOptions(domaineId),
+    getLocationOptions(),
     db.bottle.count({
       where: { status: "inventory", drinkFrom: null, drinkTo: null },
     }),
@@ -68,6 +69,8 @@ export default async function CellarPage({ searchParams }) {
         <BottleForm
           action={createBottle.bind(null, "inventory")}
           regionOptions={regionOptions}
+          showLotFields
+          locationOptions={locationOptions}
         />
       </ScanAndAddRow>
 

@@ -8,6 +8,7 @@ import TastedControls from "@/app/components/TastedControls";
 import { WINE_COLOR_SWATCH } from "@/lib/wine-colors";
 import { wineDetailOrNone, wineOrigin } from "@/lib/wine-origin";
 import { drinkWindowLabel } from "@/lib/drink-window";
+import { lotLine } from "@/lib/lot-fields";
 import { formatTastedDate } from "@/lib/tasting-date";
 
 const stepperClass =
@@ -87,7 +88,13 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
         // worth a whole extra row across a cellar of hundreds (BACKLOG #29
         // finding 1). Same "say nothing when there's nothing to say" rule
         // wineOrigin() already follows for a bottle with no region.
-        const detailLine = [wineOrigin(bottle), drinkWindowLabel(bottle)]
+        // Where it is and a non-standard size ride on the same line; price
+        // does not (not what a list is scanned by).
+        const detailLine = [
+          wineOrigin(bottle),
+          drinkWindowLabel(bottle),
+          lotLine(bottle, { withPrice: false }),
+        ]
           .filter(Boolean)
           .join(" · ");
         return (

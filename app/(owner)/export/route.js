@@ -115,7 +115,12 @@ export async function GET() {
     //       ("2026-10-04T12:00:00.000Z"), replaces both; PairingPick gains
     //       `decision` (null | "drink" | "hold"). On a gap pick, `bottleId`
     //       may point at a wishlist bottle linked by choosing Drink.
-    schemaVersion: 2,
+    //   3 - Bottle gains the lot columns `sizeMl`, `location`, `pricePaidCents`
+    //       and `priceCurrency` (each null = not recorded); PairingPick gains
+    //       `drankAt` and `drankTookBottle`. A bottle row is one lot, so
+    //       "what the cellar is worth" is the sum of quantity x pricePaidCents
+    //       over cellar rows in one currency.
+    schemaVersion: 3,
     exportedAt: new Date().toISOString(),
     domaine,
     members,

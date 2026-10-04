@@ -7,6 +7,8 @@ import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 import Spinner from "@/app/components/Spinner";
 import AutoTextarea from "@/app/components/AutoTextarea";
 import StarRating from "@/app/components/StarRating";
+import { BOTTLE_SIZES } from "@/lib/bottle-sizes";
+import { CURRENCIES, DEFAULT_CURRENCY, MAX_LOCATION } from "@/lib/lot-fields";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -43,6 +45,18 @@ export default function BottleForm({
   // happened, rather than inferring it from the form merely going idle
   // again (which also happens on a silently swallowed failure).
   onResult,
+  // Size, place and price: only the Wine details form and the cellar's Add
+  // form show them. The scan cards leave them out (a batch has its own "Put
+  // them in" place), and a form that does not show them must not save them -
+  // the hidden lotFields marker below is what tells the server it may.
+  showLotFields = false,
+  // Places already on file, offered as suggestions so a place is spelled one
+  // way; the server settles case against the same list.
+  locationOptions = [],
+  // Where a bottle lives only means something while it is in the cellar; on a
+  // wishlist or History row the field is not shown and its value is carried
+  // through unchanged.
+  showLocation = true,
   children,
 }) {
   const [state, formAction, pending] = useActionState(action, null);
@@ -86,6 +100,7 @@ export default function BottleForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
+      {showLotFields && <input type="hidden" name="lotFields" value="1" />}
       {defaultValues.confident === false && (
         <input type="hidden" name="needsResearch" value="true" />
       )}
@@ -94,6 +109,11 @@ export default function BottleForm({
       )}
       <datalist id={varietyListId}>
         {VARIETY_NAMES.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      <datalist id={`${idPrefix}-location-options`}>
+        {locationOptions.map((name) => (
           <option key={name} value={name} />
         ))}
       </datalist>
@@ -275,6 +295,83 @@ export default function BottleForm({
             </div>
           </div>
         </div>
+        {showLotFields && (
+          <div className="flex flex-col gap-2">
+            <p className={sectionLabelClass}>Size, place &amp; price</p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className={labelClass}>
+                Bottle size
+                <select
+                  name="sizeMl"
+                  defaultValue={defaultValues.sizeMl ?? ""}
+                  className={inputClass}
+                >
+                  <option value="">Not recorded</option>
+                  {BOTTLE_SIZES.map((size) => (
+                    <option key={size.ml} value={size.ml}>
+                      {size.label}
+                    </option>
+                  ))}
+                  {defaultValues.sizeMl &&
+                    !BOTTLE_SIZES.some((size) => size.ml === defaultValues.sizeMl) && (
+                      <option value={defaultValues.sizeMl}>{defaultValues.sizeMl} ml</option>
+                    )}
+                </select>
+              </label>
+              {showLocation ? (
+                <label className={labelClass}>
+                  Where it is
+                  <input
+                    name="location"
+                    list={`${idPrefix}-location-options`}
+                    maxLength={MAX_LOCATION}
+                    defaultValue={defaultValues.location || ""}
+                    className={inputClass}
+                    placeholder="e.g. Rack B, Fridge"
+                  />
+                </label>
+              ) : (
+                <input type="hidden" name="location" value={defaultValues.location || ""} />
+              )}
+              <div className={`${labelClass} col-span-2`}>
+                <span id={`${idPrefix}-price`}>Price paid, per bottle (optional)</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    name="price"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    aria-labelledby={`${idPrefix}-price`}
+                    defaultValue={
+                      defaultValues.pricePaidCents == null
+                        ? ""
+                        : (defaultValues.pricePaidCents / 100).toFixed(2)
+                    }
+                    className={`${inputClass} w-28`}
+                    placeholder="e.g. 24.50"
+                  />
+                  <select
+                    name="currency"
+                    aria-label="Currency"
+                    defaultValue={defaultValues.priceCurrency || DEFAULT_CURRENCY}
+                    className={inputClass}
+                  >
+                    {CURRENCIES.map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Bought more at a different price? Add it as another
+                  purchase rather than averaging.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {/* Three kinds of writing about a wine, each named for what it is:
           this one, Source (where it came from, what it cost, who gave it

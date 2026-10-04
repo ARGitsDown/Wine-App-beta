@@ -440,6 +440,7 @@ export default function ScanPanel({
   initialIntent = DEFAULT_SCAN_INTENT,
   openFlights = [],
   flight = null,
+  locationOptions = [],
 }) {
   const router = useRouter();
   const fileInputRef = useRef(null);
@@ -449,6 +450,10 @@ export default function ScanPanel({
   // *where*, and typing "Chain Bridge Mexican Wine Fiesta 9/19" once per
   // batch beats retyping it on every card the fiesta produced.
   const [eventLabel, setEventLabel] = useState("");
+  // Where this batch is going, for a cellar scan only: typed once, the same
+  // way the event name is, rather than on every card. Carried per photo for
+  // the same reason intent is (a retry uses what the photo was scanned with).
+  const [location, setLocation] = useState("");
   const [photos, setPhotos] = useState([]);
   // Survives clearing the batch, so the empty page can still say where the
   // wines went rather than looking like nothing happened.
@@ -628,7 +633,7 @@ export default function ScanPanel({
     removeEntry(photo.id, entry.localId);
   }
 
-  async function processPhoto(photo, batchIntent, batchEventLabel) {
+  async function processPhoto(photo, batchIntent, batchEventLabel, batchLocation = "") {
     try {
       const resized = await downscaleImage(photo.file);
       const base64 = await fileToBase64(resized);
@@ -637,7 +642,8 @@ export default function ScanPanel({
         "image/jpeg",
         batchIntent,
         batchEventLabel,
-        flight?.id ?? null
+        flight?.id ?? null,
+        batchLocation
       );
       if (result.error) {
         // Still offer one blank manual-entry card, through the same
@@ -681,6 +687,7 @@ export default function ScanPanel({
       // the tasting/event name field below the picker.
       intent: intent,
       eventLabel: eventLabel,
+      location: location,
       status: "loading",
       error: null,
       entries: [],
@@ -695,8 +702,9 @@ export default function ScanPanel({
     // value each photo carries, for the same reason.
     const batchIntent = intent;
     const batchEventLabel = eventLabel;
+    const batchLocation = location;
     await runWithConcurrency(newPhotos, 3, (photo) =>
-      processPhoto(photo, batchIntent, batchEventLabel)
+      processPhoto(photo, batchIntent, batchEventLabel, batchLocation)
     );
   }
 
@@ -804,7 +812,12 @@ export default function ScanPanel({
     const photo = photos.find((p) => p.id === id);
     if (!photo) return;
     updatePhoto(id, { status: "loading", error: null, entries: [] });
-    await processPhoto(photo, photo.intent ?? intent, photo.eventLabel ?? eventLabel);
+    await processPhoto(
+      photo,
+      photo.intent ?? intent,
+      photo.eventLabel ?? eventLabel,
+      photo.location ?? location
+    );
   }
 
   // Same rule as the per-wine Delete, applied to everything one photo
@@ -1014,6 +1027,26 @@ export default function ScanPanel({
               placeholder="Chain Bridge Mexican Wine Fiesta 9/19"
               className="rounded-lg border border-zinc-300 px-3 py-2.5 text-base text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             />
+          </label>
+          )}
+
+          {!flight && intent === "cellar" && (
+          <label className="-mt-2 flex flex-col gap-1.5 text-sm text-zinc-500">
+            Put them in (optional)
+            <input
+              type="text"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              list="scan-location-options"
+              maxLength={80}
+              placeholder="Rack B, Fridge, Storage unit"
+              className="rounded-lg border border-zinc-300 px-3 py-2.5 text-base text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            />
+            <datalist id="scan-location-options">
+              {locationOptions.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </label>
           )}
 

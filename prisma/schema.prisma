@@ -404,6 +404,36 @@ model Bottle {
   // by scanning or by a plain manual edit, though it's an ordinary
   // editable field once research has filled it in.
   criticNotes          String?
+  // A bottle row is a LOT: a stack of identical bottles of one wine that share
+  // a size, a place and a unit price. Two purchases of the same wine at
+  // different prices, or bottles split across two places, are two rows - never
+  // one row holding several - so the columns below stay single values. Each is
+  // nullable and null means "not recorded", never a default.
+  //
+  // `sizeMl`: the bottle size in millilitres (750 standard, 375 half, 1500
+  // magnum). Millilitres rather than an enum or a name so an odd size (500,
+  // 620) still sorts and sums. Null is NOT 750: it is "not recorded"; only one
+  // helper (lib/bottle-sizes.js) treats null as standard, and only for litre
+  // totals. `quantity` stays the number of bottles of THIS row's size.
+  sizeMl               Int?
+  // `location`: where it physically is ("Rack B", "Fridge", "Storage unit").
+  // Free text, trimmed and collapsed, adopting an existing spelling on a
+  // case-insensitive match (so "rack b" files under "Rack B"); renaming or
+  // merging a place is one UPDATE of this column. Domaine-wide, as the bottle
+  // is. Not a table: there is nothing to say about a place yet beyond its name.
+  location             String?
+  // `pricePaidCents` + `priceCurrency`: what ONE bottle of this row's size
+  // cost, in minor units (integer cents, the `*Cents` convention used for
+  // spend caps) with its ISO currency. Null = not recorded; 0 = a gift. Both
+  // set or both null (a CHECK). Per bottle because that is the only value that
+  // stays true as bottles are drunk: a row's value is quantity x unit. The
+  // `acquiredAt` date is when it arrived and `createdAt` is when the row was
+  // typed; the price belongs to the purchase, so a different price is a
+  // different row. Moving a wine back to the wishlist does not clear it, but
+  // totals only count cellar and History rows. Where it was bought stays in
+  // `notes` ("Source"), which is deliberately free text.
+  pricePaidCents       Int?
+  priceCurrency        String?
 
   // Whose cellar this is - every member of the Domaine sees it, and
   // lib/scoped-prisma.js filters every query on it.
