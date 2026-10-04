@@ -52,11 +52,16 @@ export default async function CellarPage({ searchParams }) {
           once accounts are on, since until then nobody can be invited. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h1 className="text-2xl font-semibold">Cellar</h1>
-        {isAuthConfigured() && (
-          <Link href="/invites?access=guest" className="text-sm text-zinc-500 underline underline-offset-2">
-            Invite a guest
+        <div className="flex items-center gap-4">
+          <Link href="/import" className="flex min-h-11 items-center text-sm text-zinc-500 underline underline-offset-2">
+            Import a list
           </Link>
-        )}
+          {isAuthConfigured() && (
+            <Link href="/invites?access=guest" className="flex min-h-11 items-center text-sm text-zinc-500 underline underline-offset-2">
+              Invite a guest
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Scan and hand entry on one line (BACKLOG #26) - Scan is still the

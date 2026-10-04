@@ -498,7 +498,7 @@ nothing about whether a model reads labels well. That distinction -
   *`npm run verify` before you say it works.*
 - **`npm run verify`** runs, in order: unit checks (the sign-in policy, the
   usage arithmetic, the AI guards, the constants), lint, a production build,
-  starts the built app, then opens all 17 pages in a real browser and fails on
+  starts the built app, then opens all 18 pages in a real browser and fails on
   any error. The same runs on GitHub on every push (`verify.yml`), against an
   *empty* database on purpose: the bugs a full database hides are the
   empty-state ones.

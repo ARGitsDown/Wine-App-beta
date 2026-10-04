@@ -51,6 +51,7 @@ const PAGES = [
   { path: "/research", owner: true },
   { path: "/estimate-windows", owner: true },
   { path: "/invites", owner: true },
+  { path: "/import", owner: true },
   // Every Domaine's AI spend, and where its limits are set - for the app
   // owner only, but it is an owner-side route like the rest: a signed-out
   // visitor must be bounced to /signin, and with accounts off the single
