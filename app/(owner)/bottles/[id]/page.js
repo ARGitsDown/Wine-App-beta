@@ -390,15 +390,15 @@ export default async function BottleDetailPage({ params, searchParams }) {
           reading the JSX: the form is exactly as functional read as a flat
           list of inputs, but looks nothing like it once it's several
           thousand pixels tall on a phone. */}
-      <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <section className="border-y border-zinc-200 dark:border-zinc-800">
         <details className="group">
-          <summary className="-mx-1 -my-2 flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded px-1 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100">
-            <span className="inline-block text-zinc-400 transition-transform group-open:rotate-90">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded px-1 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:focus-visible:outline-zinc-100">
+            <span className="inline-block text-sm text-zinc-400 transition-transform group-open:rotate-90">
               &#9656;
             </span>
-            Edit details
+            Wine details
           </summary>
-          <div className="mt-3">
+          <div className="pb-4 pt-2">
             <BottleForm
               action={updateBottle.bind(null, bottle.id)}
               defaultValues={bottle}
@@ -412,7 +412,7 @@ export default async function BottleDetailPage({ params, searchParams }) {
 
       {/* Right beside Details rather than at the foot of the page, past
           Photos and Research - every kind of note about this wine (Your
-          notes and Critic notes live inside Edit details above; dated tasting
+          notes and Critic notes live inside Wine details above; dated tasting
           notes are here) reads as one place to look, not two. */}
       {(!noteOnTop || bottle.tastingNotes.length > 0) && (
         <section className="flex flex-col gap-4">
@@ -464,40 +464,41 @@ export default async function BottleDetailPage({ params, searchParams }) {
         </section>
       )}
 
-      <section className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <h2 className="font-medium">Photos</h2>
-        {bottle.photoUrl || bottle.photos.length > 0 ? (
-          <div className="flex flex-wrap gap-3">
-            {bottle.photoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={bottle.photoUrl}
-                alt={`Label photo for ${bottle.producer}`}
-                className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
-              />
-            )}
-            {bottle.photos.map((photo) => (
-              <div key={photo.id} className="flex flex-col items-center gap-1">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+      {/* No box and no "No photos yet": the heading carries the Add button,
+          and with nothing to show there is simply the heading and the
+          button. The photos are the usual case (they arrive with the scan). */}
+      <section className="flex flex-col gap-3">
+        <AddPhotoPanel bottle={bottle} regionOptions={regionOptions}>
+          {(bottle.photoUrl || bottle.photos.length > 0) && (
+            <div className="flex flex-wrap gap-3">
+              {bottle.photoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={photo.url}
-                  alt={`Additional photo for ${bottle.producer}`}
+                  src={bottle.photoUrl}
+                  alt={`Label photo for ${bottle.producer}`}
                   className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
                 />
-                <ConfirmButton
-                  action={deleteBottlePhoto.bind(null, photo.id)}
-                  label="Remove"
-                  confirmLabel="Remove photo"
-                  className="text-xs text-zinc-500 underline underline-offset-2"
-                  confirmClassName="text-xs font-medium text-red-600 underline underline-offset-2 dark:text-red-400"
-                />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-500">No photos yet.</p>
-        )}
-        <AddPhotoPanel bottle={bottle} regionOptions={regionOptions} />
+              )}
+              {bottle.photos.map((photo) => (
+                <div key={photo.id} className="flex flex-col items-center gap-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo.url}
+                    alt={`Additional photo for ${bottle.producer}`}
+                    className="h-28 w-24 rounded border border-zinc-200 object-cover dark:border-zinc-800"
+                  />
+                  <ConfirmButton
+                    action={deleteBottlePhoto.bind(null, photo.id)}
+                    label="Remove"
+                    confirmLabel="Remove photo"
+                    className="text-xs text-zinc-500 underline underline-offset-2"
+                    confirmClassName="text-xs font-medium text-red-600 underline underline-offset-2 dark:text-red-400"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </AddPhotoPanel>
       </section>
 
       <ResearchPanel

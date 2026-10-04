@@ -31,6 +31,58 @@ export default function ResearchPanel({ bottle, proposal, regionOptions }) {
     });
   }
 
+  // `labelled` shows the word "Effort" beside the select. The quiet row has
+  // no room for it next to the heading and the button at phone width, so
+  // there it is the select's accessible name and its tooltip instead.
+  const effortSelect = (labelled) => (
+    // A select rather than the radio row Suggest uses. There is no form
+    // here - just two buttons on one line - and three radios wrapping under
+    // them would read as a question nobody asked. The label is the word
+    // itself, since "Balanced" alone says nothing about what it is balancing.
+    <label className="flex items-center gap-1.5 text-sm text-zinc-500">
+      {labelled && "Effort"}
+      <select
+        aria-label="Effort"
+        value={effort}
+        onChange={(event) => setEffort(event.target.value)}
+        disabled={pending}
+        title={EFFORT_LEVELS.find((level) => level.value === effort)?.hint}
+        className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        {EFFORT_LEVELS.map((level) => (
+          <option key={level.value} value={level.value}>
+            {level.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  // Nothing to say and nothing to review: one quiet row between hairlines,
+  // with the controls live. The explanatory sentence and the box come back
+  // the moment there is something to check (a flagged bottle or a proposal).
+  if (!proposal && !bottle.needsResearch) {
+    return (
+      <section className="flex flex-col gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+        <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2">
+          <h2 className="font-medium">Research</h2>
+          <div className="ml-auto flex items-center gap-2">
+            {effortSelect(false)}
+            <button
+              type="button"
+              onClick={research}
+              disabled={pending}
+              className={`${primaryButtonClass} min-h-11`}
+            >
+              {pending ? <Spinner label="Researching…" /> : "Research further"}
+            </button>
+          </div>
+        </div>
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      </section>
+    );
+  }
+
   return (
     <section
       className={`flex flex-col gap-3 rounded-lg border p-4 ${
@@ -57,27 +109,7 @@ export default function ResearchPanel({ bottle, proposal, regionOptions }) {
             but a third control needs to be allowed to shrink or it pushes
             the last button off the edge of the panel at phone width. */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* A select rather than the radio row Suggest uses. There is no
-              form here - just two buttons on one line - and three radios
-              wrapping under them would read as a question nobody asked.
-              The label is the word itself, since "Balanced" alone says
-              nothing about what it is balancing. */}
-          <label className="flex items-center gap-1.5 text-sm text-zinc-500">
-            Effort
-            <select
-              value={effort}
-              onChange={(event) => setEffort(event.target.value)}
-              disabled={pending}
-              title={EFFORT_LEVELS.find((level) => level.value === effort)?.hint}
-              className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-            >
-              {EFFORT_LEVELS.map((level) => (
-                <option key={level.value} value={level.value}>
-                  {level.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {effortSelect(true)}
           {bottle.needsResearch && !proposal && (
             <form action={dismissResearch.bind(null, bottle.id)}>
               <button type="submit" className={secondaryButtonClass}>

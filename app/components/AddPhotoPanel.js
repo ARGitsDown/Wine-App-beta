@@ -12,7 +12,11 @@ import Spinner from "@/app/components/Spinner";
 // also read for anything new it shows (extractBottlePhotoDetails) - same
 // review-before-save trust model as the Research panel: nothing is
 // applied until the user reviews and submits the prefilled form below.
-export default function AddPhotoPanel({ bottle, regionOptions }) {
+//
+// Renders the section's heading as well, so the Add button can sit at its
+// right (the way Save note sits beside Tasting notes) instead of on a line of
+// its own; `children` is the row of existing photos, shown under it.
+export default function AddPhotoPanel({ bottle, regionOptions, children = null }) {
   const fileInputRef = useRef(null);
   const [working, setWorking] = useState(false);
   const [uploadError, setUploadError] = useState(null);
@@ -59,14 +63,18 @@ export default function AddPhotoPanel({ bottle, regionOptions }) {
         onChange={handleFileChange}
         className="hidden"
       />
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={working}
-        className="self-start rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-      >
-        {working ? <Spinner label="Reading photo…" /> : "Add a photo"}
-      </button>
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <h2 className="font-medium">Photos</h2>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={working}
+          className="flex min-h-11 items-center rounded border border-zinc-300 px-3 text-sm dark:border-zinc-700"
+        >
+          {working ? <Spinner label="Reading photo…" /> : "+ Add photo"}
+        </button>
+      </div>
+      {children}
       {uploadError && <p className="text-sm text-red-600 dark:text-red-400">{uploadError}</p>}
       {readError && <p className="text-sm text-red-600 dark:text-red-400">{readError}</p>}
 

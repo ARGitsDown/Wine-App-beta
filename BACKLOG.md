@@ -3857,3 +3857,26 @@ phone shows otherwise.
 Checked on a production build: critic notes visible without opening Edit details,
 clamp / Read more / Show less, short note with no button, no notes with no section,
 the textarea growing, and a note saving from the compact form.
+
+### Wine page: quiet "Wine details", unboxed Photos, one-row Research (built, owner's choice: option 4 with option 2's photos)
+
+From the second hierarchy contact sheet. Nothing is hidden behind an extra tap.
+- **"Edit details" is now "Wine details"**, a quiet row between hairlines instead of a
+  bordered card (the form is often opened to look something up, not to change it). It
+  still opens in place.
+- **Photos** has no box and no "No photos yet." The heading carries a "+ Add photo"
+  button at its right; the photos are shown below at full size (96x112); with none
+  there is just the heading and the button. `AddPhotoPanel` now renders that heading
+  and takes the photos as children.
+- **Research** is one row when there is nothing to review: heading, an Effort select
+  and "Research further" on one line, no explanatory sentence. The Effort word is the
+  select's accessible name and tooltip rather than visible text (there is no room for
+  it beside the heading at 360px). When the bottle is flagged for research or a
+  proposal is waiting it is the amber boxed panel as before, with its sentence,
+  Dismiss and the proposal.
+- The scan cards' own "Edit details" disclosure is unchanged.
+
+Checked on a production build: the renamed row and no "Edit details" left on the page,
+heading and button on one row, photos at 96x112 with no border, no empty-state text, the
+Research row on one line with no sentence, no horizontal overflow at 360 and 390px, the
+Wine details form still saving, and a flagged bottle keeping the boxed panel.
