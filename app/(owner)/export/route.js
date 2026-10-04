@@ -120,6 +120,8 @@ export async function GET() {
     //       `drankAt` and `drankTookBottle`. A bottle row is one lot, so
     //       "what the cellar is worth" is the sum of quantity x pricePaidCents
     //       over cellar rows in one currency.
+    //       BottleTrash (the 30-day recycle bin for deleted wines) is
+    //       deliberately NOT exported: it is not part of the cellar.
     schemaVersion: 3,
     exportedAt: new Date().toISOString(),
     domaine,

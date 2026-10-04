@@ -161,6 +161,7 @@ model Domaine {
   pairings     SavedPairing[]
   researchJobs ResearchJob[]
   usageEvents  UsageEvent[]
+  bottleTrash  BottleTrash[]
 }
 
 // Auth.js's own three tables, plus the invite list.
@@ -946,4 +947,37 @@ model UsageEvent {
 
   @@index([domaineId, createdAt])
   @@index([ownerId])
+}
+
+// A wine deleted from its own page, kept for 30 days so the delete can be
+// undone. NOT a `deletedAt` on Bottle, on purpose: a soft-delete column leaks
+// into every plain-client and nested read (a deleted wine would still count,
+// list and link) and defeats the cascade / SetNull behaviour pairings and
+// flights rely on. Here the Bottle row really is deleted, and everything that
+// hung off it is written down first.
+//
+// `snapshot` is the whole of what restoring needs, as JSON: the bottle's
+// columns plus its tasting notes, photos, favorites, flight picks, research
+// proposal, and the ids of the pairing picks that pointed at it. Dates are
+// ISO strings and are turned back into dates by restoreBottle. `bottleId` is
+// the id the wine had, which restore re-uses so every link that survived the
+// delete (a pairing pick is only SET NULL, never removed) lines up again; ids
+// are never re-issued by the sequence, so it cannot collide.
+//
+// Written only by deleteBottle (the bottle page's delete), read only by
+// restoreBottle, purged lazily when the next delete runs. Left out of the
+// export: it is a recycle bin, not part of the cellar. Cascades with the
+// Domaine.
+model BottleTrash {
+  id        Int      @id @default(autoincrement())
+  domaineId String
+  domaine   Domaine  @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  bottleId  Int
+  // The wine's name as it read when deleted ("Rochioli 2018"), for the Undo
+  // line and for anything that later lists the bin.
+  label     String
+  snapshot  Json
+  deletedAt DateTime @default(now())
+
+  @@index([domaineId, deletedAt])
 }

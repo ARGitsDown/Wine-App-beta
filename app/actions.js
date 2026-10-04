@@ -36,6 +36,7 @@ import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
 import { WINE_COLORS } from "@/lib/wine-colors";
 import { parseSizeMl } from "@/lib/bottle-sizes";
+import { reviveSnapshot, snapshotOf, trashCutoff, wineLabel } from "@/lib/bottle-trash";
 import { adoptExistingLocation, cleanLocation, parseCurrency, parsePriceCents } from "@/lib/lot-fields";
 import { uploadLabelPhoto } from "@/lib/blob";
 import { STEP_SLICE, STEP_BUDGET_MS } from "@/lib/research-job";
@@ -682,10 +683,118 @@ export async function undoOneTasted(id) {
   }
 }
 
+// Deletes a wine from its own page, keeping a snapshot of it (and everything
+// attached) in BottleTrash for 30 days so the delete can be undone - see
+// restoreBottle and the BottleTrash model. The snapshot is read inside the
+// same transaction that deletes, so what is kept is what was deleted. The
+// caller navigates and shows the Undo; this no longer redirects, because the
+// Undo has to outlive the page it was pressed on. Ownership is checked by the
+// scoped read first (a foreign id reads as missing); the transaction then
+// uses the plain client, so every statement names the Domaine by hand.
 export async function deleteBottle(id) {
-  const bottle = await db.bottle.delete({ where: { id } });
-  revalidatePath(pathForStatus(bottle.status));
-  redirect(pathForStatus(bottle.status));
+  const bottleId = Number(id);
+  if (!Number.isInteger(bottleId)) return { error: "That wine is already gone." };
+  const owned = await db.bottle.findUnique({ where: { id: bottleId }, select: { domaineId: true } });
+  if (!owned) return { error: "That wine is already gone." };
+  const { domaineId } = owned;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const bottle = await tx.bottle.findFirst({
+        where: { id: bottleId, domaineId },
+        include: {
+          tastingNotes: true,
+          photos: true,
+          favorites: true,
+          flightPicks: true,
+          researchProposal: true,
+          pairingPicks: { select: { id: true } },
+        },
+      });
+      if (!bottle) return null;
+      const entry = await tx.bottleTrash.create({
+        data: { domaineId, bottleId, label: wineLabel(bottle), snapshot: snapshotOf(bottle) },
+      });
+      await tx.bottle.delete({ where: { id: bottleId } });
+      // Lazy purge: nothing schedules this, the next delete does it.
+      await tx.bottleTrash.deleteMany({ where: { domaineId, deletedAt: { lt: trashCutoff() } } });
+      return { trashId: entry.id, label: entry.label, status: bottle.status };
+    });
+    if (!result) return { error: "That wine is already gone." };
+    const path = pathForStatus(result.status);
+    revalidatePath(path);
+    revalidatePath("/pairings");
+    revalidatePath("/flights");
+    return { ok: true, trashId: result.trashId, label: result.label, path };
+  } catch (err) {
+    console.error("Failed to delete a wine:", err);
+    return { error: "Couldn't delete that wine. Please try again." };
+  }
+}
+
+// Puts a deleted wine back exactly as it was: same id, notes, photos, guest
+// favorites, flight picks and research proposal, and the pairing picks that
+// were left pointing nowhere are pointed back at it. Anything whose other end
+// has gone in the meantime (a guest, a flight, an owner) is skipped rather
+// than failing the restore. Claimed by deleting the bin row first, inside the
+// transaction, so two taps restore once.
+export async function restoreBottle(trashId) {
+  const id = Number(trashId);
+  if (!Number.isInteger(id)) return { error: "That can't be restored any more." };
+  const entry = await db.bottleTrash.findUnique({ where: { id } });
+  if (!entry) return { error: "That can't be restored any more." };
+  const snap = reviveSnapshot(entry.snapshot);
+  const { domaineId } = entry;
+  const b = snap.bottle;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.bottleTrash.deleteMany({ where: { id, domaineId } });
+      if (claimed.count === 0) throw new Error("already restored");
+
+      const owner = b.ownerId
+        ? await tx.user.findUnique({ where: { id: b.ownerId }, select: { id: true } })
+        : null;
+      await tx.bottle.create({ data: { ...b, ownerId: owner?.id ?? null, domaineId } });
+
+      if (snap.tastingNotes.length) await tx.tastingNote.createMany({ data: snap.tastingNotes });
+      if (snap.photos.length) await tx.bottlePhoto.createMany({ data: snap.photos });
+      if (snap.researchProposal) await tx.researchProposal.create({ data: snap.researchProposal });
+
+      if (snap.favorites.length) {
+        const guests = await tx.guest.findMany({
+          where: { id: { in: snap.favorites.map((f) => f.guestId) } },
+          select: { id: true },
+        });
+        const present = new Set(guests.map((g) => g.id));
+        const keep = snap.favorites.filter((f) => present.has(f.guestId));
+        if (keep.length) await tx.favorite.createMany({ data: keep });
+      }
+      if (snap.flightPicks.length) {
+        const flights = await tx.tastingFlight.findMany({
+          where: { id: { in: snap.flightPicks.map((p) => p.flightId) }, domaineId },
+          select: { id: true },
+        });
+        const present = new Set(flights.map((f) => f.id));
+        const keep = snap.flightPicks.filter((p) => present.has(p.flightId));
+        if (keep.length) await tx.flightPick.createMany({ data: keep });
+      }
+      if (snap.pairingPickIds.length) {
+        await tx.pairingPick.updateMany({
+          where: { id: { in: snap.pairingPickIds }, bottleId: null, pairing: { domaineId } },
+          data: { bottleId: b.id },
+        });
+      }
+    });
+  } catch (err) {
+    console.error("Failed to restore a wine:", err);
+    return { error: "Couldn't restore that wine." };
+  }
+  revalidatePath(pathForStatus(b.status));
+  revalidatePath("/pairings");
+  revalidatePath("/flights");
+  revalidatePath(`/bottles/${b.id}`);
+  return { ok: true, bottleId: b.id };
 }
 
 // Same delete as above, minus the redirect - for removing one card from a

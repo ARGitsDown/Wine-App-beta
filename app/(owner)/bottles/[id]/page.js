@@ -6,7 +6,6 @@ import { lotLine } from "@/lib/lot-fields";
 import { getLocationOptions, getRegionOptions } from "@/lib/bottles";
 import {
   updateBottle,
-  deleteBottle,
   unmarkFlightPickConsumed,
   updateTastingNote,
   updateTastingNoteDate,
@@ -17,6 +16,7 @@ import {
 } from "@/app/actions";
 import BottleForm from "@/app/components/BottleForm";
 import ConfirmButton from "@/app/components/ConfirmButton";
+import DeleteBottleButton from "@/app/components/DeleteBottleButton";
 import AddToFlight from "@/app/components/AddToFlight";
 import BackButton from "@/app/components/BackButton";
 import TastedControls from "@/app/components/TastedControls";
@@ -61,12 +61,12 @@ function describeDeleteLoss(bottle) {
     bottle.favorites.length && count(bottle.favorites.length, "guest favorite", "guest favorites"),
   ].filter(Boolean);
 
-  if (attached.length === 0) return "Permanently delete this bottle?";
+  if (attached.length === 0) return "Delete this wine? You can undo it straight after.";
   const list =
     attached.length === 1
       ? attached[0]
       : `${attached.slice(0, -1).join(", ")} and ${attached.at(-1)}`;
-  return `Also deletes ${list}. This can't be undone.`;
+  return `Also deletes ${list}. You can undo it straight after.`;
 }
 const dangerButtonClass =
   "min-h-11 rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
@@ -531,10 +531,8 @@ export default async function BottleDetailPage({ params, searchParams }) {
           and the first screen of a page usually opened for something harmless
           should not have a red button on it. */}
       <div className="flex flex-col items-start border-t border-zinc-200 pt-6 dark:border-zinc-800">
-        <ConfirmButton
-          action={deleteBottle.bind(null, bottle.id)}
-          label="Delete this wine"
-          confirmLabel="Yes, delete"
+        <DeleteBottleButton
+          bottleId={bottle.id}
           warning={describeDeleteLoss(bottle)}
           className={dangerButtonClass}
         />
