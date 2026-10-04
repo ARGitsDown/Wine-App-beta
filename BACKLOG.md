@@ -4089,9 +4089,10 @@ order: 63.1, then 63.3 and 63.4 together, then 63.6.
   wishlist wines would help with buying. Interacts with 63.2 and 63.4 (price per what?).
 
 ### Make the data already collected work harder
-- **63.6 A taste profile for Suggest.** Ratings are collected and never used. A short summary of
-  the owner's 4 and 5 star wines passed into the Suggest prompt (a few cached tokens) would make
-  recommendations personal. Touches the prompt, so needs the owner's go-ahead; model testing is
+- **63.6 A taste profile for Suggest.** Suggest already sees the average rating of each wine in
+  the cellar (`averageRating`, inventory only); what is never used is the ratings on wines already
+  *drunk*, which is most of them. A short summary of the owner's highest and lowest rated styles
+  passed into the Suggest prompt (a few cached tokens) would make recommendations personal. Touches the prompt, so needs the owner's go-ahead; model testing is
   paused (#59).
 - **63.7 A cellar overview page.** Counts by region, grape, vintage and colour, and how many
   bottles are in, approaching or past their window. Filtering exists; the shape of the cellar does
@@ -4113,3 +4114,103 @@ order: 63.1, then 63.3 and 63.4 together, then 63.6.
 Already tracked elsewhere and not repeated: pairing search, "Drink offered on a wine you no longer
 have", the dimmed Hold contrast, "Drink tonight" wording (see the end of #62's saved-pairings
 sections), sharing a single flight or tasting notes (FUTURE_CAPABILITIES.md).
+
+### 63 review: UX critic, data engineer and AI reviewer on the plan (2026-10-04)
+
+Two things the reviews found wrong in the list above: **63.2 "bought it" already exists** - on a
+bottle's own page (`TastedControls`, "Bought it → move to inventory"), though never on a wishlist
+row - and **63.5's "purchase source" already has a home** in the free-text `notes` ("Source"),
+which the schema comment says is deliberately never filtered on. **63.8 as written cannot be
+built**: drinking windows are whole years (`drinkFrom`, `drinkTo`), so "enters its window this
+month" cannot be computed (say "this year", or the change since the last digest).
+
+**Fix before building anything on top (found in the code, checked):**
+- **Guest view ships whole bottle rows to the browser.** `app/(guest)/guest/page.js` runs
+  `bottle.findMany` with an `include` and no `select` and passes every column to the client
+  component. It does not display `notes` or `criticNotes`, but they are in what is sent. A price
+  (63.5) would go the same way. Fix: a `select` allowlist; decide whether guests see a location.
+- **`markOneTasted` is racy and unguarded** (`app/actions.js` ~420): read-then-write with no lock
+  (two taps both read 3, both write 2); no status check, so after "Tasted all" it decrements a
+  History row and on a wishlist row it jumps to consumed with no arrival date. `markFlightPickConsumed`
+  has the same race on its flag. Extract one `tasteOne` doing an atomic conditional update and use
+  it in all three paths; 63.1 must not be built on the current one.
+- `setPairingPickDecision`'s duplicate lookup orders by status only; add an `id` tiebreak before a
+  wine can have two cellar rows.
+
+**Data shapes recommended (data engineer):**
+- **63.3 / 63.4 / 63.5 as one additive migration** - nullable `sizeMl` (ml, not an enum; null =
+  not recorded, treated as 750 for litre totals only in one helper), flat `location` text
+  (trim + case-insensitive adopt-existing; rename = one `updateMany`; no table), `pricePaidCents`
+  + `priceCurrency` (price of ONE bottle of that row's size; null = unknown, 0 = gift; CHECK that
+  they are both set or both null). A row becomes "a lot": a stack of identical bottles with one
+  size, place and unit price, so two purchases at different prices, or bottles split across
+  places, are **two rows** (an "add another purchase" copy action), not a child table - a later
+  `Lot` backfill stays mechanical. Ship price early: unlike a missing location, a price not
+  recorded cannot be recovered. Keep source in `notes`; defer wishlist target price (a different
+  fact); "cost per bottle drunk" is only approximate for multi-bottle rows (no per-bottle drink
+  event; do not add a `DrinkEvent` speculatively). New fields go in Wine details only, never on
+  every scan card; scan sets location once per batch.
+- **63.1** `PairingPick.drankAt` (noon-UTC day; null = not drunk, old picks stay null, no backfill
+  from notes). `decision` stays intent and `drankAt` is fact; no `tastingNoteId` (flights solved
+  the note with a redirect). One transaction under the advisory lock: stamp the pick (idempotent),
+  `tasteOne` only if the bottle is in the cellar, still stamp if it is already consumed or deleted,
+  refuse for a wishlist wine ("buy it first"). CHECK `"drankAt" IS NULL OR COALESCE("decision",'')='drink'`
+  (a bare `= 'drink'` passes on NULL); Drink cannot be cleared while `drankAt` is set; counts gain
+  a "done" part. Whole-pairing "finish" loops the Drink picks and clears the plan explicitly.
+- **63.2** a new `markBought(id, {quantity, price, size, date, notes})` action (not `setBottleStatus`,
+  which cannot set quantity or a date), conditional on status = wishlist; the wishlist row flips, so
+  `PairingPick.bottleId` stays valid; prefill and append to the existing "Suggested because" notes.
+- **63.11 do not use `deletedAt`**: it leaks in every plain-client and nested read, and breaks the
+  cascade / SetNull behaviour pairings rely on. Instead a `BottleTrash` table (label + a JSON
+  snapshot of the bottle with its notes, photos and links), written only by the bottle-page delete,
+  restored with the original id, purged lazily after 30 days; one line in `scoped-prisma.js`.
+- **63.8** `User.digestFrequency` (null = off; nobody opted in by default) and `digestLastSentAt`,
+  claimed with a conditional `updateMany` so a double fire cannot send twice; the cron route has no
+  session, so it uses the plain client with an explicit `domaineId` and guards itself (`CRON_SECRET`);
+  never includes price. **63.10** needs no new column, but must run **after** the lot migration or
+  it throws away price, size, location and date; return the new ids so "Undo import" is a `deleteMany`.
+- **Export:** the additions ride along in `include`; add `digestFrequency` to the explicit members
+  select; leave `BottleTrash` out and say so; bump `schemaVersion` to 3 once for the whole release.
+
+**Usability (UX critic):**
+- **63.1** on each Drink wine, in place of "Add a tasting note →", the same two buttons flights use
+  ("Tasted" / "With note"); afterwards "✓ Tasted · 3 left · Undo". Drink is already drawn in the
+  Tasted colour, so done must differ by a tick and the word, not colour alone. Only one thing should
+  ever change the count, and every place should show the same result. Unsure a whole-pairing "We
+  drank these" is needed at all (a pairing is one or two bottles).
+- **63.2** put Bought it on the opened wishlist row: How many, Paid per bottle (optional), "Move to
+  Cellar", then "Moved to Cellar · Undo" (say Cellar, not inventory). **63.5** ask the price once,
+  there. **63.3** location quietly on a cellar row's second line, searchable rather than an eighth
+  filter; **63.4** show size only when not standard. **63.7** not a ninth home card: a collapsed
+  summary at the top of Cellar where every number is a filter tap, keeping "8 ready (5 estimated)".
+  Fix the word "bottles" first (the filter line and home card count wines, not bottles).
+  **63.8** defer; try "3 ready now" on the Cellar card's description first. **63.9** a quiet "Print
+  card" link. **63.10** don't build as described: needs a preview and an undo. **63.11** the common
+  case is "Deleted X · Undo" on the list you land on. **63.12** a banner and greyed actions, no
+  queued writes.
+
+**AI (AI reviewer):**
+- **63.6** compute from `TastingNote.rating` over any status: one mean per bottle, group by grape
+  (fallback type), region, colour; list a group only with >= 3 bottles from >= 2 producers; half
+  weight past 3 years; send nothing below 8 rated bottles; report the share of 4-5 star ratings so
+  a 3 reads as a real criticism and an unrated style as untried. It is the *household's* (notes
+  have no author); send ratings and labels only, never note text. Put it in the **first user
+  message**, not the cached system prompt (which is identical for every Domaine and must stay so),
+  with its usage rule inside the block, so a cellar with no profile sends a byte-identical request;
+  cap about 800 characters; request first, then the character steer, then the profile. Cost about
+  5% of a Suggest query. Test with unit tests (thresholds, cap, system prompt unchanged, profile in
+  `messages[0]`); measure with a key later: picks that match, Exploratory still differs from
+  Balanced, `cache_read_input_tokens` still non-zero.
+- **63.7 / 63.8** need no model. **63.10** deterministic in v1 (fixed CellarTracker / Vivino
+  columns, existing `canonicalizeVarietal`); community scores must **never** become the owner's
+  `TastingNote.rating`; decide imported drinking windows deliberately (a non-estimated one is
+  never improved by Research); do not mark all rows `needsResearch` (200 rows is about $14.60
+  against a $5 default cap). **63.1 / 63.2 / 63.5** none; if scan ever reads a price it is a
+  *listed* price, never the price paid, and a model must never estimate value.
+
+**Revised build order (all three reviews agree on the start):**
+1. Guest `select` allowlist; extract `tasteOne` (and fix the pairing tiebreak). 2. **63.1** with
+`drankAt`. 3. The lot migration (63.3 + 63.4 + 63.5) with Wine details fields and a per-batch
+location in scan. 4. **63.2**. 5. **63.6** (owner's go-ahead on the prompt). 6. **63.7**, then **63.11**
+(`BottleTrash`), then **63.12**. 7. **63.9** whenever. 63.8 deferred; 63.10 only if someone arrives
+with a list, and after the lot migration.
