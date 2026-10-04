@@ -4563,3 +4563,33 @@ constraint by name. **Left:** a call killed by the function time limit is billed
 recorded; `runResearchJobStep` still has no lock of its own (the guard above stops the common
 double start, not a handoff racing the `after()` fallback); the status vocabulary is still
 about 110 string literals around the app (the new constant exists, nothing is migrated onto it).
+
+## 68. Two owner requests (2026-10-04)
+
+**68.1 One "Settings" link instead of the plain links under the home cards.** Home ends with four
+text links - Export all your data, Recently deleted (N), People & Domaine, Sign out - which read
+as clutter under the eight cards. Fold them into one **Settings** entry. Shape to settle when
+built: a `/settings` page (it would become a 20th smoke-test page) listing those four, with
+"Recently deleted (N)" keeping its count and showing only when the bin has something; Sign out
+stays one tap from there. Open questions: whether the desktop nav's own People link moves too,
+and whether the home count badge (the orange dot on Home) should point at Settings or stay where
+it is. Pure rearrangement, no new capability.
+
+**68.2 Researching one wine, then another, on /research.** Found by reading `ResearchQueue.js`
+and `researchBottle` (not yet reproduced in a browser). It is *not* "the second kills the first":
+the first call keeps running on the server and its proposal is filed. But it behaves badly:
+- The row buttons share one `busyId`, so tapping Research on a second wine makes the first
+  wine's button read "Research" again (idle) while its call is still in flight - a second tap on
+  it would pay for the same web search twice (the double-start guard added in #67 covers
+  "Research all", not this single-bottle path).
+- When the first call finishes it sets `busyId` to null, clearing the second wine's
+  "Researching…" label while that wine is still being researched.
+- Next runs server actions from one client one after another, so the second wine does not start
+  until the first has finished: sequential, with no signal of that.
+
+Fix, recommended: send a single row through the same background job runner "Research all" uses
+(`researchBottles([id])`): each tap adds that wine to the queue, the progress bar at the top
+shows them, work continues if the tab is closed, a wine already in progress is refused rather
+than paid for twice, and several wines run in sequence by design. The alternative, a set of busy
+ids per row, fixes the labels and the double tap but leaves the serial behaviour and the tab
+dependence. Also decide whether a row's Research should show "Queued" vs "Researching…".
