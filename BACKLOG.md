@@ -3795,3 +3795,32 @@ flashing the old text until the page refreshes.
 Checked on a production build: the pill's brightness and link, arriving on the note
 open with its text, saving text and rating, an empty note refused, Cancel, clearing a
 rating, and an unrated pill going to its own note.
+
+### Tasting notes section, rebuilt (built, owner's choice: contact sheet C)
+
+On a wine's page the Tasting notes section is now: heading with **Save note** at its
+right, the new-note form, then the saved notes. Changes from before:
+- "No tasting notes yet." is gone; with nothing written there is simply the form.
+- The submit button moved from under the fields to the heading's row, tied to the form
+  with the `form` attribute (so the form's own required-note check still applies).
+- Rating is five tappable stars (`StarRating`), replacing the 1-5 number box; tapping
+  the chosen star again clears it. It submits the same hidden `rating` field, so the
+  server is unchanged. The stars and "Tasted on" share one row: equal columns, both
+  44px tall. The label is "Rating (opt.)".
+- The form comes before the list of saved notes, not after it.
+- Editing a saved note uses the same stars; its button reads **Save changes** so the
+  page never has two buttons both called "Save note".
+- When the page opens with the new-note form already on top (arriving from a flight or
+  a pairing), that form is headed "Your tasting note" with its Save beside it, and the
+  Tasting notes section below is just the list - and is left out when it would be empty.
+- Arriving from the flight "Note" pill now scrolls to the note explicitly: the page is
+  longer than a screen now, and the `#note-id` anchor does not reliably scroll once the
+  page streams in.
+
+Not changed: the scan flow's tasting-note box in `BottleForm` still has the number
+field for rating. Worth matching if C is liked, but it was not asked for.
+
+Checked on a production build: heading and button on one row, stars and date level and
+equal, star set / clear, header button saving (text and 5 stars), the saved panel and
+"Add another note", form before notes, the arrival layout with a single form, and the
+note editing path from the flight pill.

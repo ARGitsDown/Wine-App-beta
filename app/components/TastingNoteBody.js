@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 import Spinner from "@/app/components/Spinner";
+import StarRating from "@/app/components/StarRating";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1.5 text-base dark:border-zinc-700 dark:bg-zinc-900";
@@ -17,6 +18,8 @@ const inputClass =
 //
 // `action` is updateTastingNote bound to this note's id.
 export default function TastingNoteBody({ note: savedNote, rating: savedRating, action, startEditing = false, children }) {
+  const ratingLabelId = useId();
+  const formRef = useRef(null);
   const [editing, setEditing] = useState(startEditing);
   // What read mode shows. A save closes the form before the page's refreshed
   // props arrive, so it is set from what was just saved - otherwise the old
@@ -38,6 +41,14 @@ export default function TastingNoteBody({ note: savedNote, rating: savedRating, 
     }
     return result;
   }, null);
+
+  // Arriving from the flight pill, the page is longer than a screen (the new
+  // note form comes first), and the #note-id anchor in the link does not
+  // reliably scroll once the page streams in. So bring the note into view
+  // here, once, honouring the card's scroll-mt.
+  useEffect(() => {
+    if (startEditing) formRef.current?.closest("li")?.scrollIntoView({ block: "start" });
+  }, [startEditing]);
 
   if (!editing) {
     return (
@@ -69,7 +80,7 @@ export default function TastingNoteBody({ note: savedNote, rating: savedRating, 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-500">
         {children}
       </div>
-      <form action={formAction} className="mt-2 flex flex-col gap-3">
+      <form ref={formRef} action={formAction} className="mt-2 flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm">
           Note
           <textarea
@@ -81,18 +92,10 @@ export default function TastingNoteBody({ note: savedNote, rating: savedRating, 
             className={inputClass}
           />
         </label>
-        <label className="flex max-w-[8rem] flex-col gap-1 text-sm">
-          Rating (1–5, optional)
-          <input
-            name="rating"
-            type="number"
-            min="1"
-            max="5"
-            value={stars}
-            onChange={(event) => setStars(event.target.value)}
-            className={inputClass}
-          />
-        </label>
+        <div className="flex max-w-[12rem] flex-col gap-1 text-sm">
+          <span id={ratingLabelId}>Rating (opt.)</span>
+          <StarRating value={stars} onChange={setStars} labelledBy={ratingLabelId} />
+        </div>
         {state?.error && (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {state.error}
@@ -104,7 +107,7 @@ export default function TastingNoteBody({ note: savedNote, rating: savedRating, 
             disabled={pending}
             className="min-h-11 rounded bg-zinc-900 px-4 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
           >
-            {pending ? <Spinner label="Saving…" /> : "Save note"}
+            {pending ? <Spinner label="Saving…" /> : "Save changes"}
           </button>
           <button
             type="button"

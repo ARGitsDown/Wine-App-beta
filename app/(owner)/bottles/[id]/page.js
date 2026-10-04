@@ -402,50 +402,55 @@ export default async function BottleDetailPage({ params, searchParams }) {
           Photos and Research - every kind of note about this wine (Your
           notes and Critic notes live inside Edit details above; dated tasting
           notes are here) reads as one place to look, not two. */}
-      <section className="flex flex-col gap-4">
-        <h2 className="font-medium">Tasting notes</h2>
+      {(!noteOnTop || bottle.tastingNotes.length > 0) && (
+        <section className="flex flex-col gap-4">
+          {/* The new-note form carries this heading itself, with its Save
+              button beside it. When the form is already on top of the page
+              (arriving to write a note) the heading is just the list's. With
+              nothing yet written there is no list to head, and no sentence
+              saying so. */}
+          {noteOnTop ? (
+            <h2 className="font-medium">Tasting notes</h2>
+          ) : (
+            <TastingNoteForm bottleId={bottle.id} defaultNote={noteDefault} today={todayInputValue()} />
+          )}
 
-        {bottle.tastingNotes.length === 0 && (
-          <p className="text-sm text-zinc-500">No tasting notes yet.</p>
-        )}
-
-        <ul className="flex flex-col gap-3">
-          {bottle.tastingNotes.map((tastingNote) => {
-            // Arriving from a flight row's "Note" pill (?note=id): this
-            // note is the reason for the visit, so it is scrolled to by
-            // its anchor, ringed, and opened ready to change.
-            const target = String(tastingNote.id) === noteParam;
-            return (
-              <li
-                key={tastingNote.id}
-                id={`note-${tastingNote.id}`}
-                className={`scroll-mt-20 rounded-lg border p-3 ${
-                  target
-                    ? "border-sky-500 ring-2 ring-sky-500/30"
-                    : "border-zinc-200 dark:border-zinc-800"
-                }`}
-              >
-                <TastingNoteBody
-                  note={tastingNote.note}
-                  rating={tastingNote.rating}
-                  action={updateTastingNote.bind(null, tastingNote.id)}
-                  startEditing={target}
-                >
-                  <InlineDateEditor
-                    date={tastingNote.tastedAt}
-                    action={updateTastingNoteDate.bind(null, tastingNote.id)}
-                    name="tastedAt"
-                  />
-                </TastingNoteBody>
-              </li>
-            );
-          })}
-        </ul>
-
-        {!noteOnTop && (
-          <TastingNoteForm bottleId={bottle.id} defaultNote={noteDefault} today={todayInputValue()} />
-        )}
-      </section>
+          {bottle.tastingNotes.length > 0 && (
+            <ul className="flex flex-col gap-3">
+              {bottle.tastingNotes.map((tastingNote) => {
+                // Arriving from a flight row's "Note" pill (?note=id): this
+                // note is the reason for the visit, so it is scrolled to by
+                // its anchor, ringed, and opened ready to change.
+                const target = String(tastingNote.id) === noteParam;
+                return (
+                  <li
+                    key={tastingNote.id}
+                    id={`note-${tastingNote.id}`}
+                    className={`scroll-mt-20 rounded-lg border p-3 ${
+                      target
+                        ? "border-sky-500 ring-2 ring-sky-500/30"
+                        : "border-zinc-200 dark:border-zinc-800"
+                    }`}
+                  >
+                    <TastingNoteBody
+                      note={tastingNote.note}
+                      rating={tastingNote.rating}
+                      action={updateTastingNote.bind(null, tastingNote.id)}
+                      startEditing={target}
+                    >
+                      <InlineDateEditor
+                        date={tastingNote.tastedAt}
+                        action={updateTastingNoteDate.bind(null, tastingNote.id)}
+                        name="tastedAt"
+                      />
+                    </TastingNoteBody>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
         <h2 className="font-medium">Photos</h2>
