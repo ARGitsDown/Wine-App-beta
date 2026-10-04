@@ -3831,3 +3831,29 @@ note editing path from the flight pill.
 Checked for the scan card on a production build: the number field is gone, the stars
 and "Rating (opt.)" are there, a star tap alone makes Done ask before discarding, and
 a manual card saves with its note and the chosen rating.
+
+### Wine page: critic notes shown, tasting-note form tightened (built)
+
+From a top-to-bottom review of the wine page on a phone:
+- **Critic & winemaker notes are now read on the page**, as plain text under the
+  action buttons, cut to four lines with "Read more" / "Show less" (no button when
+  the text already fits; no section at all when there are none). They used to be
+  readable only by opening "Edit details", i.e. inside a 14-field form. They are
+  still editable there. Plain text rather than a card on purpose: the bordered boxes
+  on the page are for things you fill in.
+- **The new tasting-note form is about 60px shorter** (roughly 223px to 164px): the
+  "Note" label is replaced by a placeholder ("What did you think?") since the heading
+  above already says "Tasting notes"; the box opens at two rows and grows with what is
+  typed (and shrinks back after a save); padding and gaps are slightly tighter.
+- Left alone on purpose: the metadata block under the title (the owner considers it
+  the information most wanted before acting), the Edit details card, Photos and
+  Research.
+
+Noted, not changed: for a wine with more than one bottle the action row is two lines
+("Tasted one - N left" and "Tasted all N" on the first, "Add to a tasting" below) at
+360, 390 and 430px wide; a single-bottle wine fits on one. Worth a look if the owner's
+phone shows otherwise.
+
+Checked on a production build: critic notes visible without opening Edit details,
+clamp / Read more / Show less, short note with no button, no notes with no section,
+the textarea growing, and a note saving from the compact form.

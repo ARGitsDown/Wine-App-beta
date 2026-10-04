@@ -28,12 +28,15 @@ export default function AutoTextarea({
   ...props
 }) {
   const ref = useRef(null);
+  // A controlled textarea (the new tasting note) is cleared from outside after
+  // a save; re-measure then too, so it shrinks back.
+  const { value } = props;
 
   // Re-measures when the value arrives from outside as well as on mount -
   // the Research and Add-a-photo panels hand this a filled-in note.
   useEffect(() => {
     fit(ref.current, maxHeight);
-  }, [defaultValue, maxHeight]);
+  }, [defaultValue, value, maxHeight]);
 
   return (
     <textarea

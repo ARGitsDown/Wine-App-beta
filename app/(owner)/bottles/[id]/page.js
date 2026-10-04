@@ -20,6 +20,7 @@ import BackButton from "@/app/components/BackButton";
 import TastedControls from "@/app/components/TastedControls";
 import TastingNoteForm from "@/app/components/TastingNoteForm";
 import TastingNoteBody from "@/app/components/TastingNoteBody";
+import ExpandableText from "@/app/components/ExpandableText";
 import { flightName as nameOfFlight, isOpenFlight } from "@/lib/flights";
 import ResearchPanel from "@/app/components/ResearchPanel";
 import AddPhotoPanel from "@/app/components/AddPhotoPanel";
@@ -366,6 +367,17 @@ export default async function BottleDetailPage({ params, searchParams }) {
           )
         )}
       </div>
+
+      {/* Reference reading, shown rather than kept inside the edit form below
+          (where it could only be read by opening 14 fields). Plain text, not
+          a card: the bordered boxes on this page are for things you fill in.
+          Nothing at all until Research or a scan has written something. */}
+      {bottle.criticNotes && (
+        <section className="flex flex-col gap-1">
+          <h2 className="font-medium">Critic &amp; winemaker notes</h2>
+          <ExpandableText text={bottle.criticNotes} className="text-sm text-zinc-700 dark:text-zinc-300" />
+        </section>
+      )}
 
       {/* Closed by default, matching the same fix Scan cards already got
           (BACKLOG #16 - "every card was a full 14-field form"): this page

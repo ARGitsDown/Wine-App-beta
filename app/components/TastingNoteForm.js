@@ -5,6 +5,7 @@ import Link from "next/link";
 import { addTastingNote } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
 import StarRating from "@/app/components/StarRating";
+import AutoTextarea from "@/app/components/AutoTextarea";
 
 const inputClass =
   "rounded border border-zinc-300 px-2 py-1.5 text-base dark:border-zinc-700 dark:bg-zinc-900";
@@ -92,19 +93,22 @@ export default function TastingNoteForm({ bottleId, defaultNote = "", today, bac
       <form
         id={formId}
         action={formAction}
-        className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+        className="flex flex-col gap-2.5 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
       >
-        <label className="flex flex-col gap-1 text-sm">
-          Note
-          <textarea
-            name="note"
-            required
-            rows={3}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            className={inputClass}
-          />
-        </label>
+        {/* No "Note" label: the heading above is "Tasting notes" and the
+            placeholder says what goes here, which buys back a line. The
+            box opens at two rows and grows with what is typed. */}
+        <AutoTextarea
+          name="note"
+          required
+          minRows={2}
+          maxHeight={240}
+          aria-label="Tasting note"
+          placeholder="What did you think?"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          className={inputClass}
+        />
         <div className="grid grid-cols-2 gap-3">
           <div className="flex min-w-0 flex-col gap-1 text-sm">
             <span id={ratingLabelId}>Rating (opt.)</span>
