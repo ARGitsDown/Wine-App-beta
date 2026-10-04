@@ -5,7 +5,7 @@ import { createFlight } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
 
 const inputClass =
-  "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "min-h-11 rounded border border-zinc-300 px-2 py-1 text-base dark:border-zinc-700 dark:bg-zinc-900";
 
 export default function NewFlightForm() {
   const [state, formAction, pending] = useActionState(createFlight, null);

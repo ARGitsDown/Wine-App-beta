@@ -34,7 +34,7 @@ import { plausibleWindow } from "@/lib/drink-window";
 import { parseTastedDate, todayAtNoonUtc } from "@/lib/tasting-date";
 import { acquiredAtForStatus, emptiedAtForStatus } from "@/lib/bottle-dates";
 import { DEFAULT_SCAN_INTENT, statusForScanIntent } from "@/lib/scan-intent";
-import { WINE_COLORS } from "@/lib/wine-colors";
+import { WINE_COLORS, normalizeWineColor } from "@/lib/wine-colors";
 import { parseSizeMl } from "@/lib/bottle-sizes";
 import { deleteUntouchedBottles } from "@/lib/untouched-bottles";
 import { reviveSnapshot, snapshotOf, trashCutoff, wineLabel } from "@/lib/bottle-trash";
@@ -110,9 +110,7 @@ function bottleDataFromForm(formData) {
     quantity: Math.max(1, parseOptionalInt(formData.get("quantity")) || 1),
     notes: String(formData.get("notes") || "").trim() || null,
     abv: parseOptionalFloat(formData.get("abv")),
-    wineColor: WINE_COLORS.includes(formData.get("wineColor"))
-      ? formData.get("wineColor")
-      : null,
+    wineColor: normalizeWineColor(formData.get("wineColor")),
     drinkFrom: parseOptionalInt(formData.get("drinkFrom")),
     drinkTo: parseOptionalInt(formData.get("drinkTo")),
     criticNotes: String(formData.get("criticNotes") || "").trim() || null,
@@ -165,6 +163,14 @@ function pathForStatus(status) {
 function bottleDataFromWine(wine) {
   const type = wine.type || null;
   const variety = wine.variety || null;
+  // A window the model returns that cannot be right (ends before it starts, or
+  // opens before the vintage) is dropped, as the estimators drop it: scan
+  // saves without review.
+  const rawFrom = wine.drinkFrom ?? null;
+  const rawTo = wine.drinkTo ?? null;
+  const window = plausibleWindow({ drinkFrom: rawFrom, drinkTo: rawTo }, wine.vintage ?? null)
+    ? { drinkFrom: rawFrom, drinkTo: rawTo }
+    : { drinkFrom: null, drinkTo: null };
   return {
     producer: wine.producer,
     bottling: wine.bottling || null,
@@ -178,14 +184,14 @@ function bottleDataFromWine(wine) {
     quantity: 1,
     notes: null,
     abv: wine.abv ?? null,
-    wineColor: WINE_COLORS.includes(wine.wineColor) ? wine.wineColor : null,
-    drinkFrom: wine.drinkFrom ?? null,
-    drinkTo: wine.drinkTo ?? null,
+    wineColor: normalizeWineColor(wine.wineColor),
+    drinkFrom: window.drinkFrom,
+    drinkTo: window.drinkTo,
     // Only meaningful when there is a window at all, and only false when
     // the model says the source stated one outright - so an unanswered or
     // malformed flag lands on "estimated", which is the honest default.
     drinkWindowEstimated:
-      (wine.drinkFrom ?? null) !== null || (wine.drinkTo ?? null) !== null
+      window.drinkFrom !== null || window.drinkTo !== null
         ? wine.drinkWindowEstimated !== false
         : false,
     // Filled in at scan time only when the photo itself showed somebody
@@ -886,10 +892,19 @@ export async function restoreBottle(trashId) {
 // action and took every unreviewed card on the page with it. The caller
 // drops a card only once the row is actually gone, so the screen and the
 // database cannot end up disagreeing.
+const SCAN_REMOVE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export async function removeScannedBottle(id) {
   try {
-    const bottle = await db.bottle.delete({ where: { id } });
-    revalidatePath(pathForStatus(bottle.status));
+    // Only a wine saved by a scan in the last day: the id comes from the
+    // browser, and this path skips the recycle bin.
+    const gone = await db.bottle.findFirst({
+      where: { id, createdAt: { gte: new Date(Date.now() - SCAN_REMOVE_WINDOW_MS) } },
+      select: { status: true },
+    });
+    if (!gone) return { error: "That wine can't be removed from here any more." };
+    await db.bottle.delete({ where: { id } });
+    revalidatePath(pathForStatus(gone.status));
     return { ok: true };
   } catch (err) {
     console.error("Failed to remove a scanned bottle:", err);
@@ -912,10 +927,10 @@ export async function removeScannedBottles(ids) {
     // Read the statuses before deleting - afterwards there is nothing left to
     // say which lists need refreshing.
     const bottles = await db.bottle.findMany({
-      where: { id: { in: wanted } },
-      select: { status: true },
+      where: { id: { in: wanted }, createdAt: { gte: new Date(Date.now() - SCAN_REMOVE_WINDOW_MS) } },
+      select: { id: true, status: true },
     });
-    await db.bottle.deleteMany({ where: { id: { in: wanted } } });
+    await db.bottle.deleteMany({ where: { id: { in: bottles.map((b) => b.id) } } });
     for (const path of new Set(bottles.map((b) => pathForStatus(b.status)))) {
       revalidatePath(path);
     }
@@ -1184,7 +1199,9 @@ function unusableResponseError(response, messages) {
     console.error("Claude declined the request:", response.stop_details);
     return { error: messages.refused };
   }
-  if (response.stop_reason === "max_tokens") {
+  // A response cut off by the context window is as incomplete as one cut off
+  // by max_tokens, and is never to be read as a whole answer.
+  if (response.stop_reason === "max_tokens" || response.stop_reason === "model_context_window_exceeded") {
     return { error: messages.truncated };
   }
   return null;
@@ -1419,7 +1436,9 @@ export async function extractWinesFromPhoto(
 
       const searchCalls = toolUses.filter((t) => t.name === "search_cellar");
       if (searchCalls.length === 0) {
-        return { error: "Could not read that photo. Try a clearer, well-lit photo." };
+        // Neither tool was called: the model answered in prose, so it is not
+        // evidence the photo was unclear.
+        return { error: "Couldn't read that photo. Please try again." };
       }
 
       // Claude can make several tool calls in the same turn (parallel tool
@@ -1436,7 +1455,7 @@ export async function extractWinesFromPhoto(
       messages.push({ role: "assistant", content: response.content });
       messages.push({ role: "user", content: toolResults });
     }
-    return { error: "Could not read that photo. Try a clearer, well-lit photo." };
+    return { error: "Reading that photo took too many steps and was stopped. Nothing was saved - please try again." };
   } catch (err) {
     return {
       error: aiErrorMessage(err, {
@@ -1895,8 +1914,9 @@ async function runResearch(bottle, effort = DEFAULT_EFFORT, who) {
           // Tools render before system, so one breakpoint here covers both -
           // the same placement Suggest uses. Worth it here and nowhere else
           // among the mechanical calls (BACKLOG #23): this prefix is ~1.6k
-          // tokens against Sonnet's 1024-token minimum, while the drinking-
-          // window prefix is only ~600 and would cache nothing at all. (Haiku,
+          // tokens against Sonnet 5.5's 512-token minimum; the drinking-window
+          // prefix is only ~600, close enough to that line that caching it is
+          // worth measuring (BACKLOG #65) but not yet done. (Haiku,
           // which the lighter tier runs on, needs 4,096, so there the
           // breakpoint is simply ignored - harmless, just no saving.) What
           // pays for it is the shape of the traffic rather than the size of
@@ -2335,7 +2355,7 @@ async function researchStep(ids, deadline, { ownerId, domaineId }) {
 // whole point of having reviewed the diff first.
 export async function applyResearchProposal(id) {
   const [bottle, proposal] = await Promise.all([
-    db.bottle.findUnique({ where: { id }, select: { id: true } }),
+    db.bottle.findUnique({ where: { id }, select: { id: true, type: true, variety: true } }),
     db.researchProposal.findUnique({ where: { bottleId: id } }),
   ]);
   if (!bottle) return { error: "That bottle no longer exists." };
@@ -2356,6 +2376,16 @@ export async function applyResearchProposal(id) {
     if (key in proposal.proposed) {
       data[key] = proposal.proposed[key] ?? null;
     }
+  }
+  // The model is not schema-constrained to the colour spellings, and the
+  // derived grape must follow a changed type or variety, as it does on every
+  // form and scan save (see bottleDataFromForm).
+  if ("wineColor" in data) data.wineColor = normalizeWineColor(data.wineColor);
+  if ("type" in data || "variety" in data) {
+    data.canonicalVariety = canonicalizeVarietal(
+      "type" in data ? data.type : bottle.type,
+      "variety" in data ? data.variety : bottle.variety
+    );
   }
   // Same reasoning for the estimated flag - it only means something once
   // the proposal has actually addressed the window, one way or the other.
@@ -2564,7 +2594,9 @@ const WINDOW_ESTIMATE_SELECT = {
 // once per chunk, so a single request never has to process the whole
 // cellar at once (and stays well under a serverless function's execution
 // limit).
-export async function estimateDrinkWindows(bottleIds) {
+export async function estimateDrinkWindows(rawBottleIds) {
+  // The panel sends 20 at a time; the server holds the same line.
+  const bottleIds = (Array.isArray(rawBottleIds) ? rawBottleIds : []).slice(0, 20);
   // Blanks only, so a bottle that has gained a window since the list on
   // screen was drawn is never even sent to the model.
   const bottles = await db.bottle.findMany({
@@ -2664,7 +2696,7 @@ export async function estimateDrinkWindows(bottleIds) {
       refused:
         "Claude declined to estimate that batch. Nothing was changed.",
       truncated:
-        "That batch was too large to finish in one go. Any wines it did estimate are saved, and running it again will skip those and pick up the rest.",
+        "That batch was too large to finish in one go, so none of its new estimates were saved. Running it again picks up the bottles still blank.",
     });
     if (unusable) return unusable;
 
@@ -2851,7 +2883,7 @@ const PHOTO_DETAILS_TOOL = {
       drinkWindowEstimated: {
         type: "boolean",
         description:
-          "True when the window above is your own judgment rather than one printed in this photo. Almost always true - very few labels print a drinking window - and the app marks an estimated window as such either way, so answer honestly.",
+          "True when the window above is your own judgment rather than one printed in this photo. Almost always true - very few labels print a drinking window - and the app marks an estimated window as such either way, so answer honestly. If you are repeating back a window already on file, copy its label: false if it was read from a source or entered by the owner.",
       },
       criticNotes: {
         type: ["string", "null"],
@@ -2942,7 +2974,15 @@ export async function extractBottlePhotoDetails(bottleId, base64Image, mediaType
     // label is exactly where a model has a lot of text to transcribe - the
     // condition a run-on leak comes out of. Same guard as scan and
     // research: lib/model-text.js, BACKLOG #30.
-    if (finalCall) return { data: cleanModelFields(finalCall.input, ["criticNotes"]) };
+    // The owner's own window is repeated back unchanged whatever the model
+    // answered - same guard as Research (holdOwnersWindow). Without it a
+    // window the owner typed reads as "not printed in this photo", comes back
+    // flagged estimated, and is blanked outright on a lighter model.
+    if (finalCall) {
+      return {
+        data: cleanModelFields(holdOwnersWindow(finalCall.input, bottle), ["criticNotes"]),
+      };
+    }
     return { error: "Couldn't read that photo. Please try again." };
   } catch (err) {
     return {
@@ -3088,12 +3128,12 @@ export async function saveTastingFlight({ title, summary, picks }) {
       // Null rather than falling back to the summary: a flight with no
       // title of its own should show its summary as the heading because
       // that's all it has, not because a copy was written into the column.
-      title: title?.trim() || null,
-      summary,
+      title: trimmedOrNull(title, 200),
+      summary: trimmedOrNull(summary, MAX_PAIRING_TEXT),
       picks: {
         create: ownedPicks.map((pick, index) => ({
           bottleId: pick.bottleId,
-          reason: pick.reason,
+          reason: cleanPairingReason(trimmedOrNull(pick.reason, MAX_PAIRING_TEXT) ?? ""),
           order: index,
           // See addBottleToFlight's own comment on originFlightOnly.
           originFlightOnly: ownedStatus.get(pick.bottleId) === "flight",
@@ -3925,6 +3965,10 @@ export async function removePairingPickFromWishlist(pickId) {
           { photos: { some: {} } },
           { photoUrl: { not: null } },
           { researchProposal: { isNot: null } },
+          // Source and critic notes: a wine the owner wrote or scanned in
+          // themselves, which Drink merely linked to.
+          { notes: { not: null } },
+          { criticNotes: { not: null } },
         ],
       },
       select: { id: true },

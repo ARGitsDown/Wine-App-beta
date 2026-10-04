@@ -15,7 +15,7 @@ export default async function DeletedPage() {
     where: { deletedAt: { gte: trashCutoff() } },
     orderBy: { deletedAt: "desc" },
     select: { id: true, label: true, deletedAt: true, listedIn: true },
-    take: 200,
+    take: 1000,
   });
   // Days left are worked out from the date alone, in the server's clock; the
   // purge that enforces them runs on the next delete, so "left" is a minimum.

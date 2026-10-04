@@ -164,21 +164,7 @@ export default async function FlightDetailPage({ params }) {
             action={deleteTastingFlight.bind(null, flight.id)}
             label="Delete flight"
             confirmLabel="Yes, delete"
-            warning={
-              originFlightOnlyCount > 0
-                ? `Deletes this flight and its ${flight.picks.length} pick${
-                    flight.picks.length === 1 ? "" : "s"
-                  }. ${originFlightOnlyCount} of these wine${
-                    originFlightOnlyCount === 1 ? " was" : "s were"
-                  } only ever in this flight and will have nowhere else to appear.${
-                    flight.picks.length > originFlightOnlyCount
-                      ? " The rest stay in your cellar."
-                      : ""
-                  }`
-                : `Deletes this flight and its ${flight.picks.length} pick${
-                    flight.picks.length === 1 ? "" : "s"
-                  }. The bottles themselves stay in your cellar.`
-            }
+            warning="Deletes this empty flight."
             className={dangerButtonClass}
           />
         ) : (
@@ -254,7 +240,7 @@ export default async function FlightDetailPage({ params }) {
             confirmLabel="Yes, delete"
             warning={
               originFlightOnlyCount > 0
-                ? `Deletes this flight and its ${flight.picks.length} pick${
+                ? `Deletes this flight and its ${flight.picks.length} wine${
                     flight.picks.length === 1 ? "" : "s"
                   }. ${originFlightOnlyCount} of these wine${
                     originFlightOnlyCount === 1 ? " was" : "s were"
@@ -263,7 +249,7 @@ export default async function FlightDetailPage({ params }) {
                       ? " The rest stay in your cellar."
                       : ""
                   }`
-                : `Deletes this flight and its ${flight.picks.length} pick${
+                : `Deletes this flight and its ${flight.picks.length} wine${
                     flight.picks.length === 1 ? "" : "s"
                   }. The bottles themselves stay in your cellar.`
             }

@@ -62,12 +62,12 @@ function describeDeleteLoss(bottle) {
     bottle.favorites.length && count(bottle.favorites.length, "guest favorite", "guest favorites"),
   ].filter(Boolean);
 
-  if (attached.length === 0) return "Delete this wine? You can undo it straight after.";
+  if (attached.length === 0) return "Delete this wine? You can restore it from Recently deleted for 30 days.";
   const list =
     attached.length === 1
       ? attached[0]
       : `${attached.slice(0, -1).join(", ")} and ${attached.at(-1)}`;
-  return `Also deletes ${list}. You can undo it straight after.`;
+  return `Also deletes ${list}. You can restore it from Recently deleted for 30 days.`;
 }
 const dangerButtonClass =
   "min-h-11 rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900 dark:text-red-400";
@@ -282,8 +282,17 @@ export default async function BottleDetailPage({ params, searchParams }) {
               {heading}
             </h1>
             {facts && <p className="mt-1 text-sm text-zinc-500">{facts}</p>}
-            {lotLine(bottle) && (
-              <p className="mt-1 text-sm text-zinc-500">{lotLine(bottle)}</p>
+            {(lotLine(bottle) || (bottle.status === "inventory" && otherLots.length > 0)) && (
+              <p className="mt-1 text-sm text-zinc-500">
+                {[
+                  bottle.status === "inventory" && otherLots.length > 0
+                    ? `${bottle.quantity} bottle${bottle.quantity === 1 ? "" : "s"}`
+                    : null,
+                  lotLine(bottle),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
             )}
             {/* Source is otherwise only inside "Edit details"; a line of it
                 here means where a wine came from is something you can see. */}
@@ -571,8 +580,8 @@ export default async function BottleDetailPage({ params, searchParams }) {
                     action={deleteBottlePhoto.bind(null, photo.id)}
                     label="Remove"
                     confirmLabel="Remove photo"
-                    className="text-xs text-zinc-500 underline underline-offset-2"
-                    confirmClassName="text-xs font-medium text-red-600 underline underline-offset-2 dark:text-red-400"
+                    className="inline-flex min-h-11 items-center text-xs text-zinc-500 underline underline-offset-2"
+                    confirmClassName="inline-flex min-h-11 items-center text-xs font-medium text-red-600 underline underline-offset-2 dark:text-red-400"
                   />
                 </div>
               ))}

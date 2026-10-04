@@ -49,7 +49,10 @@ export default function TastedControls({
   function tasteOne() {
     startTransition(async () => {
       const result = await markOneTasted(bottleId);
-      if (!result) return;
+      if (!result) {
+        showUndo("That wine is no longer in your cellar.", null);
+        return;
+      }
       // Where it went: still in the cellar with N left, or the last bottle,
       // which moves the wine to Tasting notes (and off this list).
       const where = result.last
@@ -63,7 +66,11 @@ export default function TastedControls({
 
   function tasteAll() {
     startTransition(async () => {
-      await setBottleStatus(bottleId, "consumed");
+      const result = await setBottleStatus(bottleId, "consumed");
+      if (result?.error) {
+        showUndo(result.error, null);
+        return;
+      }
       showUndo(`Tasted all ${quantity}${suffix} \u00b7 now in Tasting notes`, undoTasted);
     });
   }

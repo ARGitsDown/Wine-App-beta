@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { planPairing, clearPairingPlan } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
+import { useUndo } from "@/app/components/UndoToast";
 import { localDayInputValue } from "@/lib/tasting-date";
 
 const buttonClass =
@@ -15,7 +16,7 @@ const linkButtonClass =
 // Unplanned: "Plan for tonight" (one tap, the reader's own today) and, on the
 // detail page, "Pick a day". Planned: "Clear day", which removes the plan,
 // and on the detail page "Change day". Clearing says what it did and offers
-// Undo for a few seconds, which puts the same day back: the row moves in the
+// Undo in the shared bar, which puts the same day back: the row moves in the
 // list the moment the plan goes, and an accidental tap should not be final. Nothing here ever clears a plan by itself - see
 // the schema comment on SavedPairing.plannedFor.
 //
@@ -30,10 +31,7 @@ export default function PairingPlan({ pairingId, plannedDay = null, compact = fa
   const [picking, setPicking] = useState(false);
   const [day, setDay] = useState("");
   const [error, setError] = useState(null);
-  // The day that was just cleared, kept briefly so Undo can put it back.
-  const [cleared, setCleared] = useState(null);
-  const timer = useRef(null);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const showUndo = useUndo();
 
   function run(task) {
     setError(null);
@@ -50,17 +48,12 @@ export default function PairingPlan({ pairingId, plannedDay = null, compact = fa
     run(async () => {
       const result = await clearPairingPlan(pairingId);
       if (!result?.error) {
-        setCleared(previous);
-        clearTimeout(timer.current);
-        timer.current = setTimeout(() => setCleared(null), 6000);
+        // The shared bar, not an inline link: the row moves in the list the
+        // moment the plan goes, so an Undo beside it would land off screen.
+        showUndo("Cleared the day", () => planPairing(pairingId, previous));
       }
       return result;
     });
-  };
-  const undo = () => {
-    const previous = cleared;
-    setCleared(null);
-    run(() => planPairing(pairingId, previous));
   };
 
   if (picking) {
@@ -132,14 +125,6 @@ export default function PairingPlan({ pairingId, plannedDay = null, compact = fa
         </button>
       )}
       {pending && <Spinner label="Saving…" />}
-      {cleared && !planned && (
-        <span role="status" className="flex basis-full items-center gap-2 text-sm text-zinc-500">
-          Day cleared
-          <button type="button" onClick={undo} disabled={pending} className={linkButtonClass}>
-            Undo
-          </button>
-        </span>
-      )}
       {error && (
         <span role="alert" className="basis-full text-sm text-red-600 dark:text-red-400">
           {error}

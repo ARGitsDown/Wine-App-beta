@@ -47,7 +47,7 @@ export default function ResearchPanel({ bottle, proposal, regionOptions }) {
         onChange={(event) => setEffort(event.target.value)}
         disabled={pending}
         title={EFFORT_LEVELS.find((level) => level.value === effort)?.hint}
-        className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+        className="min-h-11 rounded border border-zinc-300 px-2 py-1 text-base dark:border-zinc-700 dark:bg-zinc-900"
       >
         {EFFORT_LEVELS.map((level) => (
           <option key={level.value} value={level.value}>

@@ -13,7 +13,7 @@ import {
 } from "@/lib/filter-bottles";
 
 const inputClass =
-  "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "min-h-11 rounded border border-zinc-300 px-2 py-1 text-base dark:border-zinc-700 dark:bg-zinc-900";
 const labelClass = "flex flex-col gap-1 text-xs text-zinc-500";
 
 const VARIETY_NAMES = allVarietalNames();
@@ -218,7 +218,7 @@ export default function FilterBar({
               <button
                 type="button"
                 onClick={onClear}
-                className="text-sm text-zinc-500 underline underline-offset-2"
+                className="min-h-11 text-sm text-zinc-500 underline underline-offset-2"
               >
                 Clear all
               </button>
@@ -232,7 +232,7 @@ export default function FilterBar({
           <select
             value={filters.sort}
             onChange={(event) => set("sort", event.target.value)}
-            className="bg-transparent text-sm"
+            className="min-h-11 bg-transparent text-base"
           >
             {sortOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -258,7 +258,7 @@ export default function FilterBar({
               onClick={() => set(chip.key, "")}
               data-offline-ok
               aria-label={`Remove filter ${chip.label}`}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-zinc-300 px-3 text-xs text-zinc-700 hover:border-zinc-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:focus-visible:outline-zinc-100"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-zinc-300 px-3 text-xs text-zinc-700 hover:border-zinc-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:focus-visible:outline-zinc-100"
             >
               {chip.label}
               <span aria-hidden="true" className="text-zinc-500">

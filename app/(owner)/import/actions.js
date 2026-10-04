@@ -1,6 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { REGION_OPTIONS_TAG } from "@/lib/bottles";
+import { TRASH_DAYS } from "@/lib/bottle-trash";
 import { db } from "@/lib/scoped-prisma";
 import { currentOwnerId } from "@/lib/owner";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
@@ -166,10 +168,12 @@ export async function commitImport(prevState, formData) {
       data: { status, bottleIds: created.map((row) => row.id) },
     });
     batchId = batch.id;
-    await db.importBatch.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86400000) } } });
+    await db.importBatch.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - TRASH_DAYS * 86400000) } } });
   } catch (err) {
     console.error("Import wrote its wines but couldn't record the batch (no Undo):", err);
   }
+  // An import is the write most likely to bring in regions the autocomplete has not seen.
+  revalidateTag(REGION_OPTIONS_TAG);
   revalidatePath(status === "inventory" ? "/inventory" : "/wishlist");
   revalidatePath("/import");
   return { done: { count: created.length, status, destination: DESTINATIONS[status], batchId } };

@@ -379,9 +379,11 @@ model Bottle {
   // BACKLOG.md #7) rather than something stated on the label, found via a
   // real Research citation, or typed by hand. Shown as a distinct badge so
   // it's clear which windows are worth double-checking. Only ever set by
-  // those estimate-producing actions; a plain edit through updateBottle
+  // those estimate-producing actions (or an imported window, below); a plain edit through updateBottle
   // clears it back to false when the years actually change (the human has
-  // now made the call), and leaves it alone otherwise.
+  // now made the call), and leaves it alone otherwise. A CSV import also sets
+  // it true for any window in the file: a spreadsheet cell is not a sourced
+  // window.
   drinkWindowEstimated Boolean   @default(false)
   // Set when the scan feature wasn't confident about every field it filled
   // in (see `confident` on the scan tool). Surfaces the bottle in the
@@ -991,7 +993,8 @@ model UsageEvent {
 // delete (a pairing pick is only SET NULL, never removed) lines up again; ids
 // are never re-issued by the sequence, so it cannot collide.
 //
-// Written only by deleteBottle (the bottle page's delete), read by
+// Written by deleteBottle (the bottle page's delete) and by binAndDelete in
+// lib/untouched-bottles.js (Undo import, Undo add-another-purchase), read by
 // restoreBottle and the /deleted page, purged lazily when the next delete of
 // the SAME Domaine runs - so readers apply the 30-day cutoff themselves. Left out of the
 // export: it is a recycle bin, not part of the cellar. Cascades with the

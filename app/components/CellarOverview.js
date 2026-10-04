@@ -33,8 +33,7 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
   const ready = summary.window.ready;
   const headline = [
     `${summary.wines} wine${summary.wines === 1 ? "" : "s"}`,
-    summary.lots !== summary.wines ? `${summary.lots} lots` : null,
-    summary.bottles !== summary.lots ? `${summary.bottles} bottles` : null,
+    summary.bottles !== summary.wines ? `${summary.bottles} bottles` : null,
     ready > 0
       ? summary.readyEstimated > 0
         ? `${ready} ready now (${summary.readyEstimated} estimated)`

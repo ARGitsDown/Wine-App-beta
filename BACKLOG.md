@@ -4479,3 +4479,51 @@ tokens) could now be cached, which the #23 note had ruled out.
 deploy with no `CRON_SECRET`, so every run logged a failure. The route, the setting and the email are
 unchanged; to switch the digest on, set `CRON_SECRET` in Vercel and add the `crons` entry back (the
 line is in `.env.example`).
+
+## 67. Cleanup pass: UX, data, AI and docs reviewers (2026-10-04)
+
+Four read-only reviewers ran over everything since #63 with a cleanup brief (no new
+features). **Fixed:** the Cellar's two disagreeing "wines" counts (the filter bar now
+counts distinct wines, and "lots" is gone from the headline); 16px / 44px on the search
+box, sort, forms, count steppers, chips and several small links; "Clear day" Undo moved
+to the shared bar; "Tasted all" and "Tasted one" now show failures instead of success;
+the purchase's own bottle count on the wine page; delete wording ("restore from Recently
+deleted for 30 days", the scan card names its list); empty-flight delete copy; research
+accept recomputes `canonicalVariety` and normalises colour; scan and form colour go
+through `normalizeWineColor`; import refreshes the region autocomplete; Drink-linked
+wishlist wines with source or critic notes are no longer deleted by "Remove"; scan-card
+remove only reaches wines saved in the last day; the Recently deleted page shows up to
+1000; photo reads keep the owner's own drinking window (`holdOwnersWindow`); scan drops
+an impossible window; Suggest flight saves clean their text like pairings; context-window
+stop reason treated as truncation; scan "too many steps" no longer blames the photo;
+`estimateDrinkWindows` capped at 20 server-side; stale schema, route and effort comments;
+docs drift (README, PROJECT, FUTURE_CAPABILITIES, AGENTS, LEARNING).
+
+**Needs a decision (not built):**
+- Guest page shows a wine held as two lots as two identical rows, and a favourite sticks to
+  one lot only: one row per wine, favourite on the first lot or all of them?
+- Pairings: a pick whose purchase was finished says "No longer in your cellar" even when
+  another lot of the same wine is held; a gone wine that had Drink still counts as "to
+  drink". Count gone Drink picks as neither, and link to the other lot?
+- Flight "Tasted" is a plain form (no shared Undo bar, no "N left"); use the bar?
+- "Bought it" and "Add another purchase" are near copies; "Bought it" does not ask for a
+  place. Share one form and ask?
+- Green for Tasted on pairing/flight rows vs sky elsewhere: deliberate "done" or drift?
+- Three definitions of "the same wine" (lots key, pairing Drink match, drinking-window
+  cache key); import can drop a same-producer, same-vintage, different-grape second wine.
+- Status strings are unvalidated on `createBottle` / `setBottleStatus`; vocabulary
+  duplicated across ~110 literals.
+- Backfill `BottleTrash.listedIn` from the snapshot so it is never null.
+
+**Smaller leftovers:** bulk estimate errors drop the cache-hit counts they already wrote;
+`researchBottles` has no guard against a double run on the same bottles and
+`runResearchJobStep` no lock; a call killed by the function time limit is billed but not
+recorded; Scan's cache breakpoint sits after the image (a second one on the system prompt
+would share the static part); `wineName` (digest) duplicates `wineLabel`; `updatedAt` test
+not repeated inside the `binAndDelete` transaction; `updateEmptiedDate` does not check
+status; `adjustBottleQuantity` has no upper bound; orphaned comment fragments around
+`estimateDrinkWindows`; unused model re-export in `lib/anthropic.js`. For a live run:
+truncation rate (2048 single estimate, 4096 photo read, 8192 Master Sommelier),
+`web_search_20260318` accepted (it is in the installed SDK's types, so #65 item 4 is
+narrower), `cache_read_input_tokens > 0` on turn two, one ledger row per call, and the
+photo-read window by hand.

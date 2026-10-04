@@ -11,7 +11,7 @@ import { BOTTLE_SIZES } from "@/lib/bottle-sizes";
 import { CURRENCIES, DEFAULT_CURRENCY, MAX_LOCATION } from "@/lib/lot-fields";
 
 const inputClass =
-  "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "min-h-11 rounded border border-zinc-300 px-2 py-1 text-base dark:border-zinc-700 dark:bg-zinc-900";
 const labelClass = "flex flex-col gap-1 text-sm";
 // A small uppercase heading above each field cluster below - purely visual
 // grouping (Identity / Classification / Details) so the form reads as
@@ -432,7 +432,7 @@ export default function BottleForm({
       <button
         type="submit"
         disabled={pending}
-        className="self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
+        className="min-h-11 self-start rounded bg-zinc-900 px-4 py-1.5 text-sm text-white dark:bg-zinc-100 dark:text-zinc-900"
       >
         {pending ? <Spinner label="Saving…" /> : submitLabel}
       </button>

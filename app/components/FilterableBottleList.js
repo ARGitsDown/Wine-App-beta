@@ -51,8 +51,8 @@ export default function FilterableBottleList({
         showWindowFilter={!overview}
         showEmptied={showEmptied}
         showAcquired={showAcquired}
-        resultCount={visible.length}
-        totalCount={bottles.length}
+        resultCount={new Set(visible.map(wineSiblingKey)).size}
+        totalCount={Object.keys(lotCounts).length}
       />
       <BottleList bottles={visible} emptyMessage={emptyMessage} flights={flights} lotCounts={lotCounts} />
     </div>

@@ -1476,7 +1476,13 @@ export default function ScanPanel({
                           warning={
                             entry.bottle.status === "flight"
                               ? `Deletes ${entry.bottle.producer || "this wine"}. It was never in your cellar to begin with.`
-                              : `Deletes ${entry.bottle.producer || "this wine"} from your cellar.`
+                              : `Deletes ${entry.bottle.producer || "this wine"} from your ${
+                                  entry.bottle.status === "wishlist"
+                                    ? "wishlist"
+                                    : entry.bottle.status === "consumed"
+                                      ? "tasting notes"
+                                      : "cellar"
+                                }.`
                           }
                           className="-mx-2 rounded px-2 py-2 text-xs text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100"
                           confirmClassName="-mx-2 rounded px-2 py-2 text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-400"

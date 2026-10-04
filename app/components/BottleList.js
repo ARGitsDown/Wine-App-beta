@@ -14,7 +14,7 @@ import { wineLabel } from "@/lib/bottle-trash";
 import { formatTastedDate } from "@/lib/tasting-date";
 
 const stepperClass =
-  "flex h-6 w-6 items-center justify-center rounded border border-zinc-300 text-sm leading-none disabled:opacity-40 dark:border-zinc-700";
+  "flex h-11 w-11 items-center justify-center rounded border border-zinc-300 text-sm leading-none disabled:opacity-40 dark:border-zinc-700";
 
 // Adjusting the count is the most common thing you do to a bottle you
 // already own, and it used to mean opening the bottle's page and saving a
@@ -271,7 +271,7 @@ export default function BottleList({
                   )}
                   <Link
                     href={`/bottles/${bottle.id}`}
-                    className="self-start text-sm text-zinc-500 underline underline-offset-2"
+                    className="flex min-h-11 items-center self-start text-sm text-zinc-500 underline underline-offset-2"
                   >
                     View full details →
                   </Link>

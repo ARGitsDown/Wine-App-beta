@@ -26,7 +26,9 @@ function appUrl() {
   return vercel ? `https://${vercel}` : null;
 }
 
-// Hit once a day by Vercel Cron (vercel.json), which sends
+// Meant to be hit once a day by a scheduler (Vercel Cron when vercel.json has a
+// crons entry - it currently has none, see .env.example for the line to add),
+// which sends
 // `Authorization: Bearer $CRON_SECRET`. There is no session here, so this is
 // the one place the plain client is used for cellar data with the Domaine
 // named by hand (never the scoped client, which needs a signed-in member), and

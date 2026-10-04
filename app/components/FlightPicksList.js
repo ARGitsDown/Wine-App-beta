@@ -48,7 +48,7 @@ const undoButtonClass =
 const reorderButtonClass =
   "flex h-11 w-11 items-center justify-center rounded border border-zinc-300 leading-none disabled:opacity-30 dark:border-zinc-700";
 const removeLinkClass =
-  "text-red-600 underline underline-offset-2 dark:text-red-400";
+  "inline-flex min-h-11 items-center text-zinc-600 underline underline-offset-2 dark:text-zinc-400";
 
 function bottleHeader(bottle) {
   return [bottle.producer, bottle.bottling ? `“${bottle.bottling}”` : null, bottle.vintage || null]
