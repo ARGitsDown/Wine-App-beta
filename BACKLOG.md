@@ -4282,3 +4282,136 @@ month" cannot be computed (say "this year", or the change since the last digest)
 location in scan. 4. **63.2**. 5. **63.6** (owner's go-ahead on the prompt). 6. **63.7**, then **63.11**
 (`BottleTrash`), then **63.12**. 7. **63.9** whenever. 63.8 deferred; 63.10 only if someone arrives
 with a list, and after the lot migration.
+
+## 64. Ideas from two reference projects (raised 2026-10-04, owner: "add these to the backlog")
+
+**Source.** The owner found a similar project on GitHub and asked what to take from it:
+- **Wine knowledge graph** - <https://github.com/gokhanarkan/wine-knowledge-graph> (MIT). A graph
+  built from Kaggle's `winemag-data-130k-v2.csv` (130,000 WineEnthusiast reviews): entities Wine,
+  Winery, Variety, a Country -> Province -> Region hierarchy, Vintage (regex from the title),
+  PriceBand (`<15`, `15-30`, `30-60`, `60-120`, `>120`), QualityTier (Good, VeryGood,
+  Outstanding, Classic, binned from points) and Taster; a five-rule Datalog program on top
+  (transitive geography; recommend = same variety + province + price band + quality tier;
+  vintage within two years; "characteristic variety" at 50+ wines per country; "premium winery"
+  at 3+ top-tier wines); a ComplEx embedding baseline; and an LLM experiment. Files read:
+  `README.md`, `shared/SCHEMA.md`, `MAPPING.md`, `TASK.md`, `shared/llm.py`, `4-logic/rules.dl`,
+  `5-reflection/02_llm_extract.py` and `03_llm_ground.py`.
+- **Sommo AI v1 (7B)** - <https://github.com/gokhanarkan/sommo-7b-v1> (Apache 2.0). Qwen
+  2.5-7B-Instruct with a LoRA fine-tune (r=64, 3 epochs, one H100, 3-4 hours) on about 100,000
+  conversations built from WineEnthusiast, Alfredodeza, X-Wines, Vivino, a Wine Food Pairing
+  NLP set (about 10,000 rows), Wikipedia and 45 synthetic Q&As. README and file list only; the
+  notebook and the Hugging Face model card were not read.
+
+**How reliable this reading is.** Read through a page summariser, not cloned or run, and the data
+files themselves were never opened. Every number is the authors' own. The headline claim - an
+LLM naming wineries that are not in the data **26.7%** of the time unaided versus **7.7%** with
+eight graph-supplied candidates - comes from **20 sampled queries**, one model (Gemini Flash),
+one run, so it is directional only. Their "hallucination" is a normalised-name lookup in the
+dataset, which also flags real wineries the 2017-era, US-skewed dataset never reviewed. The
+Sommo README states the model has **no formal evaluation**, "may hallucinate", and recommends
+RAG over a verified database. The Datalog's 0.697 Hits@1 / 0.999 Hits@10 is on predicting a
+wine's variety in their data, not on anything resembling a personal cellar.
+
+**Licence to settle before any of the data is used.** The repos are MIT / Apache 2.0, but the
+review data is scraped from WineEnthusiast. I believe the Kaggle dataset is non-commercial
+(unverified). That does not matter for a private cellar and matters if the app is ever offered
+to others - so check it before building anything on the data, and prefer ideas that need no
+third-party data at all.
+
+Everything below is **speculative**: none of it is scoped, decided or measured, and each says
+what has to be grounded first. The order is a suggested priority, not a plan.
+
+### Needs no outside data (cheapest to ground)
+- **64.1 "More like this", with no model.** Their recommend rule - same variety, same
+  province, same price band, same quality tier - as a plain query over the owner's own cellar
+  and wishlist, shown with its reason ("same grape, same region, similar price"). Zero API
+  cost and explainable. *Fit:* real - we now have price and `canonicalVariety`, and Suggest
+  already works from the cellar. *Ground first:* what "similar" should mean for one person's
+  cellar of hundreds (their rule needs all four to match, which may return nothing here);
+  where it appears (wine page, wishlist row, Suggest gap); whether it should lean on the
+  owner's own ratings. Probably the natural base for **63.6**, the taste profile the owner
+  folded into a larger capability.
+- **64.2 Price bands.** `<15`, `15-30`, `30-60`, `60-120`, `>120` as an overview facet and
+  filter, now that `pricePaidCents` exists. *Fit:* easy. *Ground first:* bands are USD-shaped
+  and the app holds six currencies; bands per currency, or only over one currency; whether
+  anyone wants it before there is more price data.
+- **64.3 "Producers you keep coming back to".** Their premium-winery rule (a winery with 3+
+  top-tier wines) turned personal: producers with several wines the owner rated 4+, or bought
+  more than once. Also "characteristic grapes" of a region from the owner's own bottles.
+  *Fit:* plausible, deterministic. *Ground first:* ratings are per household (notes carry no
+  author), the threshold, and whether it is more than a curiosity.
+
+### Needs a reference data set built (more work, more risk)
+- **64.4 Check "gap" suggestions against a known-producer list.** Suggest validates a pick from
+  the cellar by bottle id, but a *gap* suggestion (a wine not owned) can name a producer that
+  does not exist; nothing checks it. Their check is cheap: lowercase, strip non-alphanumerics,
+  look up in a list of known wineries; they report fewer fabricated names when candidates are
+  supplied. Shown as an "unverified producer" flag, never a block. *Fit:* the best match to a
+  real, unguarded gap in the app. *Ground first:* the list (about 16k wineries in their data,
+  US-skewed, one snapshot, licence above); the false-positive rate on real producers it never
+  reviewed (European and small producers especially); whether the AI reviewer's earlier
+  findings on gap picks already cover enough; measure on a handful of real Suggest runs before
+  building. An alternative needing no list: ask for candidates from the owner's own wishlist
+  and past purchases first.
+- **64.5 Region hierarchy.** A Country -> Province -> Region tree (their `locatedIn`, transitive)
+  in place of today's flat region-to-country map (`lib/regions.js`), so a "Burgundy" or
+  "California" filter includes wines recorded as Côte de Nuits or Napa, and Suggest could say
+  "same province". *Fit:* real - region filtering is by string today (see **#27**, **#52**).
+  *Ground first:* their tree is only as deep as WineEnthusiast's three columns and ignores
+  appellation structure (grand cru, communes); a hand-curated tree for the owner's regions
+  may be enough and needs no third-party data; how it interacts with `region` / `subRegion`
+  being free text.
+- **64.6 Producer typeahead and fuzzy canonicalisation.** An autocomplete for Producer in the
+  bottle form (it offers only variety and region today), and their "normalised +
+  fuzzy-canonicalised" winery names to merge "Dom. Pérignon" / "Dom Perignon" (import dedupe,
+  scan matching). *Fit:* modest; typo tolerance was deliberately held in **#27** because a
+  short name can false-match at edit distance 1-2. *Ground first:* the same list as 64.4, and
+  whether duplicates are an actual problem in the owner's data.
+- **64.7 Inferred grape from region or appellation.** A table of appellation -> usual grape
+  (Chablis -> Chardonnay) to fill a missing variety at import or scan without a model.
+  *Fit:* would cut model use and fill CSV imports that lack a varietal. *Ground first:* their
+  0.697 Hits@1 on variety completion is a warning - it must be stored as inferred (like
+  `drinkWindowEstimated`), blends are exactly where a one-grape-per-wine model is wrong (our
+  `canonicalVariety` is null for a blend on purpose), and it needs a curated table, not their
+  graph.
+
+### Needs a model call and a cost estimate
+- **64.8 Flavour descriptors from tasting notes.** Their `02_llm_extract.py` asks a model for
+  "short flavour/aroma descriptors" as a JSON array of lowercase strings (at most 10 per wine).
+  Applied to the owner's tasting notes and critic notes it would give search by flavour ("my
+  wines with cherry") and material for a taste profile. *Fit:* plausible; the graph itself has
+  **zero** tasting-note edges, which is the gap this fills. *Ground first:* a controlled
+  vocabulary (free descriptors do not group), where the tags are stored (a table keyed to the
+  note, marked model-derived), cost on a light model across the existing notes (a one-off
+  backfill plus per-note), and that the owner's words are never overwritten. Touches AI
+  prompts, so it needs the owner's go-ahead like **63.6**.
+- **64.9 Pairing knowledge for Suggest (RAG).** The Wine Food Pairing NLP set (about 10,000
+  rows) and X-Wines (ratings and pairings) as a retrievable source that grounds Suggest's
+  pairings, rather than leaning on the model alone. This is the question the owner asked
+  earlier about digitised sommelier references (no action taken then). *Ground first:*
+  licences; data quality and coverage (US-centric, review-derived); whether Suggest's
+  pairings are actually wrong often enough to justify retrieval - the cheaper step is an eval
+  (below); added prompt tokens per call against the monthly cap.
+
+### Method, not a feature
+- **64.10 An eval set for the AI features.** Their method is worth copying even though their
+  data is not: seeded, deterministic splits; every solver scored with identical metric code;
+  a single simple hallucination metric. For us: a fixed fixture cellar and a short list of
+  dishes, scored on "every pick exists in the cellar", "every gap producer is plausible",
+  "estimated windows not stated as fact". This is what would let model testing resume (**#59**,
+  paused for want of a key and a test set) and would measure whether 64.4 or 64.9 are worth it.
+  *Ground first:* who pays for the runs (every run spends real money; get approval first), and
+  how many cases are enough.
+
+### Considered and not taken
+- **Sommo itself.** A 7B fine-tune needs GPU hosting, has no published evaluation, and training
+  on reviews teaches phrasing rather than facts; its own authors recommend retrieval. The app's
+  model-plus-tools-over-the-owner's-cellar design is already what that README points toward.
+  Worth keeping only as a reference for system-prompt tone and the dataset list.
+- **Neo4j / RDF, and the ComplEx embeddings.** A graph database is out of proportion to a
+  cellar of hundreds of rows (Postgres tables cover every idea above), and the embedding
+  baseline performed poorly (Hits@1 0.092).
+- **Their one-variety-per-wine edge and their dropped columns.** They dropped `region_2` and
+  `designation` as sparse or high-cardinality, and excluded rows with no price; the app keeps
+  sub-region and bottling because they tell a producer's own wines apart. Both are a reminder
+  that their schema is shaped by what one review dataset happens to contain.
