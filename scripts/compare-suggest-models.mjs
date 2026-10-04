@@ -189,18 +189,30 @@ function unusableResponseError(response) {
 
 // An arm is a tier plus whether it is the over-cap one - what the app asks
 // requestShape() for; the model id and its request fields come back.
+//
+// opus55 and sonnet55 are candidates, not tiers the app runs on: they reuse
+// their 5.0 counterpart's tier (so the request fields are identical) and
+// override only the model id, so the model is the one thing that differs.
 const ARMS = {
   opus: { tier: "reasoning", lighter: false },
   sonnet: { tier: "extraction", lighter: false },
   haiku: { tier: "extraction", lighter: true },
+  opus55: { tier: "reasoning", lighter: false, model: "claude-opus-5-5" },
+  sonnet55: { tier: "extraction", lighter: false, model: "claude-sonnet-5-5" },
 };
+
+// requestShape() for an arm, with the arm's model id swapped in if it has one.
+function armShape(arm, effort) {
+  const shape = requestShape(arm.tier, { lighter: arm.lighter, effort });
+  return arm.model ? { ...shape, model: arm.model } : shape;
+}
 
 // One full call, exactly what getSuggestions in app/actions.js does,
 // parameterized by arm instead of by the owner's dial and the Domaine's
 // allowance - the one deliberate difference from the real thing, since
 // that's the whole point of this script.
 async function runSuggestion({ anthropic, pool, arm, request, character, effort, includeOutside }) {
-  const shape = requestShape(arm.tier, { lighter: arm.lighter, effort });
+  const shape = armShape(arm, effort);
   const steer = normalizeCharacter(character);
   const outside = Boolean(includeOutside);
   const systemPrompt = buildSuggestSystemPrompt(new Date().getFullYear(), outside, steer);
@@ -310,8 +322,8 @@ async function main() {
                      tells you which model answered, not whether either
                      answer is any good; the model doesn't repeat itself
                      exactly even on the same input.
-  --models a,b       Which models to test, any of opus, sonnet, haiku
-                     (default: all three).
+  --models a,b       Which models to test, any of opus, sonnet, haiku,
+                     opus55, sonnet55 (default: opus, sonnet, haiku).
   --json <path>      Also write the full set of results as JSON to this path.
 `);
     return;
@@ -345,10 +357,10 @@ async function main() {
     for (const modelKey of args.models) {
       const arm = ARMS[modelKey];
       if (!arm) {
-        console.error(`Unknown model "${modelKey}" - use opus, sonnet or haiku.`);
+        console.error(`Unknown model "${modelKey}" - use opus, sonnet, haiku, opus55 or sonnet55.`);
         continue;
       }
-      console.log(`\n${modelKey.toUpperCase()} (${requestShape(arm.tier, { lighter: arm.lighter }).model}):`);
+      console.log(`\n${modelKey.toUpperCase()} (${armShape(arm).model}):`);
       for (let run = 1; run <= args.runs; run++) {
         try {
           const result = await runSuggestion({
