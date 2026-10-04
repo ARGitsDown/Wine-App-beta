@@ -15,6 +15,8 @@ import { normalizeCharacter } from "@/lib/suggestion-character";
 import { BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL, buildSuggestSystemPrompt } from "@/lib/suggest-prompt";
 import {
   PICK_DECISION,
+  cleanPairingReason,
+  dishKey,
   PICK_DECISION_VALUES,
   wineLabelForBottle,
   wineLabelForGap,
@@ -1242,7 +1244,9 @@ export async function getSuggestions(
         const picks = finalCall.input.picks;
         const ownedIds = picks.map((p) => p.bottleId).filter((id) => id !== null);
         const ownedBottles = ownedIds.length
-          ? await db.bottle.findMany({ where: { id: { in: ownedIds } } })
+          // Inventory only, like browse_cellar: a made-up id that happens to
+          // be a consumed or wishlist bottle must not show up as owned.
+          ? await db.bottle.findMany({ where: { id: { in: ownedIds }, status: "inventory" } })
           : [];
         const bottleById = new Map(ownedBottles.map((b) => [b.id, b]));
 
@@ -3113,6 +3117,12 @@ export async function savePairing(input) {
     : [];
   const bottleById = new Map(bottles.map((bottle) => [bottle.id, bottle]));
 
+  // One spelling per dish: the model is told to repeat a label exactly, and
+  // where it slips ("The lamb" / "the lamb.") the first spelling is the one
+  // stored for every pick of that course - so the page groups them, and the
+  // ?pairedWith link a pick's note carries says the same thing for all.
+  const dishByKey = new Map();
+  const seenPick = new Set();
   const picks = [];
   for (const pick of rawPicks) {
     const bottle = Number.isInteger(pick.bottleId)
@@ -3121,10 +3131,19 @@ export async function savePairing(input) {
     const gap = bottle ? null : gapFromInput(pick.gap);
     if (!bottle && !gap) continue;
 
+    const rawDish = trimmedOrNull(pick.dish);
+    const key = dishKey(rawDish);
+    if (key && !dishByKey.has(key)) dishByKey.set(key, rawDish);
+    const dish = key ? dishByKey.get(key) : null;
+    // The same wine twice for the same course is one pick.
+    const identity = `${bottle ? `b${bottle.id}` : `g${(gap.producer + "|" + (gap.type ?? "")).toLowerCase()}`}|${key ?? ""}`;
+    if (seenPick.has(identity)) continue;
+    seenPick.add(identity);
+
     picks.push({
       order: picks.length,
-      dish: trimmedOrNull(pick.dish),
-      reason: trimmedOrNull(pick.reason, MAX_PAIRING_TEXT) ?? "",
+      dish,
+      reason: cleanPairingReason(trimmedOrNull(pick.reason, MAX_PAIRING_TEXT) ?? ""),
       bottleId: bottle ? bottle.id : null,
       wineLabel: bottle ? wineLabelForBottle(bottle) : wineLabelForGap(gap),
       wineName: bottle ? wineNameForBottle(bottle) : wineNameForGap(gap),
@@ -3201,6 +3220,7 @@ export async function deletePairing(id) {
 // `day` is "YYYY-MM-DD", chosen in the browser: "tonight" is the reader's
 // own date, which the server cannot know (it runs on UTC).
 export async function planPairing(id, day) {
+  if (!Number.isInteger(id)) return { error: "That pairing no longer exists." };
   const planned = parseTastedDate(day);
   if (!planned) return { error: "That day doesn't look right." };
   try {
@@ -3222,54 +3242,110 @@ export async function planPairing(id, day) {
 //
 // The one side effect: choosing "drink" on a wine the owner does not have
 // puts it on the wishlist, because planning to drink something you have to
-// buy first is a shopping item. The new wishlist bottle is linked back onto
-// the pick (bottleId), which is what lets the page link to it and stops a
-// second tap creating a second one. Switching away from "drink" afterwards
-// leaves that wishlist bottle alone: it may already have been shopped for
-// or edited, and deleting a wine on an undo is the wrong default.
+// buy first is a shopping item. It does not blindly make a new row, though:
+// if the owner already has that producer and style (in the cellar or on the
+// wishlist, any capitalisation), the pick is linked to the existing wine
+// instead, so the same suggestion from two pairings cannot become two
+// wishlist rows - and an owner-added wishlist wine can be told apart from
+// one this made only by being linked here, never created.
+//
+// All of it happens in one transaction under a per-pick advisory lock (the
+// same pattern as appendFlightPicks): read the pick, find or create the
+// wine, write the decision and the link. Two taps from two devices at once
+// cannot both create a wine, and a failed write cannot leave a wishlist wine
+// nothing points at. The scoped read at the top has already proved the pick
+// is this owner's, so the transaction goes through the plain client (it
+// needs the lock) and stamps the Domaine itself.
+//
+// The link is written only when one was made. Switching away from "drink"
+// afterwards leaves the wine alone: it may already have been shopped for or
+// edited, and deleting a wine on an undo is the wrong default (the card
+// offers Remove, which is careful - see removePairingPickFromWishlist).
 export async function setPairingPickDecision(pickId, decision) {
+  if (!Number.isInteger(pickId)) return { error: "That wine is no longer in this pairing." };
   const next = PICK_DECISION_VALUES.has(decision) ? decision : null;
 
   // Scoped through the pairing, so a pick that is not this owner's reads as
   // missing rather than being updated.
   const pick = await db.pairingPick.findUnique({
     where: { id: pickId },
-    select: { id: true, pairingId: true, bottleId: true, gap: true, reason: true },
+    select: { id: true, pairingId: true },
   });
   if (!pick) return { error: "That wine is no longer in this pairing." };
+  const pairing = await db.savedPairing.findUnique({
+    where: { id: pick.pairingId },
+    select: { domaineId: true },
+  });
+  if (!pairing) return { error: "That wine is no longer in this pairing." };
+  const ownerId = await currentOwnerId();
 
   try {
-    let bottleId = pick.bottleId;
-    let wishlisted = false;
-    if (next === PICK_DECISION.DRINK && !bottleId && pick.gap?.producer) {
-      const created = await db.bottle.create({
-        data: {
-          ownerId: await currentOwnerId(),
-          producer: pick.gap.producer,
-          type: pick.gap.type ?? null,
-          region: pick.gap.region ?? null,
-          country: pick.gap.country ?? null,
-          // The same "where it came from" the wishlist form on Suggest
-          // writes, so it reads the same wherever it is seen.
-          notes: `Suggested because: ${pick.reason}`,
-          status: "wishlist",
-          emptiedAt: emptiedAtForStatus("wishlist", null),
-          acquiredAt: acquiredAtForStatus("wishlist", null),
-        },
-        select: { id: true },
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(2, ${pickId}::int)`;
+      const current = await tx.pairingPick.findUnique({
+        where: { id: pickId },
+        select: { bottleId: true, gap: true, reason: true },
       });
-      bottleId = created.id;
-      wishlisted = true;
-      invalidateRegionOptions();
-    }
-    await db.pairingPick.update({
-      where: { id: pickId },
-      data: { decision: next, bottleId },
+      if (!current) return { gone: true };
+
+      let linkId = null;
+      let kind = null;
+      if (next === PICK_DECISION.DRINK && !current.bottleId && current.gap?.producer) {
+        const gap = current.gap;
+        const existing = await tx.bottle.findFirst({
+          where: {
+            domaineId: pairing.domaineId,
+            status: { in: ["inventory", "wishlist"] },
+            producer: { equals: gap.producer, mode: "insensitive" },
+            ...(gap.type ? { type: { equals: gap.type, mode: "insensitive" } } : {}),
+          },
+          // "inventory" sorts before "wishlist": a wine you own wins.
+          orderBy: { status: "asc" },
+          select: { id: true, status: true },
+        });
+        if (existing) {
+          linkId = existing.id;
+          kind = existing.status === "inventory" ? "owned" : "wishlist-existing";
+        } else {
+          const created = await tx.bottle.create({
+            data: {
+              domaineId: pairing.domaineId,
+              ownerId,
+              producer: gap.producer,
+              type: gap.type ?? null,
+              // Same standardisation as any saved bottle, so it files under
+              // its grape like the rest of the wishlist.
+              canonicalVariety: canonicalizeVarietal(gap.type, null),
+              region: gap.region ?? null,
+              country: gap.country ?? null,
+              // The same "where it came from" the wishlist form on Suggest
+              // writes, so it reads the same wherever it is seen.
+              notes: `Suggested because: ${current.reason}`,
+              status: "wishlist",
+              emptiedAt: emptiedAtForStatus("wishlist", null),
+              acquiredAt: acquiredAtForStatus("wishlist", null),
+            },
+            select: { id: true },
+          });
+          linkId = created.id;
+          kind = "created";
+        }
+      }
+      await tx.pairingPick.update({
+        where: { id: pickId },
+        data: { decision: next, ...(linkId ? { bottleId: linkId } : {}) },
+      });
+      return { kind };
     });
+    if (outcome.gone) return { error: "That wine is no longer in this pairing." };
+
+    if (outcome.kind === "created") invalidateRegionOptions();
     revalidatePath(`/pairings/${pick.pairingId}`);
     revalidatePath("/pairings");
-    if (wishlisted) revalidatePath("/wishlist");
-    return { ok: true, wishlisted };
+    if (outcome.kind) revalidatePath("/wishlist");
+    // `wishlisted` only when a wine was made; `kind` says what happened when
+    // the pick was linked to one the owner already had.
+    return { ok: true, wishlisted: outcome.kind === "created", kind: outcome.kind };
   } catch (err) {
     console.error("Failed to set a pairing pick's decision:", err);
     return { error: "Couldn't save that choice. Please try again." };
@@ -3281,6 +3357,7 @@ export async function setPairingPickDecision(pickId, decision) {
 // happened (every pick's note logged, a time limit): an owner-set state
 // should end on an owner's own say-so, not quietly resolve itself.
 export async function clearPairingPlan(id) {
+  if (!Number.isInteger(id)) return { error: "That pairing no longer exists." };
   try {
     await db.savedPairing.update({ where: { id }, data: { plannedFor: null } });
   } catch (err) {
@@ -3293,26 +3370,49 @@ export async function clearPairingPlan(id) {
   return { ok: true };
 }
 
-// Take back the wishlist wine that choosing Drink made for a wine you did
-// not own. Offered as "Still on your wishlist - Remove" once Drink has been
-// cleared, because clearing Drink alone deliberately leaves the wine (see
-// setPairingPickDecision). Only ever removes a bottle that is still on the
-// wishlist: one that has since been bought and moved to the cellar is a real
-// bottle now and is not this action's to delete.
+// Take a wine off the wishlist from the pairing that put it there. Offered as
+// "Still on your wishlist - Remove" once Drink has been cleared, because
+// clearing Drink alone deliberately leaves the wine (see
+// setPairingPickDecision). Careful on purpose:
+//  - only a wine still on the wishlist, decided in the delete itself (not a
+//    separate check before it), so one that was bought and moved to the
+//    cellar in another tab a moment ago is never touched;
+//  - never a wine that has anything of the owner's on it - a tasting note, a
+//    photo, a research proposal - since deleting it would take those with it;
+//  - it leaves a "hold" decision alone and only clears a "drink" one.
 export async function removePairingPickFromWishlist(pickId) {
+  if (!Number.isInteger(pickId)) return { error: "That wine is no longer in this pairing." };
   const pick = await db.pairingPick.findUnique({
     where: { id: pickId },
-    select: { id: true, pairingId: true, gap: true, bottle: { select: { id: true, status: true } } },
+    select: { id: true, pairingId: true, decision: true, gap: true, bottleId: true },
   });
   if (!pick) return { error: "That wine is no longer in this pairing." };
-  if (!pick.gap || !pick.bottle || pick.bottle.status !== "wishlist") {
-    return { error: "That wine isn't on your wishlist." };
-  }
+  if (!pick.gap || !pick.bottleId) return { error: "That wine isn't on your wishlist." };
+
   try {
-    // The pick's bottleId clears itself (onDelete SetNull), and so does
-    // its decision here, so it reads as a wine that is simply not owned.
-    await db.bottle.delete({ where: { id: pick.bottle.id } });
-    await db.pairingPick.update({ where: { id: pick.id }, data: { decision: null } });
+    const worked = await db.bottle.findFirst({
+      where: {
+        id: pick.bottleId,
+        status: "wishlist",
+        OR: [
+          { tastingNotes: { some: {} } },
+          { photos: { some: {} } },
+          { photoUrl: { not: null } },
+          { researchProposal: { isNot: null } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (worked) {
+      return { error: "That wine has notes or photos on it, so it was left on your wishlist." };
+    }
+    const gone = await db.bottle.deleteMany({ where: { id: pick.bottleId, status: "wishlist" } });
+    if (gone.count === 0) return { error: "That wine isn't on your wishlist." };
+    // The pick's bottleId clears itself (onDelete SetNull); a Drink decision
+    // would now point at nothing, so that goes too. Hold stays.
+    if (pick.decision === PICK_DECISION.DRINK) {
+      await db.pairingPick.update({ where: { id: pick.id }, data: { decision: null } });
+    }
   } catch (err) {
     console.error("Failed to remove a pairing wine from the wishlist:", err);
     return { error: "Couldn't remove that. Please try again." };

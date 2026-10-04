@@ -9,6 +9,10 @@ import {
   daysFromToday,
   planLabel,
   orderPairings,
+  dishKey,
+  cleanPairingReason,
+  progressParts,
+  MAX_REASON,
 } from "../lib/pairings.js";
 
 let pass = 0, fail = 0;
@@ -56,8 +60,8 @@ t("today is Tonight", planLabel("2026-10-04", "2026-10-04"), { kind: "tonight", 
 t("tomorrow", planLabel("2026-10-05", "2026-10-04"), { kind: "upcoming", text: "Tomorrow" });
 t("later this week is a weekday", planLabel("2026-10-10", "2026-10-04"), { kind: "upcoming", text: "Saturday" });
 t("a week or more away is a date", planLabel("2026-10-11", "2026-10-04"), { kind: "upcoming", text: "Oct 11" });
-t("a passed day is Queued, never Overdue", planLabel("2026-09-13", "2026-10-04"), { kind: "queued", text: "Queued" });
-t("yesterday is Queued", planLabel("2026-10-03", "2026-10-04"), { kind: "queued", text: "Queued" });
+t("a passed day is Queued with its date, never Overdue", planLabel("2026-09-13", "2026-10-04"), { kind: "queued", text: "Queued \u00b7 Sep 13" });
+t("yesterday is Queued", planLabel("2026-10-03", "2026-10-04"), { kind: "queued", text: "Queued \u00b7 Oct 3" });
 // The same stored day reads right for readers on either side of UTC:
 // an evening in New York is already the next UTC day.
 t("evening in the Americas, UTC already tomorrow: still Tonight", planLabel("2026-10-04", "2026-10-04"), { kind: "tonight", text: "Tonight" });
@@ -77,6 +81,41 @@ const ordered = orderPairings(
 );
 t("order: soonest planned, then queued (latest first), then unplanned (newest first)", ordered.map((p) => p.id), ["tonight", "tomorrow", "later", "queued-recent", "queued-old", "unplanned-new", "unplanned-old"]);
 t("a plan for the UTC day before (the reader's today in the Americas) is not queued", orderPairings([at("a", null, "2026-10-01T00:00:00Z"), at("b", "2026-10-03T12:00:00Z", "2026-10-01T00:00:00Z")], "2026-10-04").map((p) => p.id), ["b", "a"]);
+
+// --- the dish key and grouping by it
+t("same course, different dressing", [dishKey("The lamb"), dishKey("the lamb."), dishKey("  Lamb  ")], ["lamb", "lamb", "lamb"]);
+t("punctuation and case are ignored", dishKey("Main: Slow-Roasted Lamb"), "main slow roasted lamb");
+t("different courses stay different", dishKey("Lamb") === dishKey("Lamb tagine"), false);
+t("accented letters survive", dishKey("Crème brûlée"), "crème brûlée");
+t("no dish", [dishKey(null), dishKey(""), dishKey("  ")], [null, null, null]);
+const drift = groupPicksByDish([
+  { id: 1, dish: "The lamb" },
+  { id: 2, dish: "Starter" },
+  { id: 3, dish: "the lamb." },
+  { id: 4, dish: " Lamb " },
+]);
+t("drifted spellings of one dish share a group", drift.map((g) => g.picks.map((p) => p.id)), [[1, 3, 4], [2]]);
+t("the heading is the first spelling seen", drift.map((g) => g.dish), ["The lamb", "Starter"]);
+
+// --- the reason, as stored
+t("markdown marks are stripped", cleanPairingReason("**Bright** acidity, _lifted_ by `lemon`."), "Bright acidity, lifted by lemon.");
+t("line breaks and runs of spaces collapse", cleanPairingReason("One.\n\n- two\n  three"), "One. - two three");
+t("a short reason is untouched", cleanPairingReason("Dry rosé keeps the peach fresh."), "Dry rosé keeps the peach fresh.");
+const longText = "A good sentence here. ".repeat(80);
+const cut = cleanPairingReason(longText);
+t("a long reason is cut at a sentence end inside the limit", [cut.length <= MAX_REASON, cut.endsWith(".")], [true, true]);
+const noStops = cleanPairingReason("word ".repeat(400));
+t("with no sentence end it cuts at a word with an ellipsis", [noStops.length <= MAX_REASON + 1, noStops.endsWith("\u2026")], [true, true]);
+t("nothing in, nothing out", cleanPairingReason(null), "");
+
+// --- the progress line
+const C = (drink, hold, undecided) => ({ drink, hold, undecided });
+t("planned and decided: to drink", progressParts(C(2, 1, 1), true).map((p) => p.text), ["2 to drink", "1 on hold", "1 undecided"]);
+t("not planned and decided: chosen (no 'to drink' once the day is cleared)", progressParts(C(2, 1, 1), false).map((p) => p.text), ["2 chosen", "1 on hold", "1 undecided"]);
+t("zero counts are left out", progressParts(C(0, 0, 3), false).map((p) => p.text), ["3 undecided"]);
+t("planned with nothing chosen says so", progressParts(C(0, 0, 3), true).map((p) => p.text), ["Nothing chosen yet"]);
+t("only the Drink count is strong", progressParts(C(1, 1, 1), true).map((p) => p.strong), [true, false, false]);
+t("only holds", progressParts(C(0, 2, 0), false).map((p) => p.text), ["2 on hold"]);
 
 console.log(`pairings: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

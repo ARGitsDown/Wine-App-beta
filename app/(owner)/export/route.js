@@ -107,6 +107,15 @@ export async function GET() {
   ]);
 
   const payload = {
+    // The shape of this file, so a reader (or a future restore) can tell
+    // which one it has:
+    //   1 - before the pairing plan: SavedPairing carried plannedForTonight
+    //       and plannedForTonightAt (no schemaVersion key at all).
+    //   2 - SavedPairing.plannedFor, a calendar day anchored at noon UTC
+    //       ("2026-10-04T12:00:00.000Z"), replaces both; PairingPick gains
+    //       `decision` (null | "drink" | "hold"). On a gap pick, `bottleId`
+    //       may point at a wishlist bottle linked by choosing Drink.
+    schemaVersion: 2,
     exportedAt: new Date().toISOString(),
     domaine,
     members,

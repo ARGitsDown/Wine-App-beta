@@ -200,8 +200,8 @@ or multiple locations in one cellar.
   you don't own also adds it to your wishlist (and can be taken off again
   from the card). A pairing can be **planned for a day** - "Drink tonight",
   or a picked day - and reads Tonight, Tomorrow, a weekday or date, or
-  **Queued** once the day has passed without being marked Done; planned
-  pairings sort first. A wine chosen to drink links straight to "Add a
+  **Queued · <date>** once the day has passed without being cleared
+  ("Clear day", with a short Undo); planned pairings sort first. A wine chosen to drink links straight to "Add a
   tasting note," prefilling the dish. A tasting-flight result can be
   saved the same way via "Save this flight" - see **Tasting flights**
   below.

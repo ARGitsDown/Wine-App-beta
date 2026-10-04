@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
 import { deletePairing } from "@/app/actions";
-import { decisionCounts } from "@/lib/pairings";
 import { formatTastedDate, toDateInputValue, todayInputValue } from "@/lib/tasting-date";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import PairingTitle from "@/app/components/PairingTitle";
@@ -10,6 +9,7 @@ import PairingPicksList from "@/app/components/PairingPicksList";
 import BackButton from "@/app/components/BackButton";
 import ExpandableText from "@/app/components/ExpandableText";
 import PairingPlan from "@/app/components/PairingPlan";
+import PairingProgress from "@/app/components/PairingProgress";
 import PlanBadge from "@/app/components/PlanBadge";
 import { SUGGESTION_CHARACTERS } from "@/lib/suggestion-character";
 import { DEPTH_LEVELS } from "@/lib/suggest-depth";
@@ -48,7 +48,7 @@ export default async function PairingDetailPage({ params }) {
 
   if (!pairing) notFound();
 
-  const counts = decisionCounts(pairing.picks);
+  const plannedDay = pairing.plannedFor ? toDateInputValue(pairing.plannedFor) : null;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
@@ -75,15 +75,10 @@ export default async function PairingDetailPage({ params }) {
         />
         {/* Where "undecided" is named: it has no button of its own, it is
             what a wine is until Drink or Hold is chosen. */}
-        <p className="text-sm text-zinc-500">
-          <span className="font-medium text-sky-700 dark:text-sky-400">
-            {counts.drink} to drink
-          </span>{" "}
-          &middot; {counts.hold} on hold &middot; {counts.undecided} undecided
-        </p>
+        <PairingProgress picks={pairing.picks} planned={Boolean(plannedDay)} className="text-sm" />
       </div>
 
-      <PairingPicksList picks={pairing.picks} />
+      <PairingPicksList picks={pairing.picks} pairingTitle={pairing.title} />
 
       {/* The model's own "why these", about the set rather than any one
           wine - after the wines because the per-wine reasons are what the
@@ -112,7 +107,7 @@ export default async function PairingDetailPage({ params }) {
             Planned for {formatTastedDate(pairing.plannedFor)}
           </p>
         )}
-        <PairingPlan pairingId={pairing.id} planned={Boolean(pairing.plannedFor)} />
+        <PairingPlan pairingId={pairing.id} plannedDay={plannedDay} />
         <div className="flex flex-wrap items-center gap-x-4">
           {/* Coming back to a kept pairing is usually to ask again with one
               thing changed. */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { planPairing, clearPairingPlan } from "@/app/actions";
 import Spinner from "@/app/components/Spinner";
 import { localDayInputValue } from "@/lib/tasting-date";
@@ -13,8 +13,10 @@ const linkButtonClass =
 // Planning a pairing for a day, and finishing it.
 //
 // Unplanned: "Drink tonight" (one tap, the reader's own today) and, on the
-// detail page, "Pick a day". Planned: "Done", which clears it, and on the
-// detail page "Change day". Nothing here ever clears a plan by itself - see
+// detail page, "Pick a day". Planned: "Clear day", which removes the plan,
+// and on the detail page "Change day". Clearing says what it did and offers
+// Undo for a few seconds, which puts the same day back: the row moves in the
+// list the moment the plan goes, and an accidental tap should not be final. Nothing here ever clears a plan by itself - see
 // the schema comment on SavedPairing.plannedFor.
 //
 // `compact` is the list row: just the one button, since the row is for
@@ -22,11 +24,16 @@ const linkButtonClass =
 //
 // The day is chosen here, in the browser, because "tonight" is the reader's
 // own date and the server (UTC) cannot know it.
-export default function PairingPlan({ pairingId, planned, compact = false }) {
+export default function PairingPlan({ pairingId, plannedDay = null, compact = false }) {
+  const planned = Boolean(plannedDay);
   const [pending, startTransition] = useTransition();
   const [picking, setPicking] = useState(false);
   const [day, setDay] = useState("");
   const [error, setError] = useState(null);
+  // The day that was just cleared, kept briefly so Undo can put it back.
+  const [cleared, setCleared] = useState(null);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   function run(task) {
     setError(null);
@@ -38,7 +45,23 @@ export default function PairingPlan({ pairingId, planned, compact = false }) {
   }
 
   const tonight = () => run(() => planPairing(pairingId, localDayInputValue()));
-  const done = () => run(() => clearPairingPlan(pairingId));
+  const clearDay = () => {
+    const previous = plannedDay;
+    run(async () => {
+      const result = await clearPairingPlan(pairingId);
+      if (!result?.error) {
+        setCleared(previous);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => setCleared(null), 6000);
+      }
+      return result;
+    });
+  };
+  const undo = () => {
+    const previous = cleared;
+    setCleared(null);
+    run(() => planPairing(pairingId, previous));
+  };
 
   if (picking) {
     return (
@@ -83,8 +106,8 @@ export default function PairingPlan({ pairingId, planned, compact = false }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
       {planned ? (
-        <button type="button" onClick={done} disabled={pending} className={buttonClass}>
-          Done
+        <button type="button" onClick={clearDay} disabled={pending} className={buttonClass}>
+          Clear day
         </button>
       ) : (
         <button type="button" onClick={tonight} disabled={pending} className={buttonClass}>
@@ -95,7 +118,11 @@ export default function PairingPlan({ pairingId, planned, compact = false }) {
         <button
           type="button"
           onClick={() => {
-            setDay(localDayInputValue());
+            // Starts on the day already planned (nudging Saturday to Sunday
+            // should not mean scrolling a picker from today), or today when
+            // that day has passed and the date input would refuse it.
+            const today = localDayInputValue();
+            setDay(plannedDay && plannedDay >= today ? plannedDay : today);
             setPicking(true);
           }}
           disabled={pending}
@@ -105,6 +132,14 @@ export default function PairingPlan({ pairingId, planned, compact = false }) {
         </button>
       )}
       {pending && <Spinner label="Saving…" />}
+      {cleared && !planned && (
+        <span role="status" className="flex basis-full items-center gap-2 text-sm text-zinc-500">
+          Day cleared
+          <button type="button" onClick={undo} disabled={pending} className={linkButtonClass}>
+            Undo
+          </button>
+        </span>
+      )}
       {error && (
         <span role="alert" className="basis-full text-sm text-red-600 dark:text-red-400">
           {error}

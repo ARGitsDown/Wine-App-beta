@@ -13,7 +13,7 @@ import { groupPicksByDish, pickNotOwned } from "@/lib/pairings";
 // Not the client component it was: with the reason always visible there is
 // no expand state left to hold, and the one interactive part is
 // PairingDecision.
-export default function PairingPicksList({ picks }) {
+export default function PairingPicksList({ picks, pairingTitle = null }) {
   return (
     <div className="flex flex-col gap-6">
       {groupPicksByDish(picks).map((group) => (
@@ -52,21 +52,15 @@ export default function PairingPicksList({ picks }) {
                       because it is a snapshot of how the wine read when this
                       was kept. What differs is whether there is still a
                       bottle to click through to, and why not. */}
+                  {/* The same pill whether or not the wine has since been put
+                      on the wishlist: it says what is true of the wine (not
+                      in the cellar), and the status line above the tiles
+                      carries the wishlist part, so nothing here moves when a
+                      choice is made. */}
                   {notOwned ? (
-                    wishlisted ? (
-                      <Link
-                        href={`/bottles/${pick.bottle.id}`}
-                        className="-my-1.5 inline-flex min-h-11 items-center"
-                      >
-                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
-                          On your wishlist &rarr;
-                        </span>
-                      </Link>
-                    ) : (
-                      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
-                        Not in cellar
-                      </span>
-                    )
+                    <span className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                      Not in cellar
+                    </span>
                   ) : (
                     !pick.bottle && (
                       <span className="mt-1 block text-xs text-zinc-500">No longer in your cellar</span>
@@ -91,10 +85,11 @@ export default function PairingPicksList({ picks }) {
                     Suggest result gives the same wine. It follows the choice
                     rather than the old tonight flag, so a wine marked Drink
                     always has the way to write its note, and one nobody has
-                    decided on does not. */}
-                {drinking && pick.dish && pick.bottle?.status === "inventory" && (
+                    decided on does not. A single-dish pairing has no dish on
+                    its picks, so the pairing's own title stands in for it. */}
+                {drinking && (pick.dish || pairingTitle) && pick.bottle?.status === "inventory" && (
                   <Link
-                    href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish)}`}
+                    href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish || pairingTitle)}`}
                     className="-my-2 flex min-h-11 items-center text-sm text-zinc-500 underline underline-offset-2"
                   >
                     Add a tasting note →

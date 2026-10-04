@@ -1,8 +1,8 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import Link from "next/link";
 import { removePairingPickFromWishlist, setPairingPickDecision } from "@/app/actions";
-import ConfirmButton from "@/app/components/ConfirmButton";
 import { CellarIcon, TastingHistoryIcon } from "@/app/components/icons";
 import { STATUS_LOOK } from "@/lib/status-look";
 
@@ -16,11 +16,15 @@ import { STATUS_LOOK } from "@/lib/status-look";
 //
 // A wine that is not owned (`notOwned`) is handled in words, because choosing
 // Drink does something the tiles do not show: it puts the wine on the
-// wishlist. Before the choice, a line above the tiles says so. Right after
-// it, "Added to your wishlist." confirms it. And if Drink is later cleared,
-// the wishlist wine stays (`wishlistBottleId` says it is still there), so a
-// line says that and offers to remove it, rather than letting an undo look
-// like it undid more than it did.
+// wishlist. One status line above the tiles tells the whole story, and it is
+// always one line in the same place, so nothing moves when it changes:
+//   before:           "Choosing Drink also adds it to your wishlist."
+//   Drink chosen:     "On your wishlist ->"
+//   Drink cleared:    "Still on your wishlist - Remove"  (clearing Drink
+//                     deliberately leaves the wine; this says so)
+//   Drink chosen, but the wishlist wine has since been deleted:
+//                     "Not on your wishlist - Add"
+// `wishlistBottleId` is the wishlist wine this pick is linked to, if any.
 const OPTIONS = [
   { value: "drink", label: "Drink", Icon: TastingHistoryIcon, accent: STATUS_LOOK.consumed.accent },
   { value: "hold", label: "Hold", Icon: CellarIcon, accent: STATUS_LOOK.inventory.accent },
@@ -28,26 +32,99 @@ const OPTIONS = [
 
 export default function PairingDecision({ pickId, decision, wineLabel, notOwned = false, wishlistBottleId = null }) {
   const [error, setError] = useState(null);
-  const [added, setAdded] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [confirming, setConfirming] = useState(false);
   const [, startTransition] = useTransition();
   const [shown, setShown] = useOptimistic(decision ?? null);
 
-  function choose(value) {
-    const next = shown === value ? null : value;
+  // `force` is for "Add": the pick already says Drink, and the tap must send
+  // Drink again (not clear it) so the wishlist wine is made.
+  function choose(value, force = false) {
+    const next = !force && shown === value ? null : value;
     setError(null);
-    setAdded(false);
+    setNotice(null);
     startTransition(async () => {
       setShown(next);
       const result = await setPairingPickDecision(pickId, next);
       if (result?.error) setError(result.error);
-      else if (result?.wishlisted) setAdded(true);
+      else if (result?.kind === "owned") setNotice("You already have this wine in your cellar.");
+    });
+  }
+
+  // Its own two-step control rather than ConfirmButton: this action can
+  // refuse (a wine with notes or photos on it is left alone) and the person
+  // has to be told why, which ConfirmButton has no way to show.
+  function removeFromWishlist() {
+    setError(null);
+    startTransition(async () => {
+      const result = await removePairingPickFromWishlist(pickId);
+      if (result?.error) setError(result.error);
+      setConfirming(false);
     });
   }
 
   return (
     <div className="flex flex-col gap-1.5">
-      {notOwned && !wishlistBottleId && (
-        <p className="text-xs text-zinc-500">Choosing Drink also adds it to your wishlist.</p>
+      {notOwned && (
+        <div aria-live="polite" className="text-xs text-zinc-500">
+          {!wishlistBottleId && shown !== "drink" && <p>Choosing Drink also adds it to your wishlist.</p>}
+          {!wishlistBottleId && shown === "drink" && (
+            <p className="flex flex-wrap items-center gap-x-2">
+              Not on your wishlist &middot;
+              <button
+                type="button"
+                onClick={() => choose("drink", true)}
+                className="flex min-h-11 items-center underline underline-offset-2"
+              >
+                Add
+              </button>
+            </p>
+          )}
+          {wishlistBottleId && shown === "drink" && (
+            <p>
+              <Link
+                href={`/bottles/${wishlistBottleId}`}
+                className="-my-2 inline-flex min-h-11 items-center underline underline-offset-2"
+              >
+                &#10003; On your wishlist &rarr;
+              </Link>
+            </p>
+          )}
+          {wishlistBottleId && shown !== "drink" && (
+            <p className="flex flex-wrap items-center gap-x-2">
+              {confirming ? (
+                <>
+                  Take it off your wishlist?
+                  <button
+                    type="button"
+                    onClick={removeFromWishlist}
+                    className="flex min-h-11 items-center rounded border border-red-300 px-3 text-xs text-red-600 dark:border-red-900 dark:text-red-400"
+                  >
+                    Yes, remove it
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(false)}
+                    className="flex min-h-11 items-center underline underline-offset-2"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  Still on your wishlist &middot;
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(true)}
+                    className="flex min-h-11 items-center underline underline-offset-2"
+                  >
+                    Remove
+                  </button>
+                </>
+              )}
+            </p>
+          )}
+        </div>
       )}
       <div role="radiogroup" aria-label={`Decision for ${wineLabel}`} className="grid grid-cols-2 gap-1.5">
         {OPTIONS.map((option) => {
@@ -71,22 +148,9 @@ export default function PairingDecision({ pickId, decision, wineLabel, notOwned 
           );
         })}
       </div>
-      {added && (
+      {notice && (
         <p role="status" className="text-xs text-green-700 dark:text-green-400">
-          &#10003; Added to your wishlist.
-        </p>
-      )}
-      {notOwned && wishlistBottleId && shown !== "drink" && (
-        <p className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
-          Still on your wishlist &middot;
-          <ConfirmButton
-            action={removePairingPickFromWishlist.bind(null, pickId)}
-            label="Remove"
-            confirmLabel="Yes, remove it"
-            warning="This takes the wine off your wishlist."
-            className="flex min-h-11 items-center underline underline-offset-2"
-            confirmClassName="rounded border border-red-300 px-3 py-1.5 text-xs text-red-600 dark:border-red-900 dark:text-red-400"
-          />
+          &#10003; {notice}
         </p>
       )}
       {error && (

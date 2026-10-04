@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { db } from "@/lib/scoped-prisma";
-import { decisionCounts, orderPairings, pickNotOwned } from "@/lib/pairings";
+import { orderPairings, pickNotOwned } from "@/lib/pairings";
 import { toDateInputValue, todayInputValue } from "@/lib/tasting-date";
 import { STATUS_LOOK } from "@/lib/status-look";
 import PairingPlan from "@/app/components/PairingPlan";
+import PairingProgress from "@/app/components/PairingProgress";
 import PlanBadge from "@/app/components/PlanBadge";
 
 export const dynamic = "force-dynamic";
@@ -107,9 +108,13 @@ export default async function PairingsPage() {
                 {/* How far along the choices are - the same count the
                     pairing's own page leads with - so a pairing nobody has
                     looked at reads differently from one half decided. */}
-                <ProgressLine picks={pairing.picks} />
+                <PairingProgress picks={pairing.picks} planned={Boolean(pairing.plannedFor)} />
                 <span className="relative z-10">
-                  <PairingPlan pairingId={pairing.id} planned={Boolean(pairing.plannedFor)} compact />
+                  <PairingPlan
+                    pairingId={pairing.id}
+                    plannedDay={pairing.plannedFor ? toDateInputValue(pairing.plannedFor) : null}
+                    compact
+                  />
                 </span>
               </div>
             </li>
@@ -130,17 +135,5 @@ function Pill({ look, label }) {
       <look.Icon className="h-3 w-3" />
       {label}
     </span>
-  );
-}
-
-function ProgressLine({ picks }) {
-  const counts = decisionCounts(picks);
-  return (
-    <p className="text-xs text-zinc-500">
-      <span className={counts.drink > 0 ? "font-medium text-sky-700 dark:text-sky-400" : ""}>
-        {counts.drink} to drink
-      </span>{" "}
-      &middot; {counts.hold} on hold &middot; {counts.undecided} undecided
-    </p>
   );
 }

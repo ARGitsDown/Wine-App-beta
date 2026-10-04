@@ -781,12 +781,13 @@ model PairingPick {
   dish      String?
   reason    String
 
-  // The wine, if it is one the owner has. SetNull rather than Cascade -
-  // the opposite of FlightPick - because the two rows mean different
-  // things. A bottle you no longer have cannot be in a queue of bottles to
-  // open, but it can certainly be in the record of what you drank with the
-  // lamb in June, and losing that record to an October tidy-up would be
-  // the wrong answer.
+  // The wine this pick is linked to: one the owner had when the pairing was
+  // kept, or - for a gap pick - one linked later by choosing Drink (see the
+  // table under `gap`). SetNull rather than Cascade - the opposite of
+  // FlightPick - because the two rows mean different things. A bottle you no
+  // longer have cannot be in a queue of bottles to open, but it can
+  // certainly be in the record of what you drank with the lamb in June, and
+  // losing that record to an October tidy-up would be the wrong answer.
   bottleId  Int?
   bottle    Bottle? @relation(fields: [bottleId], references: [id], onDelete: SetNull)
   // How the wine read at the moment it was saved. The reason the row
@@ -803,10 +804,22 @@ model PairingPick {
   // 4-digit number is a vintage and not part of the name) is exactly the
   // fragile parsing this schema avoids elsewhere.
   wineName  String
-  // A wine that was not owned, as {producer, type, region, country}. Json
-  // for the same reason ResearchProposal.proposed is: it is only ever
-  // rendered as a unit, never queried into. It also means keeping a
-  // pairing never quietly creates a wishlist bottle nobody asked for.
+  // A wine that was not owned when the pairing was kept, as {producer, type,
+  // region, country}. Json for the same reason ResearchProposal.proposed is:
+  // it is only ever rendered as a unit, never queried into. Keeping a
+  // pairing never creates a wishlist bottle; choosing Drink on the pick does
+  // (setPairingPickDecision). `gap` stays set after that - it is the
+  // snapshot "this was not owned when kept" - so the reachable states are:
+  //
+  //   gap, no bottleId           not owned (or its wishlist wine was deleted)
+  //   gap, bottle on wishlist    linked by Drink: either made by it, or a
+  //                              wishlist wine the owner already had
+  //   gap, bottle in the cellar  bought since (or already owned when Drink
+  //                              was chosen): treated as owned
+  //   no gap, bottleId           owned when kept
+  //   no gap, no bottleId        owned when kept, deleted since
+  //
+  // lib/pairings.js pickNotOwned() is the one reader of this table.
   gap       Json?
   // What the owner decided about this wine, once it has been read: "drink"
   // (planned - the tasting is recorded later, from the bottle's page) or
@@ -816,8 +829,11 @@ model PairingPick {
   // honest state, and tapping the chosen button again returns to it.
   // Choosing "drink" on a wine that is not owned also puts it on the
   // wishlist (bottleId then points at that wishlist bottle) - see
-  // setPairingPickDecision. Held to the two words by a CHECK in the
-  // migration, which Prisma does not model.
+  // setPairingPickDecision. "drink" is therefore NOT a guarantee that there
+  // is a bottle behind it: the wishlist wine can be deleted elsewhere
+  // (bottleId goes NULL, the decision stays), and the pairing page offers to
+  // add it again. Held to the two words by a CHECK in the migration, which
+  // Prisma does not model.
   decision  String?
 
   @@index([pairingId])

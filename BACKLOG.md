@@ -3982,3 +3982,80 @@ Checked on a production build: the list order and each badge, a passed day readi
 never Overdue, the whole-row tap, Drink tonight storing the New York day, Pick a day / Change day
 / Done, the note link only on Drink wines, the whole wishlist add / still-there / remove cycle,
 and no small tap targets.
+
+### Saved pairings: the three reviews' findings, built (UX, data engineer, AI)
+
+The owner asked for all three reviewers' findings to be built ("build all of it").
+
+**Data safety** (data engineer)
+- **Drink is one transaction under a per-pick advisory lock** (the `appendFlightPicks` pattern),
+  not a read-then-create. Checked with four browser contexts tapping Drink on the same wine at
+  the same instant: exactly one wishlist wine. The link is written only when one was made, and
+  the Domaine is stamped by hand because the plain client skips the scoped stamp (ownership was
+  already proved by the scoped read just before).
+- **Remove is careful.** The "still on the wishlist" check is part of the delete itself
+  (`deleteMany` where status is wishlist), so a wine bought into the cellar a moment ago is never
+  touched; it refuses a wine that has a tasting note, a photo or a research proposal on it, and
+  says so (a note on a wishlist wine is the owner's own work); and it clears a Drink decision
+  but leaves Hold alone.
+- **A Drink with no wine behind it** (the wishlist wine was deleted elsewhere; the decision
+  stays, the link goes NULL) now says "Not on your wishlist · Add" instead of the false "Choosing
+  Drink also adds it", and Add sends Drink again.
+- **No duplicates** (AI reviewer too): before making a wishlist wine, Drink looks for the same
+  producer and style (any capitalisation) already in the cellar or on the wishlist and links to
+  that instead - a wine you own wins - so the same suggestion from two pairings is one wine, and
+  Remove can only ever be offered for a wine this made or one already on the wishlist (never
+  deletes anything with notes). Made wines get `canonicalVariety` like any saved bottle.
+- Integer guards on every pairing action id. Schema comments for `bottleId`, `gap` and
+  `decision` rewritten around a table of the five reachable states (`pickNotOwned` is the one
+  reader of it). The JSON export carries `schemaVersion: 2` and says what changed from 1.
+- **Not changed:** the `plannedFor` backfill uses `COALESCE(timestamp, now())`, which resolves
+  to timestamptz, so it is correct only when the session time zone is UTC (checked: correct here;
+  under a New York session it stores the next day). Managed Postgres is UTC; left alone because
+  the migration may already be applied elsewhere. Dropping the two old columns is irreversible
+  (the new one keeps the information). The loose `"wishlist" / "inventory" / "consumed"` strings
+  in the new code want a constants pass like `WINE_COLORS`.
+
+**UX**
+- **"Done" is "Clear day"**, and says what it did: "Day cleared · Undo" for six seconds, and Undo
+  puts the same day back (the row moves in the list the moment the plan goes). Label is the
+  owner's to change.
+- **The count tells one story with the plan:** with a planned day it reads "N to drink"; with
+  none, "N chosen"; zero counts are left out; all-undecided is "N undecided" (or "Nothing chosen
+  yet" on a planned pairing). Shared `PairingProgress` / `progressParts`.
+- **"Queued · Sep 13"** - the date is on the badge, since the tooltip never shows on a phone.
+- **Change day opens on the day already planned** (today when that day has passed).
+- **Nothing moves under the thumb when Drink is tapped on a wine you do not own:** the
+  amber "Not in cellar" pill is constant, and one status line above the tiles carries the
+  wishlist story ("Choosing Drink also adds it..." / "✓ On your wishlist →" / "Still on your
+  wishlist · Remove" / "Not on your wishlist · Add").
+- **The tasting-note link works on single-dish pairings** (the pairing's title is the prefill when
+  a pick has no dish).
+
+**AI-facing** (no call, model or cache change; roughly 150 more cached prompt tokens)
+- **Dish labels:** the `pairingContext` description now asks for one label per dish, character for
+  character, sentence case, no leading "the", null on every pick or none; the system prompt asks
+  for one wine per dish, or two or three where there is a real choice (never more than three), a
+  dish's wines together, and a gap suggestion only for a wine browse_cellar did not return.
+  Server backstop: `dishKey` (case, a leading the/a/an, punctuation) groups loosely and the first
+  spelling is stored for every pick of that course in `savePairing`; no fuzzier, since "Lamb" and
+  "Lamb tagine" may really be two courses.
+- **Reasons:** asked for one or two plain sentences that stand alone and say what this wine does
+  that the others for the dish don't; on save, markdown marks are stripped, whitespace collapses,
+  and anything over 800 characters is cut at a sentence end (`cleanPairingReason`).
+- `getSuggestions` resolves a returned bottle id against inventory only, like browse_cellar, so an
+  invented id that happens to be a consumed or wishlist wine no longer shows as owned; `savePairing`
+  drops a repeat of the same wine for the same course.
+- **Not measured:** the prompt wording is untested against the model (model testing is paused,
+  BACKLOG #59). A one-off check with `npm run compare-suggest` on a three-course menu, reading the
+  `pairingContext` strings side by side, is the way to see whether the labels really now repeat.
+
+**Still open from the reviews:** Drink offered on a wine you no longer have, the dimmed Hold card's
+contrast, blue meaning both Drink and link, radio-vs-toggle semantics and a check icon on the
+selected tile, the "Drink tonight" wording colliding with the per-wine Drink, "We drank it", and
+pairing search.
+
+Checked on a production build: every item above has a browser test (plan clear/undo/change,
+progress wording, Queued date, the single-dish note link, the duplicate guard in both directions,
+the deleted-wishlist Add, Remove refusing a wine with a note and keeping Hold, the four-device
+race), plus 49 unit checks for the helpers.
