@@ -287,15 +287,56 @@ or multiple locations in one cellar.
   on `/usage` and sets their limits.
   Starting values and the `.env` settings are in `.env.example`
   (BACKLOG #54).
-- **Deleting asks first** — removing a bottle, one of its photos, or a
-  saved flight takes a second click, and the confirmation says what else
-  goes with it ("Also deletes 2 tasting notes and 2 guest favorites"),
-  since a bottle's notes and favorites are cascade-deleted along with it.
+- **Deleting asks first, and can be undone** — removing a bottle, one of its
+  photos, or a saved flight takes a second click, and the confirmation says
+  what else goes with it ("Also deletes 2 tasting notes and 2 guest
+  favorites"). Deleting a wine from its own page also keeps a snapshot of it
+  (its notes, photos, guest favorites, flight picks, research proposal, and
+  which pairing picks pointed at it) in a 30-day recycle bin, and leaves
+  "Deleted X · Undo" on the list you land on; Undo puts it back with the same
+  id and re-links its pairings. The bin is a `BottleTrash` table, not a
+  `deletedAt` column, so a deleted wine never leaks into a list or a count.
+- **Size, place and price** — "Wine details" holds the bottle size (a split to
+  a double magnum, stored as millilitres), where it is ("Rack B", "Fridge"),
+  and what one bottle cost with its currency. A row is a *lot*: identical
+  bottles sharing size, place and price, so a second purchase at a different
+  price is its own row ("Add another purchase of this wine" copies the wine
+  into a fresh row). The place shows quietly on a cellar row and in search, a
+  size only when it is not a standard bottle, and a cellar scan can file the
+  whole batch under one place. Nothing is estimated and nothing is shown to
+  Guests.
+- **Bought it** — on a wishlist wine (its row or its page): how many, and what
+  each cost, then it moves to the Cellar in place (so a pairing that points at
+  it stays linked) with "Moved to Cellar · Undo".
+- **Cellar at a glance** — a collapsed summary at the top of the Cellar
+  (wines, bottles, "8 ready now (5 estimated)") whose counts by drinking
+  window, colour, region and place are each a tap that applies the matching
+  filter. The same Drinking and Place filters are under "More filters", the
+  home Cellar card says "N ready now", and a place can be renamed (naming one
+  that exists merges the two).
+- **Print a card** — a pairing or a flight has a "Print card": a clean page of
+  the dishes and the wines chosen for them (or the flight's running order),
+  without the app's chrome or the model's reasoning.
+- **Offline** — with no signal the app says so and refuses changes up front
+  (nothing is queued) instead of throwing to the error screen; what is already
+  open still reads.
+- **Cellar digest** — an opt-in email (People page; off for everyone until they
+  choose) listing wines in their last year, opening this year, or past their
+  window. Windows are whole years, so it says "this year". It needs the email
+  door and `CRON_SECRET` (a daily Vercel Cron, see `.env.example`), claims each
+  send atomically, sends nothing when there is nothing to say, and never
+  includes a price, a note or a place.
+- **Import a list** (`/import`, from the Cellar) — a CSV from CellarTracker or
+  Vivino (or a spreadsheet saved as CSV) is mapped onto the wine and lot
+  fields and previewed before anything is written; wines already on the list
+  are skipped, values it cannot read are left blank with a named warning, and
+  "Undo import" removes only what the import added that you have not since
+  added notes or links to.
 - **Data export** (`/export`, linked from the home page) — downloads every
   bottle with its tasting notes and photo links, every guest who favorited
   one of this Domaine's bottles (with their favorites), the Domaine's name
   and motto, its members and its invites (with their notes), every saved flight with its picks in tasting order, and any
-  research still sitting in the review queue, as one JSON file. Cheap peace
+  research still sitting in the review queue, as one JSON file (`schemaVersion` 3: it carries each bottle's size, place and price). Cheap peace
   of mind for a personal system with no other backup story. The photos
   themselves live in blob storage, so the file holds their links rather than
   the images; drinking-window estimates are left out deliberately, being a
