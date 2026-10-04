@@ -3,6 +3,7 @@
 import FilterBar from "@/app/components/FilterBar";
 import CellarOverview from "@/app/components/CellarOverview";
 import BottleList from "@/app/components/BottleList";
+import { wineSiblingKey } from "@/lib/lot-fields";
 import useBottleFilters from "@/app/components/useBottleFilters";
 
 // The server hands over the whole list for a status once; narrowing it is
@@ -24,6 +25,13 @@ export default function FilterableBottleList({
   overview = false,
 }) {
   const { filters, visible, update, clear } = useBottleFilters(bottles, initialFilters);
+  // Lots per wine across the whole list, not just the filtered rows (see
+  // BottleList's lotCounts).
+  const lotCounts = {};
+  for (const bottle of bottles) {
+    const key = wineSiblingKey(bottle);
+    lotCounts[key] = (lotCounts[key] ?? 0) + 1;
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -46,7 +54,7 @@ export default function FilterableBottleList({
         resultCount={visible.length}
         totalCount={bottles.length}
       />
-      <BottleList bottles={visible} emptyMessage={emptyMessage} flights={flights} />
+      <BottleList bottles={visible} emptyMessage={emptyMessage} flights={flights} lotCounts={lotCounts} />
     </div>
   );
 }

@@ -303,7 +303,8 @@ or multiple locations in one cellar.
   bottles sharing size, place and price, so a second purchase at a different
   price is its own row ("Add another purchase of this wine" asks how many,
   what each cost and where, and adds a line with the same wine details; a wine
-  held as several lots shows bottles, place and price on each row). The place shows quietly on a cellar row and in search, a
+  held as several lots shows bottles, place and price on each row, and its
+  page lists the other lots under "Also in your cellar"). The place shows quietly on a cellar row and in search, a
   size only when it is not a standard bottle, and a cellar scan can file the
   whole batch under one place. Nothing is estimated and nothing is shown to
   Guests.

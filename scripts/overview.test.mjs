@@ -26,7 +26,8 @@ const bottles = [
   { quantity: 1, sizeMl: 375, wineColor: null, region: null, location: "Fridge", drinkFrom: null, drinkTo: null },
 ];
 const s = summarizeCellar(bottles, Y);
-t("wines are rows, bottles sum quantity", [s.wines, s.bottles], [4, 7]);
+t("lots are rows, bottles sum quantity", [s.lots, s.bottles], [4, 7]);
+t("a wine held as two lots is one wine", summarizeCellar([{ producer: "A", vintage: 2018, quantity: 1 }, { producer: "a", vintage: 2018, quantity: 2 }, { producer: "B", quantity: 1 }], Y).wines, 2);
 t("litres: 3x0.75 + 1.5 + 2x0.75(unrecorded as standard) + 0.375 (rounded to 2 dp)", s.litres, 5.63);
 t("window counts", s.window, { ready: 2, past: 1, later: 0, none: 1 });
 t("estimated is a share of ready", s.readyEstimated, 1);

@@ -48,15 +48,23 @@ export default function TastedControls({
 
   function tasteOne() {
     startTransition(async () => {
-      await markOneTasted(bottleId);
-      showUndo(`Tasted one${suffix}`, undoTasted);
+      const result = await markOneTasted(bottleId);
+      if (!result) return;
+      // Where it went: still in the cellar with N left, or the last bottle,
+      // which moves the wine to Tasting notes (and off this list).
+      const where = result.last
+        ? " \u00b7 that was the last, now in Tasting notes"
+        : result.left != null
+          ? ` \u00b7 ${result.left} left`
+          : "";
+      showUndo(`Tasted ${result.last ? "the last" : "one"}${suffix}${where}`, undoTasted);
     });
   }
 
   function tasteAll() {
     startTransition(async () => {
       await setBottleStatus(bottleId, "consumed");
-      showUndo(`Tasted all ${quantity}${suffix}`, undoTasted);
+      showUndo(`Tasted all ${quantity}${suffix} \u00b7 now in Tasting notes`, undoTasted);
     });
   }
 

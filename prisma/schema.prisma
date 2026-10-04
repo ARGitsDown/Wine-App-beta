@@ -1008,6 +1008,11 @@ model BottleTrash {
   // The wine's name as it read when deleted ("Rochioli 2018"), for the Undo
   // line and for anything that later lists the bin.
   label     String
+  // The list the wine was on when it was deleted ("inventory", "wishlist",
+  // "consumed", "flight"), so the Recently deleted page can say where a
+  // restore puts it without reading the snapshot. NULL on entries made before
+  // this column existed.
+  listedIn  String?
   snapshot  Json
   deletedAt DateTime @default(now())
 

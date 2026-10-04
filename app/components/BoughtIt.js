@@ -7,7 +7,7 @@ import Spinner from "@/app/components/Spinner";
 import { CURRENCIES, DEFAULT_CURRENCY } from "@/lib/lot-fields";
 
 const inputClass =
-  "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "min-h-11 rounded border border-zinc-300 px-2 text-base dark:border-zinc-700 dark:bg-zinc-900";
 
 // "Bought it" on a wishlist wine: how many, and (optionally) what each cost,
 // then it is a cellar wine. The confirmation and its Undo live in the shared
@@ -73,7 +73,7 @@ export default function BoughtIt({
           />
         </label>
         <div className="flex flex-col gap-1 text-sm">
-          <span id={`bought-price-${bottleId}`}>{priceCents == null ? "Paid per bottle (optional)" : "Paid per bottle"}</span>
+          <span id={`bought-price-${bottleId}`}>{priceCents == null ? "Paid per bottle (optional)" : "Paid per bottle (from your wishlist - change if different)"}</span>
           <div className="flex items-center gap-2">
             <input
               type="number"

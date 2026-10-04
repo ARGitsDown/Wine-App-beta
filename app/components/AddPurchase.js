@@ -8,7 +8,7 @@ import Spinner from "@/app/components/Spinner";
 import { CURRENCIES, DEFAULT_CURRENCY, MAX_LOCATION } from "@/lib/lot-fields";
 
 const inputClass =
-  "rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  "min-h-11 rounded border border-zinc-300 px-2 text-base dark:border-zinc-700 dark:bg-zinc-900";
 
 // The same wine bought again (another price, another shelf) as its own lot. A
 // small form rather than a one-tap copy: the count, the price and the place
@@ -49,7 +49,7 @@ export default function AddPurchase({ bottleId, name, location = "", locationOpt
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-3 min-h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+        className="min-h-11 self-start rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
       >
         Add another purchase of this wine
       </button>
@@ -57,7 +57,7 @@ export default function AddPurchase({ bottleId, name, location = "", locationOpt
   }
 
   return (
-    <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded border border-zinc-200 p-3 dark:border-zinc-800">
+    <form onSubmit={submit} className="flex flex-col gap-3 rounded border border-zinc-200 p-3 dark:border-zinc-800">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Bought more at a different price, or keeping some somewhere else? It becomes its own line, with the same wine
         details.

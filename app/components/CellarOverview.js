@@ -33,7 +33,8 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
   const ready = summary.window.ready;
   const headline = [
     `${summary.wines} wine${summary.wines === 1 ? "" : "s"}`,
-    summary.bottles !== summary.wines ? `${summary.bottles} bottles` : null,
+    summary.lots !== summary.wines ? `${summary.lots} lots` : null,
+    summary.bottles !== summary.lots ? `${summary.bottles} bottles` : null,
     ready > 0
       ? summary.readyEstimated > 0
         ? `${ready} ready now (${summary.readyEstimated} estimated)`
@@ -153,7 +154,7 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
                   <select
                     value={from}
                     onChange={(event) => setFrom(event.target.value)}
-                    className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    className="min-h-11 rounded border border-zinc-300 px-2 text-base dark:border-zinc-700 dark:bg-zinc-900"
                   >
                     {summary.locations.map(({ key }) => (
                       <option key={key} value={key}>
@@ -168,7 +169,7 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
                     value={to}
                     onChange={(event) => setTo(event.target.value)}
                     maxLength={80}
-                    className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                    className="min-h-11 rounded border border-zinc-300 px-2 text-base dark:border-zinc-700 dark:bg-zinc-900"
                   />
                 </label>
                 <button

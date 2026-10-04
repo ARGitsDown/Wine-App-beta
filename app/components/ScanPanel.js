@@ -1122,7 +1122,7 @@ export default function ScanPanel({
           {/* Same field as the full picker above, kept reachable here too -
               a batch can run long enough to span more than one tasting, and
               there's no way back to that first screen once photos exist. */}
-          {!flight && (
+          {!flight && intent !== "cellar" && intent !== "wishlist" && (
           <input
             type="text"
             value={eventLabel}

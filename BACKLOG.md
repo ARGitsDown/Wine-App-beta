@@ -4162,16 +4162,19 @@ too); a scan whose response is lost now warns the wines may already be saved; Un
 first; Tasted's Undo reports failure; wording (Renamed/Merged, "kept 30 days in Recently
 deleted"), 44px Home links, a pointer from "More filters" to the overview, offline greys links.
 
-**Still open from that round (UX, bigger):** after "Add purchase" the wine's own page shows no
-list of its other purchases (and the button is inside the closed Wine details); the several-lots
-line only counts rows on screen, so a filter hides it, it sits last on the row, and "Cellar at a
-glance" counts each lot as a wine; wines removed by Undo import / Undo add-purchase / scan
-removal never reach Recently deleted and the link shows even when the bin is empty; the Tasted
-bar does not say where the wine went (last bottle -> Tasting notes); the new form inputs are
-under 44px and 14px (iOS zooms); the scan strip now shows two unlabelled boxes; a wishlist
-price now prefilled in Bought it can silently become the price paid. A purchase that exactly
-matches its source lot is still its own row (merge by the quantity stepper). Data: the
-`bottleIds Int[]` could become a `Bottle.importBatchId` FK if it ever needs more than undo.
+**UX items from that round, built (2026-10-04, owner: "build the open UX items, first two first"):**
+the wine's page lists its other lots under "Also in your cellar" (each a link) with "Add another
+purchase" in view beside it; a wine's lots are counted across the whole cellar, so a filter no
+longer hides that it has more than one, and the lot line (bottles, place, price) sits on a row
+of its own, first; "Cellar at a glance" counts distinct wines and says how many lots; wines
+removed by Undo import or Undo add-purchase go to Recently deleted (`BottleTrash.listedIn`
+says which list they were on, and the page and Restore say "From Cellar" / "Restored to
+Cellar"); Home shows "Recently deleted (N)" only when the bin has something; the Tasted bar says
+where the wine went ("3 left", or "that was the last, now in Tasting notes"); the new form inputs
+are 44px and 16px; the scan strip shows the tasting/event name only for Tasting and Flight;
+Bought it labels a prefilled wishlist price "from your wishlist - change if different". **Not
+done:** wines removed from a scan batch (the card's remove button) still bypass the bin - they
+are usually a misread being dismissed, not something to bring back.
 
 **Still open:** offline reading (a service worker caching what was seen) is **not** built -
 63.12 shipped as the banner and refused writes only. 63.6 (taste profile) is folded into a

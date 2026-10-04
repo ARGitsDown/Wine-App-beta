@@ -626,12 +626,17 @@ async function tasteOneBottle(client, id, scope = {}) {
 // quantity - so opening one of a case of six both lost the five still in
 // the cellar and made `quantity` stop meaning anything. See tasteOneBottle.
 export async function markOneTasted(id) {
-  if (!Number.isInteger(id)) return;
+  if (!Number.isInteger(id)) return null;
   const result = await tasteOneBottle(db, id);
-  if (result === null) return;
+  if (result === null) return null;
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/inventory");
   revalidatePath("/consumed");
+  // Said back so the Undo bar can tell the person where the wine went: how many
+  // are left, or that this was the last one and it is now in Tasting notes.
+  if (result === "emptied") return { last: true, left: 0 };
+  const row = await db.bottle.findUnique({ where: { id }, select: { quantity: true } });
+  return { last: false, left: row?.quantity ?? null };
 }
 
 // "Add another purchase": the same wine bought again at a different price or
@@ -774,7 +779,7 @@ export async function deleteBottle(id) {
       });
       if (!bottle) return null;
       const entry = await tx.bottleTrash.create({
-        data: { domaineId, bottleId, label: wineLabel(bottle), snapshot: snapshotOf(bottle) },
+        data: { domaineId, bottleId, label: wineLabel(bottle), listedIn: bottle.status, snapshot: snapshotOf(bottle) },
       });
       await tx.bottle.delete({ where: { id: bottleId } });
       // Lazy purge: nothing schedules this, the next delete does it.

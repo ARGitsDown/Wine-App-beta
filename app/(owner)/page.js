@@ -13,6 +13,7 @@ import {
 import { getResearchCount } from "@/lib/bottles";
 import { windowBucket } from "@/lib/drink-window";
 import { readyNowText } from "@/lib/cellar-overview";
+import { trashCutoff } from "@/lib/bottle-trash";
 import { isAuthConfigured } from "@/lib/auth";
 import { signOutOfCellar } from "@/app/signin/actions";
 
@@ -69,6 +70,7 @@ export default async function HomePage() {
     unfiledFlightCount,
     researchCount,
     cellarWindows,
+    binCount,
   ] = await Promise.all([
       db.bottle.count({ where: { status: "inventory" } }),
       db.bottle.count({ where: { status: "wishlist" } }),
@@ -105,6 +107,8 @@ export default async function HomePage() {
         where: { status: "inventory" },
         select: { drinkFrom: true, drinkTo: true, drinkWindowEstimated: true },
       }),
+      // Only what is still inside the 30 days (the purge is lazy).
+      db.bottleTrash.count({ where: { deletedAt: { gte: trashCutoff() } } }),
     ]);
   const readyRows = cellarWindows.filter((bottle) => windowBucket(bottle) === "ready");
   const readyEstimated = readyRows.filter((bottle) => bottle.drinkWindowEstimated).length;
@@ -256,9 +260,11 @@ export default async function HomePage() {
         <a href="/export" className="flex min-h-11 items-center underline underline-offset-2">
           Export all your data (JSON backup) →
         </a>
-        <Link href="/deleted" className="flex min-h-11 items-center underline underline-offset-2">
-          Recently deleted →
-        </Link>
+        {binCount > 0 && (
+          <Link href="/deleted" className="flex min-h-11 items-center underline underline-offset-2">
+            Recently deleted ({binCount}) →
+          </Link>
+        )}
         <Link href="/invites" className="flex min-h-11 items-center underline underline-offset-2 sm:hidden">
           People &amp; Domaine →
         </Link>

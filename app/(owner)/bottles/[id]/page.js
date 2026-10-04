@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/scoped-prisma";
 import { currentDomaineId } from "@/lib/owner";
-import { lotLine } from "@/lib/lot-fields";
+import { lotLine, wineSiblingKey } from "@/lib/lot-fields";
 import { wineLabel } from "@/lib/bottle-trash";
 import { getLocationOptions, getRegionOptions } from "@/lib/bottles";
 import {
@@ -143,6 +143,37 @@ export default async function BottleDetailPage({ params, searchParams }) {
   ]);
 
   if (!bottle) notFound();
+
+  // The other lots of this same wine in the cellar (bought again at another
+  // price, or kept on another shelf): listed on the page, because an added
+  // purchase otherwise leaves nothing here to show it exists. The database
+  // narrows by producer; the same-wine key (which ignores case, spacing and
+  // accents) decides.
+  const otherLots =
+    bottle.status === "inventory"
+      ? (
+          await db.bottle.findMany({
+            where: {
+              status: "inventory",
+              id: { not: bottle.id },
+              producer: { equals: bottle.producer, mode: "insensitive" },
+            },
+            select: {
+              id: true,
+              producer: true,
+              bottling: true,
+              vintage: true,
+              quantity: true,
+              location: true,
+              sizeMl: true,
+              pricePaidCents: true,
+              priceCurrency: true,
+              status: true,
+            },
+            orderBy: { id: "asc" },
+          })
+        ).filter((lot) => wineSiblingKey(lot) === wineSiblingKey(bottle))
+      : [];
 
   // Where they came from, when it was a flight that still exists. Gives the
   // page a Back that names it, and - for a wine that was just tasted there - a
@@ -379,6 +410,41 @@ export default async function BottleDetailPage({ params, searchParams }) {
         )}
       </div>
 
+      {/* Where else this wine is: its other lots, and the way to add one. In
+          view rather than inside the closed "Wine details", so a purchase just
+          added shows up here and is not added twice by mistake. */}
+      {bottle.status === "inventory" && (
+        <section className="flex flex-col gap-2">
+          {otherLots.length > 0 && (
+            <>
+              <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                Also in your cellar
+              </h2>
+              <ul className="flex flex-col gap-1.5">
+                {otherLots.map((lot) => (
+                  <li key={lot.id}>
+                    <Link
+                      href={`/bottles/${lot.id}`}
+                      className="flex min-h-11 items-center rounded-lg border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                    >
+                      {[`${lot.quantity} bottle${lot.quantity === 1 ? "" : "s"}`, lotLine(lot)]
+                        .filter(Boolean)
+                        .join(" \u00b7 ")}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <AddPurchase
+            bottleId={bottle.id}
+            name={wineLabel(bottle)}
+            location={bottle.location ?? ""}
+            locationOptions={locationOptions}
+          />
+        </section>
+      )}
+
       {/* Reference reading, shown rather than kept inside the edit form below
           (where it could only be read by opening 14 fields). Plain text, not
           a card: the bordered boxes on this page are for things you fill in.
@@ -420,14 +486,6 @@ export default async function BottleDetailPage({ params, searchParams }) {
               locationOptions={locationOptions}
               idPrefix="bottle-details"
             />
-            {bottle.status === "inventory" && (
-              <AddPurchase
-                bottleId={bottle.id}
-                name={wineLabel(bottle)}
-                location={bottle.location ?? ""}
-                locationOptions={locationOptions}
-              />
-            )}
           </div>
         </details>
       </section>

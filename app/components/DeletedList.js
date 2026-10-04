@@ -39,12 +39,12 @@ export default function DeletedList({ rows: initialRows }) {
           <span className="min-w-0 flex-1">
             <span className="font-medium">{row.label}</span>
             <span className="block text-xs text-zinc-500">
-              Deleted {row.deleted} · {row.daysLeft} day{row.daysLeft === 1 ? "" : "s"} left
+              {row.list ? `From ${row.list} \u00b7 ` : ""}Deleted {row.deleted} · {row.daysLeft} day{row.daysLeft === 1 ? "" : "s"} left
             </span>
           </span>
           {restored[row.id] ? (
             <Link href={`/bottles/${restored[row.id]}`} className="flex min-h-11 items-center underline underline-offset-2">
-              Restored · view
+              {row.list ? `Restored to ${row.list}` : "Restored"} · view
             </Link>
           ) : (
             <button

@@ -1,7 +1,7 @@
 import BackButton from "@/app/components/BackButton";
 import DeletedList from "@/app/components/DeletedList";
 import { db } from "@/lib/scoped-prisma";
-import { TRASH_DAYS, daysLeftInBin, trashCutoff } from "@/lib/bottle-trash";
+import { TRASH_DAYS, daysLeftInBin, listName, trashCutoff } from "@/lib/bottle-trash";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export default async function DeletedPage() {
   const entries = await db.bottleTrash.findMany({
     where: { deletedAt: { gte: trashCutoff() } },
     orderBy: { deletedAt: "desc" },
-    select: { id: true, label: true, deletedAt: true },
+    select: { id: true, label: true, deletedAt: true, listedIn: true },
     take: 200,
   });
   // Days left are worked out from the date alone, in the server's clock; the
@@ -22,6 +22,7 @@ export default async function DeletedPage() {
   const rows = entries.map((entry) => ({
     id: entry.id,
     label: entry.label,
+    list: listName(entry.listedIn),
     deleted: entry.deletedAt.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     daysLeft: daysLeftInBin(entry.deletedAt),
   }));

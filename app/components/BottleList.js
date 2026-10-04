@@ -62,7 +62,16 @@ function QuantityStepper({ bottle }) {
 // passes the open flights, everything else passes nothing and the control
 // never renders. A flight is a queue of bottles you can open, so it has no
 // business on the wishlist, on history, or on a guest's view.
-export default function BottleList({ bottles, emptyMessage, flights = null }) {
+export default function BottleList({
+  bottles,
+  emptyMessage,
+  flights = null,
+  // How many lots of each wine the WHOLE list holds, keyed by wineSiblingKey.
+  // A filtered view passes the full list's counts: counting only the rows on
+  // screen made a wine look like a single lot as soon as a filter hid the
+  // other one.
+  lotCounts = null,
+}) {
   const [expandedIds, setExpandedIds] = useState(new Set());
 
   function toggle(id) {
@@ -84,10 +93,12 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
   // A wine held as several lots (bought twice at different prices, or split
   // across two shelves) shows how its lots differ on each row, since they
   // otherwise read as the same wine listed twice.
-  const lotsOfWine = new Map();
-  for (const bottle of bottles) {
-    const key = wineSiblingKey(bottle);
-    lotsOfWine.set(key, (lotsOfWine.get(key) ?? 0) + 1);
+  const lotsOfWine = new Map(lotCounts ? Object.entries(lotCounts) : []);
+  if (!lotCounts) {
+    for (const bottle of bottles) {
+      const key = wineSiblingKey(bottle);
+      lotsOfWine.set(key, (lotsOfWine.get(key) ?? 0) + 1);
+    }
   }
 
   return (
@@ -105,11 +116,18 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
         const detailLine = [
           wineOrigin(bottle),
           drinkWindowLabel(bottle),
-          severalLots ? `${bottle.quantity} bottle${bottle.quantity === 1 ? "" : "s"}` : null,
-          lotLine(bottle, { withPrice: severalLots }),
+          severalLots ? null : lotLine(bottle, { withPrice: false }),
         ]
           .filter(Boolean)
           .join(" · ");
+        // What tells this lot from the wine's other lots goes on a line of its
+        // own, first: at phone width it would otherwise wrap off the end of the
+        // region and window.
+        const lotDetail = severalLots
+          ? [`${bottle.quantity} bottle${bottle.quantity === 1 ? "" : "s"}`, lotLine(bottle)]
+              .filter(Boolean)
+              .join(" · ")
+          : null;
         return (
           <li
             key={bottle.id}
@@ -151,6 +169,11 @@ export default function BottleList({ bottles, emptyMessage, flights = null }) {
                     not what you read. Nothing at all when there's nothing
                     on file - a blank line is not information, and the
                     expanded panel already says so in words. */}
+                {lotDetail && (
+                  <span className="mt-0.5 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                    {lotDetail}
+                  </span>
+                )}
                 {detailLine && (
                   <span className="mt-0.5 block text-xs text-zinc-500">
                     {detailLine}
