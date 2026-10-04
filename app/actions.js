@@ -408,32 +408,59 @@ export async function updateAcquiredDate(id, formData) {
   }
 }
 
+// Takes one bottle out of a wine's count - the one place that does it, used
+// by "Tasted one" on a bottle, by a flight pick being tasted, and by "We drank
+// it" on a pairing. Each of those used to read the row, work out the new
+// count, and write it, with nothing stopping two taps in the same moment both
+// reading 3 and both writing 2, and nothing checking the wine was still in
+// the cellar: after "Tasted all N" a further tap decremented a History row,
+// and on a wishlist wine it jumped straight to Tasted with no arrival date.
+//
+// Now each step is one conditional UPDATE, so Postgres decides who got there
+// first: above one it decrements, and only while the wine is in the cellar;
+// the last bottle moves the row to History with the end date stamped; and
+// anything else (already History, a wishlist wine, gone) changes nothing and
+// says so with null. `client` is the scoped client for the ordinary callers,
+// or a transaction on the plain client with the Domaine passed in `scope`
+// (the scoped client would add that filter itself).
+//
+// A row is the wine, not an individual bottle, so it only leaves the cellar
+// once the last one is gone. The record of *when* each bottle was drunk lives
+// in that wine's tasting notes, which carry their own dates.
+async function tasteOneBottle(client, id, scope = {}) {
+  const decremented = await client.bottle.updateMany({
+    where: { id, ...scope, status: "inventory", quantity: { gt: 1 } },
+    data: { quantity: { decrement: 1 } },
+  });
+  if (decremented.count > 0) return "decremented";
+
+  const row = await client.bottle.findFirst({
+    where: { id, ...scope, status: "inventory" },
+    select: { emptiedAt: true },
+  });
+  if (!row) return null;
+  const emptied = await client.bottle.updateMany({
+    where: { id, ...scope, status: "inventory", quantity: { lte: 1 } },
+    data: {
+      status: "consumed",
+      quantity: 1,
+      emptiedAt: emptiedAtForStatus("consumed", row.emptiedAt),
+    },
+  });
+  if (emptied.count > 0) return "emptied";
+  // Someone else's tap landed between the two statements and took it from
+  // above one to exactly one: this tap is the last bottle after all.
+  return tasteOneBottle(client, id, scope);
+}
+
 // Tasting one bottle out of several you own. This used to go through
 // setBottleStatus, which moved the whole row to History regardless of
 // quantity - so opening one of a case of six both lost the five still in
-// the cellar and made `quantity` stop meaning anything.
-//
-// A row is the wine, not an individual bottle, so it only leaves the cellar
-// once the last one is gone: above one, this just decrements. The record of
-// *when* each bottle was drunk lives in that wine's tasting notes, which
-// carry their own dates and stay attached either way.
+// the cellar and made `quantity` stop meaning anything. See tasteOneBottle.
 export async function markOneTasted(id) {
-  const bottle = await db.bottle.findUnique({
-    where: { id },
-    select: { quantity: true, emptiedAt: true },
-  });
-  if (!bottle) return;
-
-  const data =
-    bottle.quantity > 1
-      ? { quantity: bottle.quantity - 1 }
-      : {
-          status: "consumed",
-          quantity: 1,
-          emptiedAt: emptiedAtForStatus("consumed", bottle.emptiedAt),
-        };
-
-  await db.bottle.update({ where: { id }, data });
+  if (!Number.isInteger(id)) return;
+  const result = await tasteOneBottle(db, id);
+  if (result === null) return;
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/inventory");
   revalidatePath("/consumed");
@@ -2922,10 +2949,13 @@ export async function markFlightPickConsumed(pickId) {
   });
   if (!pick || pick.consumed) return;
 
-  await db.flightPick.update({
-    where: { id: pickId },
+  // The flag flips only if it is still false, so a double-tap (or the same
+  // wine ticked from two tabs) takes one bottle off, not two.
+  const claimed = await db.flightPick.updateMany({
+    where: { id: pickId, consumed: false },
     data: { consumed: true },
   });
+  if (claimed.count === 0) return;
   if (pick.originFlightOnly) {
     // The same bottle can end up in more than one open flight (nothing
     // stops it), so this can run on a bottle that's already consumed with
@@ -3299,8 +3329,10 @@ export async function setPairingPickDecision(pickId, decision) {
             producer: { equals: gap.producer, mode: "insensitive" },
             ...(gap.type ? { type: { equals: gap.type, mode: "insensitive" } } : {}),
           },
-          // "inventory" sorts before "wishlist": a wine you own wins.
-          orderBy: { status: "asc" },
+          // "inventory" sorts before "wishlist": a wine you own wins, and the
+          // oldest row wins among equals, so the same wine always resolves to the
+          // same row once a wine can have more than one.
+          orderBy: [{ status: "asc" }, { id: "asc" }],
           select: { id: true, status: true },
         });
         if (existing) {

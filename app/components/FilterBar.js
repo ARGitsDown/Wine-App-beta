@@ -89,7 +89,7 @@ export default function FilterBar({
           <span className="ml-2 text-zinc-500">
             {narrowed
               ? `${resultCount} of ${totalCount} shown`
-              : `${totalCount} bottle${totalCount === 1 ? "" : "s"}`}
+              : `${totalCount} wine${totalCount === 1 ? "" : "s"}`}
           </span>
         </summary>
 

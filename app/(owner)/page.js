@@ -199,7 +199,7 @@ export default async function HomePage() {
       href: "/inventory",
       label: "Cellar",
       count: inventoryCount,
-      description: "Bottles",
+      description: "Wines",
       Icon: CellarIcon,
       accent: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
     },

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth, isAuthConfigured } from "@/lib/auth";
-import { getGuestCellar, resolveGuestView } from "@/lib/guest";
+import { GUEST_BOTTLE_SELECT, getGuestCellar, resolveGuestView } from "@/lib/guest";
 import { getRegionOptions } from "@/lib/bottles";
 import { canonicalizeVarietal } from "@/lib/varietal-match";
 import { signOutOfCellar } from "@/app/signin/actions";
@@ -47,7 +47,11 @@ export default async function GuestPage({ searchParams }) {
   const [rows, regionOptions, filters] = await Promise.all([
     prisma.bottle.findMany({
       where: { status: "inventory", domaineId },
-      include: { favorites: { where: { guestId: guest.id }, select: { id: true } } },
+      // An allowlist (lib/guest.js): this goes to the browser.
+      select: {
+        ...GUEST_BOTTLE_SELECT,
+        favorites: { where: { guestId: guest.id }, select: { id: true } },
+      },
       orderBy: { producer: "asc" },
     }),
     getRegionOptions(domaineId),
