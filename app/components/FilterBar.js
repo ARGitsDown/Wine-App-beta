@@ -267,6 +267,7 @@ export default function FilterBar({
               key={chip.key}
               type="button"
               onClick={() => set(chip.key, "")}
+              data-offline-ok
               aria-label={`Remove filter ${chip.label}`}
               className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-zinc-300 px-3 text-xs text-zinc-700 hover:border-zinc-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:focus-visible:outline-zinc-100"
             >
@@ -279,6 +280,7 @@ export default function FilterBar({
           {chips.length > 1 && (
             <button
               type="button"
+              data-offline-ok
               onClick={onClear}
               className="min-h-9 rounded px-2 text-xs text-zinc-600 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 dark:text-zinc-400 dark:focus-visible:outline-zinc-100"
             >

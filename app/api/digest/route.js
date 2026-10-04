@@ -65,11 +65,18 @@ export async function GET(request) {
     });
     if (claimed.count === 0) continue;
 
-    const release = () =>
-      prisma.user.updateMany({
-        where: { id: person.id, digestLastSentAt: now },
-        data: { digestLastSentAt: person.digestLastSentAt },
-      });
+    // Putting the claim back must never throw out of the loop (a second
+    // database failure would otherwise stop every later person's digest).
+    const release = async () => {
+      try {
+        await prisma.user.updateMany({
+          where: { id: person.id, digestLastSentAt: now },
+          data: { digestLastSentAt: person.digestLastSentAt },
+        });
+      } catch (err) {
+        console.error("Couldn't release a digest claim:", err);
+      }
+    };
 
     try {
       const bottles = await prisma.bottle.findMany({

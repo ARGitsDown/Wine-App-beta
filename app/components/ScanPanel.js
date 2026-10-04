@@ -1073,6 +1073,7 @@ export default function ScanPanel({
             Next photos go to{" "}
             <span className="font-medium text-zinc-700 dark:text-zinc-300">
               {flight ? flight.name : SCAN_INTENTS.find((i) => i.value === intent)?.short}
+              {!flight && intent === "cellar" && location.trim() ? ` \u00b7 ${location.trim()}` : ""}
             </span>
           </span>
           <div className="flex items-center gap-2">

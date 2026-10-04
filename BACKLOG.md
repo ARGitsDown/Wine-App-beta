@@ -4115,6 +4115,35 @@ Already tracked elsewhere and not repeated: pairing search, "Drink offered on a 
 have", the dimmed Hold contrast, "Drink tonight" wording (see the end of #62's saved-pairings
 sections), sharing a single flight or tasting notes (FUTURE_CAPABILITIES.md).
 
+### 63 build status (2026-10-04)
+
+Built, in this order, each with its own commit, a Playwright check against a production build
+and (where logic lives in a pure module) unit checks in `npm run verify`: guest `select`
+allowlist and atomic `tasteOneBottle`; **63.1** We drank it (`drankAt`); the lot migration
+**63.3 / 63.4 / 63.5** (`sizeMl`, `location`, `pricePaidCents`, `priceCurrency`, "Add another
+purchase", scan batch place, export `schemaVersion` 3); **63.2** Bought it (`markBought` /
+`undoBought`, plus the layout-level Undo bar); **63.7** Cellar at a glance (+ Drinking and Place
+filters, "N ready now", Rename a place); **63.11** `BottleTrash` undo for deletes; **63.12**
+offline banner (refuses writes, queues nothing) and **63.9** print cards; **63.8** opt-in digest
+email (`CRON_SECRET`, daily Vercel Cron); **63.10** CSV import with preview, lot merging,
+duplicate skipping and a guarded undo. **63.6 (taste profile) deliberately not built** - the
+owner folded it into a larger capability.
+
+A second round of the three reviewers over the finished build found, and this round fixed: scan
+looked the batch place up *after* the paid call; Bought it wiped a price the wishlist row held;
+import ignored the place-spelling rule, built one row per bottle and its undo could delete
+edited rows; the offline guard blocked filter-chip removal and let the Import button through;
+digest wording, an estimated marker and the weekly option (windows are whole years, so a weekly
+email repeats itself - only Monthly is offered now); imported windows are marked estimated.
+
+**Still open (reviewers' findings not built, small):** "Add another purchase" creates at once
+with no confirmation and no toast; "Recently deleted" has no page (the 12-second toast is the
+only way back, so the 30-day bin is unreachable after that); Rename a place has no Undo; the
+Cellar overview and "More filters" both offer Drinking and Place; offline links are not
+refused; the import's Undo only lives while its page stays open; the Undo bar does not name the
+wine; offline reading (a service worker caching what was seen) is **not** built - 63.12 shipped
+as the banner and refused writes only.
+
 ### 63 review: UX critic, data engineer and AI reviewer on the plan (2026-10-04)
 
 Two things the reviews found wrong in the list above: **63.2 "bought it" already exists** - on a

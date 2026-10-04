@@ -25,7 +25,9 @@ const useOffline = () =>
 // Controls that only look at what is already on the screen, so they keep
 // working offline: anything that opens or closes something (aria-expanded),
 // a filter toggle (aria-pressed), a "Cancel", and anything marked
-// data-offline-ok. Every other button is a write or a navigation.
+// data-offline-ok. Every other button is a write or a navigation. A button
+// inside a form is left to the submit listener unless it is marked
+// data-offline-write (one that calls an action directly).
 const READ_ONLY = "[aria-expanded], [aria-pressed], [data-offline-ok], summary";
 
 // The app installs to the home screen and is used in cellars and basements
@@ -55,7 +57,7 @@ export default function OfflineGuard() {
       // A button inside a form is either a control for the form (stars, a
       // Cancel) or its submit; the submit is refused by the listener above,
       // so the click itself is left alone.
-      if (button.form) return;
+      if (button.form && !button.hasAttribute("data-offline-write")) return;
       refuse(event);
     }
     document.addEventListener("submit", refuse, true);

@@ -6,7 +6,6 @@ import { setDigestFrequency } from "@/app/(owner)/invites/actions";
 const OPTIONS = [
   { value: "", label: "Off" },
   { value: "monthly", label: "Monthly" },
-  { value: "weekly", label: "Weekly" },
 ];
 
 // Your own choice, saved the moment you tap it: three radios in one group, the

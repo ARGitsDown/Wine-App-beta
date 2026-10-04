@@ -112,6 +112,10 @@ model User {
   // NULL for off. NULL is the default and nobody is opted in by anything but
   // their own choice on the People page. A person's own setting, not the
   // Domaine's: each member decides what lands in their inbox.
+  // CHECKed to 'weekly' | 'monthly' (User_digestFrequency_known), so adding a
+  // word needs a migration - unlike the plain-String columns elsewhere. The
+  // People page only offers monthly: windows are whole years, so a weekly
+  // email would repeat itself.
   digestFrequency  String?
   // When the last digest was claimed for this person. The cron route claims a
   // send with a conditional UPDATE on this column (set only if it still holds
@@ -279,7 +283,8 @@ model Invite {
   @@index([domaineId])
 }
 
-// A single wine, in one of four states:
+// A single wine - or, once it has a size, place and price, one LOT of it (see
+// the lot comment below) - in one of four states:
 // - wishlist: something to try or buy, not owned yet
 // - inventory: currently owned/in the cellar
 // - flight: queued for a flight and never (yet) owned - a wine tasted at
@@ -331,6 +336,11 @@ model Bottle {
   // later without this being in the way.
   subRegion            String?
   country              String?
+  // Bottles in this lot, always >= 1 (CHECK Bottle_quantity_positive, not
+  // modelled by Prisma): tasting the last bottle moves the row to History at
+  // quantity 1, while "Tasted all" keeps the count, so on a History row this is
+  // "how many were in the lot when it was finished", not a number to sum for
+  // value. Totals of money or litres count cellar rows only.
   quantity             Int       @default(1)
   status               String    @default("wishlist")
   // The owner's own words about the bottle, as opposed to criticNotes
@@ -446,6 +456,10 @@ model Bottle {
   // `notes` ("Source"), which is deliberately free text.
   pricePaidCents       Int?
   priceCurrency        String?
+  // CHECK constraints Prisma does not model (see the migration): Bottle_lot_sane
+  // (size 50-30000 ml, a non-blank place, price >= 0 with currency set
+  // together and three capital letters) and Bottle_quantity_positive. Both are
+  // invisible to `migrate diff`.
 
   // Whose cellar this is - every member of the Domaine sees it, and
   // lib/scoped-prisma.js filters every query on it.
@@ -983,6 +997,10 @@ model BottleTrash {
   id        Int      @id @default(autoincrement())
   domaineId String
   domaine   Domaine  @relation(fields: [domaineId], references: [id], onDelete: Cascade)
+  // The id the wine had, re-used by restore. Retention is 30 days but only
+  // enforced when the next delete purges, so it is a minimum, not a guarantee
+  // of removal; a restore that predates a dropped Bottle column fails with the
+  // generic error.
   bottleId  Int
   // The wine's name as it read when deleted ("Rochioli 2018"), for the Undo
   // line and for anything that later lists the bin.

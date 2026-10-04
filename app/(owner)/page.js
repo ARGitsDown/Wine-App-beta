@@ -103,12 +103,12 @@ export default async function HomePage() {
       // Two small integers per cellar row, to say how many are ready to open.
       db.bottle.findMany({
         where: { status: "inventory" },
-        select: { drinkFrom: true, drinkTo: true },
+        select: { drinkFrom: true, drinkTo: true, drinkWindowEstimated: true },
       }),
     ]);
-  const readyNow = readyNowText(
-    cellarWindows.filter((bottle) => windowBucket(bottle) === "ready").length
-  );
+  const readyRows = cellarWindows.filter((bottle) => windowBucket(bottle) === "ready");
+  const readyEstimated = readyRows.filter((bottle) => bottle.drinkWindowEstimated).length;
+  const readyNow = readyNowText(readyRows.length, readyEstimated);
   const plannedCount = plannedPairings.length;
 
   // Two columns, ordered by how often each one is actually reached for

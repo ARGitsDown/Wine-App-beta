@@ -50,6 +50,7 @@ export default function DeleteBottleButton({ bottleId, warning, className }) {
       </button>
       <button
         type="button"
+        data-offline-ok
         onClick={() => setArmed(false)}
         disabled={pending}
         className="min-h-11 rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"

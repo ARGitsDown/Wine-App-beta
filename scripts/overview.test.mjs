@@ -35,7 +35,7 @@ t("regions", s.regions, [{ key: "Bordeaux", count: 2 }, { key: "Loire", count: 1
 t("places and unplaced", [s.locations, s.unplaced], [[{ key: "Rack B", count: 2 }, { key: "Fridge", count: 1 }], 1]);
 t("top regions is capped", summarizeCellar(Array.from({ length: 9 }, (_, i) => ({ quantity: 1, region: `R${i}` })), Y).regions.length, 6);
 t("empty cellar", summarizeCellar([], Y).wines, 0);
-t("ready text", [readyNowText(8), readyNowText(0)], ["8 ready now", null]);
+t("ready text", [readyNowText(8), readyNowText(0), readyNowText(8, 3)], ["8 ready now", null, "8 ready now \u00b7 3 est."]);
 
 console.log(`overview: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

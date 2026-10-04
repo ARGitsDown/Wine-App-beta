@@ -72,7 +72,7 @@ export default function UndoProvider({ children }) {
       {toast && (
         <div
           role="status"
-          className="fixed inset-x-4 bottom-20 z-40 mx-auto flex max-w-md items-center gap-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg sm:bottom-6 dark:bg-zinc-100 dark:text-zinc-900"
+          className="fixed inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-md items-center gap-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg sm:bottom-6 dark:bg-zinc-100 dark:text-zinc-900"
         >
           <span className="min-w-0 flex-1">{toast.error ?? toast.message}</span>
           {!toast.error && (
@@ -88,6 +88,7 @@ export default function UndoProvider({ children }) {
           <button
             type="button"
             onClick={dismiss}
+            data-offline-ok
             aria-label="Dismiss"
             className="flex min-h-11 min-w-11 shrink-0 items-center justify-center text-lg leading-none opacity-70"
           >

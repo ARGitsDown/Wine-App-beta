@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { renameLocation } from "@/app/actions";
 import { summarizeCellar } from "@/lib/cellar-overview";
 import { WINDOW_LABELS } from "@/lib/filter-bottles";
@@ -19,6 +19,7 @@ const chipBase =
 // hundreds still opens on the list.
 export default function CellarOverview({ bottles, filters, onFilter }) {
   const summary = useMemo(() => summarizeCellar(bottles), [bottles]);
+  const detailsRef = useRef(null);
   const [renaming, setRenaming] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -40,8 +41,11 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
     .filter(Boolean)
     .join(" · ");
 
+  // The list is below the summary and off-screen on a phone, so a tap closes
+  // the summary to bring the narrowed list up.
   function toggle(key, value) {
     onFilter(key, filters[key] === value ? "" : value);
+    if (detailsRef.current) detailsRef.current.open = false;
   }
 
   function chip(key, value, label, count) {
@@ -89,7 +93,7 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
   );
 
   return (
-    <details className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+    <details ref={detailsRef} className="rounded-lg border border-zinc-200 dark:border-zinc-800">
       <summary className="min-h-11 cursor-pointer px-4 py-2.5 text-sm">
         <span className="font-medium">Cellar at a glance</span>
         <span className="ml-2 text-zinc-500">{headline}</span>
@@ -103,7 +107,7 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
         )}
         {summary.colors.length > 0 &&
           group(
-            "Colour",
+            "Color",
             summary.colors.map(({ key, count }) => chip("wineColor", key, key, count))
           )}
         {summary.regions.length > 0 &&

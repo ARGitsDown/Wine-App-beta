@@ -757,6 +757,12 @@ Add or reorder freely, then ask for any of them to be written up:
 - **Security basics** beyond this app: secrets, injection, least privilege
 - **Backups and recovery** - rehearse restoring from `/export`
 - A guided tour: pick one feature and trace it from tap to database
+- **Undo without a `deletedAt` column** - why deleted wines go to a snapshot
+  table (`BottleTrash`) instead, and what restoring has to re-link
+- **"Claim, then act"** - how a conditional UPDATE keeps two overlapping runs
+  from both sending the digest email (and why a failed send puts it back)
+- **A "lot" of bottles** - why size, place and price live on a row rather than
+  on each bottle, and what that does to counting and totals
 
 ---
 

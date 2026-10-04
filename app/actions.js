@@ -410,7 +410,7 @@ export async function markBought(id, { quantity, price, currency } = {}) {
   try {
     const existing = await db.bottle.findUnique({
       where: { id: bottleId },
-      select: { status: true, quantity: true },
+      select: { status: true, quantity: true, pricePaidCents: true, priceCurrency: true },
     });
     if (!existing || existing.status !== "wishlist") {
       return { error: "That wine is no longer on your wishlist." };
@@ -421,8 +421,9 @@ export async function markBought(id, { quantity, price, currency } = {}) {
         status: "inventory",
         quantity: count,
         acquiredAt: acquiredAtForStatus("inventory", null),
-        pricePaidCents: cents,
-        priceCurrency: cents === null ? null : parseCurrency(currency),
+        // A price typed now replaces one the wishlist row already held (a
+        // target price, say); a blank box leaves it alone rather than wiping it.
+        ...(cents === null ? {} : { pricePaidCents: cents, priceCurrency: parseCurrency(currency) }),
       },
     });
     if (moved.count === 0) return { error: "That wine is no longer on your wishlist." };
@@ -430,7 +431,13 @@ export async function markBought(id, { quantity, price, currency } = {}) {
     revalidatePath("/inventory");
     revalidatePath("/pairings");
     revalidatePath(`/bottles/${bottleId}`);
-    return { ok: true, boughtQuantity: count, previousQuantity: existing.quantity };
+    return {
+      ok: true,
+      boughtQuantity: count,
+      previousQuantity: existing.quantity,
+      previousPriceCents: existing.pricePaidCents,
+      previousPriceCurrency: existing.priceCurrency,
+    };
   } catch (err) {
     console.error("Failed to move a wine to the cellar:", err);
     return { error: "Couldn't move that wine. Please try again." };
@@ -441,22 +448,29 @@ export async function markBought(id, { quantity, price, currency } = {}) {
 // exactly as markBought left it (a cellar row of the same count): once a
 // bottle has been opened or the count changed, quietly rewinding would lose
 // that, so it is refused and the person edits it by hand.
-export async function undoBought(id, { boughtQuantity, previousQuantity } = {}) {
+export async function undoBought(
+  id,
+  { boughtQuantity, previousQuantity, previousPriceCents = null, previousPriceCurrency = null } = {}
+) {
   const bottleId = Number(id);
   const bought = Number(boughtQuantity);
   const previous = Number(previousQuantity);
   if (![bottleId, bought, previous].every((n) => Number.isInteger(n) && n >= 1)) {
     return { error: "Couldn't undo that." };
   }
+  // Whatever price the wishlist row held before goes back (the two travel
+  // together, as the CHECK requires); anything else is dropped as invalid.
+  const priceBack =
+    Number.isInteger(previousPriceCents) && previousPriceCents >= 0 && /^[A-Z]{3}$/.test(previousPriceCurrency ?? "")
+      ? { pricePaidCents: previousPriceCents, priceCurrency: previousPriceCurrency }
+      : { pricePaidCents: null, priceCurrency: null };
   const reverted = await db.bottle.updateMany({
     where: { id: bottleId, status: "inventory", quantity: bought },
     data: {
       status: "wishlist",
       quantity: previous,
-      acquiredAt: null,
-      pricePaidCents: null,
-      priceCurrency: null,
-      location: null,
+      acquiredAt: acquiredAtForStatus("wishlist", null),
+      ...priceBack,
     },
   });
   if (reverted.count === 0) {
@@ -600,11 +614,6 @@ export async function markOneTasted(id) {
   revalidatePath("/consumed");
 }
 
-// Correcting the count in place (bought two more, miscounted), as opposed
-// to markOneTasted's "I drank one". Deliberately floors at 1: dropping to
-// zero is the same thing as no longer owning any, which is what
-// markOneTasted is for, and doing it here would strand a bottle in
-// the cellar at quantity 0.
 // "Add another purchase": the same wine bought again at a different price or
 // kept in another place is a new lot (see the Bottle lot comment in
 // prisma/schema.prisma), so this copies the wine's identity into a fresh
@@ -645,6 +654,11 @@ export async function addAnotherPurchase(id) {
   redirect(`/bottles/${created.id}?details=1`);
 }
 
+// Correcting the count in place (bought two more, miscounted), as opposed
+// to markOneTasted's "I drank one". Deliberately floors at 1: dropping to
+// zero is the same thing as no longer owning any, which is what
+// markOneTasted is for, and doing it here would strand a bottle in
+// the cellar at quantity 0.
 export async function adjustBottleQuantity(id, delta) {
   const bottle = await db.bottle.findUnique({
     where: { id },

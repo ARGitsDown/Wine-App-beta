@@ -54,7 +54,7 @@ export default function ImportPanel() {
           <p className="text-sm">
             Undone: removed {undone.removed} wine{undone.removed === 1 ? "" : "s"}.
             {undone.kept > 0 &&
-              ` Kept ${undone.kept} that you've added notes or other links to since - delete those by hand if you want them gone.`}
+              ` Kept ${undone.kept} that you've changed or added to since - delete those by hand if you want them gone.`}
           </p>
         ) : (
           <>
@@ -145,7 +145,7 @@ export default function ImportPanel() {
             {preview.skipped > 0 && ` ${preview.skipped} row${preview.skipped === 1 ? "" : "s"} skipped.`}
           </p>
           <p className="text-zinc-500">
-            Read from: {preview.mapping.map((m) => `${m.label} ← ${m.header}`).join(" · ")}
+            Read from: {preview.mapping.map((m) => `${m.label} from “${m.header}”`).join(" · ")}
           </p>
           {preview.ignored.length > 0 && (
             <p className="text-zinc-500">Not used: {preview.ignored.join(", ")}</p>
@@ -202,6 +202,7 @@ export default function ImportPanel() {
             <div className="flex items-center gap-3">
               <button
                 type="button"
+                data-offline-write
                 onClick={() => submitWith(commitAction)}
                 disabled={committing}
                 className={buttonClass}

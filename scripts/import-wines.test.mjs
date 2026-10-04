@@ -1,7 +1,7 @@
 // The CSV reader and the wine importer: formats, every refusal, and that
 // nothing unreadable is stored as if it were read.
 import { parseCsv, detectDelimiter } from "../lib/csv.js";
-import { prepareImport, parseSizeText, parseYear, parseDay, duplicateKey, mapHeaders, MAX_IMPORT_ROWS } from "../lib/import-wines.js";
+import { mergeLots, lotKey, prepareImport, parseSizeText, parseYear, parseDay, duplicateKey, mapHeaders, MAX_IMPORT_ROWS } from "../lib/import-wines.js";
 
 let pass = 0, fail = 0;
 function t(name, got, want) {
@@ -64,6 +64,13 @@ t("each unreadable value is reported by line", w.warnings.map((x) => `${x.line}:
 t("an unreadable value is dropped, not stored", [w.wines[0].vintage, w.wines[0].quantity, w.wines[0].sizeMl, w.wines[0].pricePaidCents, w.wines[0].drinkFrom], [null, 1, null, null, null]);
 t("a price in an unsupported currency is not kept as dollars", [w.wines[1].pricePaidCents, w.wines[1].priceCurrency], [null, null]);
 t("header names are matched loosely", Object.keys(mapHeaders(["  WINERY ", "Bottle Price", "Qty"]).index), ["producer", "quantity", "price"]);
+
+// ---- lots
+const per = prepareImport("Producer,Vintage,Price,Location\nA,2018,20,Rack B\nA,2018,20,rack b\nA,2018,25,Rack B\nA,2018,20,Fridge\nB,2018,20,Rack B\n");
+t("identical lines merge into one lot with a quantity", per.wines.map((w) => `${w.producer}:${w.quantity}:${w.pricePaidCents}:${w.location}`), ["A:2:2000:Rack B", "A:1:2500:Rack B", "A:1:2000:Fridge", "B:1:2000:Rack B"]);
+t("merge count is reported", per.merged, 1);
+t("quantities never pass 999", mergeLots([{ producer: "A", quantity: 600 }, { producer: "A", quantity: 600 }]).map((w) => w.quantity), [600, 600]);
+t("lot key separates price", lotKey({ producer: "A", pricePaidCents: 1 }) === lotKey({ producer: "A", pricePaidCents: 2 }), false);
 
 console.log(`import-wines: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
