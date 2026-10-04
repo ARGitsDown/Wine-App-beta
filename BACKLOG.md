@@ -3928,7 +3928,7 @@ Built from the contact sheets made with the app's own components.
   greyed; undecided has no pill. Replaces the one run-on summary line, so
   `pairingSummaryLine` and `pairingDishes` are gone from `lib/pairings.js`.
 - Still open: "Tonight" and Drink overlap and need a clearer concept (the owner said to keep
-  both for now); "Add a tasting note" under a wine still shows only on a tonight pairing, for
+  both for now; settled later: now "Plan for tonight", #66); "Add a tasting note" under a wine still shows only on a tonight pairing, for
   an owned wine not on hold.
 
 New: `PairingDecision` (client), `setPairingPickDecision`, `groupPicksByDish`,
@@ -3989,6 +3989,7 @@ it was marked, or today for rows with no date) and was checked on seeded rows.
 the dimmed Hold card's contrast (#5), blue meaning both "Drink" and "link" (#6), the label
 "Hold" (kept for now, by the owner), radio-vs-toggle semantics and a selected-state check icon
 (#10), the missing "We drank it" step that turns Drink into tasted, and a pairing search.
+*(All but pairing search were built later: "We drank it" in #63.1, the rest in #66.)*
 
 Checked on a production build: the list order and each badge, a passed day reading Queued and
 never Overdue, the whole-row tap, Drink tonight storing the New York day, Pick a day / Change day
@@ -4190,10 +4191,9 @@ are usually a misread being dismissed, not something to bring back.
 
 **Still open:** offline reading (a service worker caching what was seen) is **not** built -
 63.12 shipped as the banner and refused writes only. 63.6 (taste profile) is folded into a
-larger capability by the owner. Earlier carried-over items (not part of #63): Drink offered on
-a wine no longer owned, dimmed Hold contrast, blue meaning both Drink and link, accessibility
-cues on the Drink/Hold tiles, "Drink tonight" wording, pairing search; model testing against
-the live API is paused (#59).
+larger capability by the owner. Earlier carried-over pairings items were built in #66 (all
+except pairing search, which stays open there). Model testing against the live API is paused
+(#59).
 
 ### 63 review: UX critic, data engineer and AI reviewer on the plan (2026-10-04)
 

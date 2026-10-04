@@ -17,8 +17,10 @@ throws on construction in a browser. Dev assembles the module graph
 differently and never threw. Every check run that session was a dev check,
 so nothing caught it until the owner opened the deployed app.
 
-`npm run verify` is the unit checks (the sign-in policy, the usage-limit
-arithmetic, the AI answer guards), then lint, then a production build,
+`npm run verify` is eleven unit checks (sign-in policy, usage-limit arithmetic,
+AI answer guards, constants, pairings, lot fields, cellar overview, the recycle
+bin, print cards, the digest, CSV import; `npm run test:policy` runs just
+these), then lint, then a production build,
 then `next start`, then `scripts/smoke.mjs` opening all 19 pages in a real
 browser and failing on any error boundary, page error or 5xx. It takes
 about a minute. Run it

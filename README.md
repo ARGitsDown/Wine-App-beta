@@ -15,7 +15,7 @@ or multiple locations in one cellar.
 - **Cellar** (`/inventory`) — bottles you own, with add/edit/remove, a
   free-text search box (producer, bottling, region, vintage - whatever you
   remember about it), and filtering by variety, region, sub-region,
-  country, color, vintage, and rating. Searching and filtering happen in
+  country, color, vintage, rating, drinking window and place. Searching and filtering happen in
   the browser as you type: the whole list is already there, so narrowing
   it is instant rather than a round-trip per keystroke. The filter panel
   starts collapsed so the bottles themselves are what's on screen first,
@@ -127,12 +127,13 @@ or multiple locations in one cellar.
   rather than waiting on a manual confirm - so navigating away (or the tab
   closing) mid-batch never loses a wine that already came back; review and
   correct each card afterward, or remove one you don't want. Before picking
-  photos you tap where the batch lands — Cellar, Wishlist or Tasting, as
-  three cards carrying the same icons and colors those places have on the
-  home screen — and every wine in it goes there, rather than the app
+  photos you tap where the batch lands — Cellar, Wishlist, Tasting or Flight, as
+  four tiles in one row carrying the same icons and colors those places have
+  on the home screen (Flight is for wines that belong only to a tasting
+  flight, never counted in the cellar) — and every wine in it goes there, rather than the app
   guessing from whether the source happened to carry tasting notes; any
   single card can still be moved on its own afterward. Once results are
-  stacking up the three cards shrink to a row of icons captioned "Next
+  stacking up the tiles shrink to a row of icons captioned "Next
   photos go to …", so the destination stays changeable for the next batch
   without pushing the results down the page. A wine it
   wasn't fully confident about is flagged "Needs research" once saved.
@@ -198,11 +199,17 @@ or multiple locations in one cellar.
   and each can be marked **Drink** (planned - the tasting is recorded later)
   or **Hold**; neither is "undecided", the default. Choosing Drink on a wine
   you don't own also adds it to your wishlist (and can be taken off again
-  from the card). A pairing can be **planned for a day** - "Drink tonight",
+  from the card). A pairing can be **planned for a day** - "Plan for tonight",
   or a picked day - and reads Tonight, Tomorrow, a weekday or date, or
   **Queued · <date>** once the day has passed without being cleared
   ("Clear day", with a short Undo); planned pairings sort first. A wine chosen to drink links straight to "Add a
-  tasting note," prefilling the dish. A tasting-flight result can be
+  tasting note," prefilling the dish. On a wine chosen Drink, "We drank it"
+  takes one bottle off the count, offers the tasting note, and shows
+  "✓ Tasted · N left · Undo", so Drink means planned and Tasted means done.
+  The Drink and Hold tiles are toggle buttons with a check mark when chosen.
+  A wine on a saved pairing that has since been deleted or finished gets no
+  Drink or Hold buttons; the card says "No longer in your cellar" or
+  "Already tasted", so a plan is never made on a wine you cannot pour. A tasting-flight result can be
   saved the same way via "Save this flight" - see **Tasting flights**
   below.
 - **Tasting flights** (`/flights`) — a themed flight kept as a queue to
@@ -317,7 +324,7 @@ or multiple locations in one cellar.
   filter. The same Drinking and Place filters are under "More filters", the
   home Cellar card says "N ready now", and a place can be renamed (naming one
   that exists merges the two).
-- **Print a card** — a pairing or a flight has a "Print card": a clean page of
+- **Print a card** — a pairing or a flight has a "Print card" (`/pairings/[id]/print`, `/flights/[id]/print`): a clean page of
   the dishes and the wines chosen for them (or the flight's running order),
   without the app's chrome or the model's reasoning.
 - **Offline** — with no signal the app says so and refuses changes up front
@@ -325,7 +332,8 @@ or multiple locations in one cellar.
   open still reads.
 - **Cellar digest** — an opt-in email (People page; off for everyone until they
   choose) listing wines in their last year, opening this year, or past their
-  window. Windows are whole years, so it says "this year". It needs the email
+  window. Windows are whole years, so it says "this year". The route is
+  `/api/digest`. It needs the email
   door, `CRON_SECRET` and a daily Vercel Cron entry (not in `vercel.json` by
   default - see `.env.example` for the line to add), claims each
   send atomically, sends nothing when there is nothing to say, and never
@@ -359,7 +367,7 @@ or multiple locations in one cellar.
 - **Design touches** — the home page is eight cards and nothing else: no
   title, no section labels, since eight labelled cards say what the app holds
   better than a heading above them does (plus a few plain links underneath
-  - export, and on a phone People & Domaine and Sign out - which aren't
+  - export, "Recently deleted (N)" when the bin has something, and on a phone People & Domaine and Sign out - which aren't
   cards; see **Data export** above).
   Each card carries its icon and
   name top-left, its count bottom-left (centered under the icon, so the
@@ -394,6 +402,9 @@ npm run dev
 ```
 
 Then open <http://localhost:3000>.
+
+`npm run check-key` makes one tiny Haiku call to prove `ANTHROPIC_API_KEY`
+works, printing only whether it did and never the key.
 
 There's one Postgres database, used everywhere (no separate local
 database) — set its connection string as `DATABASE_URL` in a `.env` file

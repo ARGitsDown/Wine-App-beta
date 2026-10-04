@@ -54,8 +54,8 @@ rule them out. Two items originally listed here are since built — see
   browse it and shortlist bottles at `/guest`. (An earlier no-account
   guest link was retired - BACKLOG #51.) What's still ahead is tracked in
   [`FUTURE_CAPABILITIES.md`](./FUTURE_CAPABILITIES.md) rather than here.
-- Price tracking / valuation
-- Offline support
+- ~~Price tracking / valuation~~ — what you paid is built (a price and currency on each lot; see `BACKLOG.md` #63.5). Market value is deliberately not.
+- ~~Offline support~~ — partly built: with no signal the app says so and refuses changes rather than breaking; offline reading is still open (`BACKLOG.md` #63).
 - ~~Saved/browsable tasting flights (a "queue" to pull bottles from later
   to consume and rate)~~ — built as `/flights`, either saved from a
   `/suggest` result or started by hand. A pairing suggestion can be kept

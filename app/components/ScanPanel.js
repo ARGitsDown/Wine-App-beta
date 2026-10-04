@@ -978,7 +978,7 @@ export default function ScanPanel({
                     title={option.hint}
                     // The radio itself is sr-only, so without has-[] the
                     // keyboard focus ring had nothing to draw on and moving
-                    // through the three destinations was invisible.
+                    // through the destinations was invisible.
                     className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border p-3 text-center transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-zinc-900 dark:has-[:focus-visible]:outline-zinc-100 ${
                       selected
                         ? "border-2 border-zinc-900 p-[11px] dark:border-zinc-100"

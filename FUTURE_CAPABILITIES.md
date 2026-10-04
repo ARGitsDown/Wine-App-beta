@@ -678,7 +678,9 @@ temporary log line to `isAllowedToSignIn` (since removed) rather than
 guessing, which printed the exact mismatch on the next attempt. Now
 documented in `.env.example` next to `OWNER_EMAIL`.
 
-## Multiple locations within one cellar
+## ~~Multiple locations within one cellar~~ — built as a per-lot place (2026-10-04, BACKLOG #63.3)
+
+*Built exactly as scoped here: a flat `location` text on the row, with a Place filter; no ownership model.*
 
 Wanted alongside the above, but explicitly **after** it: one owner whose
 bottles live in more than one physical place (a fridge at home, a storage
