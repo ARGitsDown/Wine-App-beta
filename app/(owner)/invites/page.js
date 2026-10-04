@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isAuthConfigured, isGoogleConfigured } from "@/lib/auth";
+import { isAuthConfigured, isEmailConfigured, isGoogleConfigured } from "@/lib/auth";
 import { currentCellarmaster } from "@/lib/owner";
 import { ACCESS, ROLE } from "@/lib/roles";
 import { INVITE_ACCESS_VALUES, inviteAccessLabel } from "@/lib/invite-access";
@@ -8,6 +8,7 @@ import { monthlyUsage } from "@/lib/usage";
 import { changeMemberRole, removeMember, revokeInvite } from "@/app/(owner)/invites/actions";
 import InviteForm from "@/app/components/InviteForm";
 import DomaineDetailsForm from "@/app/components/DomaineDetailsForm";
+import DigestSetting from "@/app/components/DigestSetting";
 import ConfirmButton from "@/app/components/ConfirmButton";
 import ShareInviteButton from "@/app/components/ShareInviteButton";
 import AiUsageSummary from "@/app/components/AiUsageSummary";
@@ -62,7 +63,7 @@ export default async function PeoplePage({ searchParams }) {
     prisma.user.findMany({
       where: { domaineId },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, email: true, role: true, isAppOwner: true },
+      select: { id: true, name: true, email: true, role: true, isAppOwner: true, digestFrequency: true },
     }),
     monthlyUsage(domaineId),
   ]);
@@ -259,6 +260,22 @@ export default async function PeoplePage({ searchParams }) {
       )}
 
       <AiUsageSummary status={usage} />
+
+      {/* Your own, and only offered where it can work: it needs accounts (so
+          there is an inbox to write to) and the email door. Off for everyone
+          until they choose. */}
+      {isAuthConfigured() && isEmailConfigured() && (
+        <section className="flex flex-col gap-3">
+          <div>
+            <h2 className="font-medium">Cellar digest</h2>
+            <p className="text-sm text-zinc-500">
+              An email listing the wines in their last year, opening, or past
+              their window. Nothing is sent when there is nothing to say.
+            </p>
+          </div>
+          <DigestSetting initial={members.find((member) => member.id === myId)?.digestFrequency ?? ""} />
+        </section>
+      )}
 
       {/* The Domaine's own setting rather than about people - last,
           because it's set once and rarely touched again. */}

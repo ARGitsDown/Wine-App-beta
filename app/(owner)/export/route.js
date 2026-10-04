@@ -101,7 +101,7 @@ export async function GET() {
     }),
     prisma.user.findMany({
       where: { domaineId },
-      select: { name: true, email: true, role: true, createdAt: true },
+      select: { name: true, email: true, role: true, createdAt: true, digestFrequency: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     }),
   ]);
@@ -120,7 +120,8 @@ export async function GET() {
     //       `drankAt` and `drankTookBottle`. A bottle row is one lot, so
     //       "what the cellar is worth" is the sum of quantity x pricePaidCents
     //       over cellar rows in one currency.
-    //       BottleTrash (the 30-day recycle bin for deleted wines) is
+    //       User.digestFrequency (the person's own email-digest choice) rides
+    //       along on `members`. BottleTrash (the 30-day recycle bin for deleted wines) is
     //       deliberately NOT exported: it is not part of the cellar.
     schemaVersion: 3,
     exportedAt: new Date().toISOString(),

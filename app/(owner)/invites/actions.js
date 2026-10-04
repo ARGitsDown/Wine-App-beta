@@ -6,6 +6,7 @@ import { normalizeEmail } from "@/lib/invite-policy";
 import { INVITE_ACCESS_VALUES } from "@/lib/invite-access";
 import { ROLE, ROLE_VALUES } from "@/lib/roles";
 import { currentCellarmaster, currentDomaineId } from "@/lib/owner";
+import { isDigestFrequency } from "@/lib/digest";
 
 // The invite list is the whole of "invite-only", so inviteSomeone and
 // revokeInvite are the only way into this app and the only way to close
@@ -195,4 +196,17 @@ export async function setDomaineDetails(prevState, formData) {
   revalidatePath("/invites");
   revalidatePath("/guest");
   return { success: true };
+}
+
+// Your own cellar-digest choice (see app/api/digest/route.js). Off, weekly or
+// monthly; anything else is refused rather than stored. Changing it does not
+// reset when the last one went out, so switching weekly <-> monthly never
+// sends a second digest straight away.
+export async function setDigestFrequency(frequency) {
+  const member = await currentCellarmaster();
+  const value = frequency === "" || frequency === null ? null : String(frequency);
+  if (value !== null && !isDigestFrequency(value)) return { error: "Choose off, weekly or monthly." };
+  await prisma.user.update({ where: { id: member.id }, data: { digestFrequency: value } });
+  revalidatePath("/invites");
+  return { ok: true };
 }

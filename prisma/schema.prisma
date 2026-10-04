@@ -108,6 +108,17 @@ model User {
   // The cap is summed over the Domaine, not the person.
   usageEvents UsageEvent[]
 
+  // The cellar digest email (app/api/digest/route.js): "weekly", "monthly" or
+  // NULL for off. NULL is the default and nobody is opted in by anything but
+  // their own choice on the People page. A person's own setting, not the
+  // Domaine's: each member decides what lands in their inbox.
+  digestFrequency  String?
+  // When the last digest was claimed for this person. The cron route claims a
+  // send with a conditional UPDATE on this column (set only if it still holds
+  // the value that was read), so two overlapping runs cannot both send; a
+  // failed send puts the old value back. NULL = never sent.
+  digestLastSentAt DateTime?
+
   // Created by 20260928040000_domaine_and_membership, which is why it's
   // declared here: without it, the next generated migration would drop it.
   @@index([domaineId])

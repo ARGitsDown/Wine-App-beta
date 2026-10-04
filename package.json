@@ -11,8 +11,8 @@
     "compare-suggest": "node scripts/compare-suggest-models.mjs",
     "smoke": "node scripts/smoke.mjs",
     "print:learning": "node scripts/print-learning.mjs",
-    "verify": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && node scripts/ai-guards.test.mjs && node scripts/constants.test.mjs && node scripts/pairings.test.mjs && node scripts/lot-fields.test.mjs && node scripts/overview.test.mjs && node scripts/bottle-trash.test.mjs && node scripts/print-card.test.mjs && bash scripts/verify.sh",
-    "test:policy": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && node scripts/ai-guards.test.mjs && node scripts/constants.test.mjs && node scripts/pairings.test.mjs && node scripts/lot-fields.test.mjs && node scripts/overview.test.mjs && node scripts/bottle-trash.test.mjs && node scripts/print-card.test.mjs"
+    "verify": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && node scripts/ai-guards.test.mjs && node scripts/constants.test.mjs && node scripts/pairings.test.mjs && node scripts/lot-fields.test.mjs && node scripts/overview.test.mjs && node scripts/bottle-trash.test.mjs && node scripts/print-card.test.mjs && node scripts/digest.test.mjs && bash scripts/verify.sh",
+    "test:policy": "node scripts/invite-policy.test.mjs && node scripts/usage.test.mjs && node scripts/ai-guards.test.mjs && node scripts/constants.test.mjs && node scripts/pairings.test.mjs && node scripts/lot-fields.test.mjs && node scripts/overview.test.mjs && node scripts/bottle-trash.test.mjs && node scripts/print-card.test.mjs && node scripts/digest.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
