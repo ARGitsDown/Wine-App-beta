@@ -666,7 +666,10 @@ export default function ScanPanel({
     } catch {
       updatePhoto(photo.id, {
         status: "error",
-        error: "Something went wrong reading that photo. Please try again.",
+        // Also what a lost response looks like after the server finished: say so,
+        // since reading it again would pay twice and could save the wines twice.
+        error:
+          "Something went wrong reading that photo, or the connection dropped. Check your cellar before reading it again - the wines may already be saved.",
         entries: draftEntriesFromWines([{}], batchIntent),
       });
     }

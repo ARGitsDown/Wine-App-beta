@@ -93,7 +93,7 @@ export default function OfflineGuard() {
     >
       {nudge.n > 0
         ? nudge.text
-        : "You’re offline. What’s already open still reads; changes can’t be saved until you’re back."}
+        : "You’re offline: other pages and saving are paused. What’s already open still reads."}
     </div>
   );
 }

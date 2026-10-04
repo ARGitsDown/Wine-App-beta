@@ -1,7 +1,7 @@
 import BackButton from "@/app/components/BackButton";
 import DeletedList from "@/app/components/DeletedList";
 import { db } from "@/lib/scoped-prisma";
-import { TRASH_DAYS, daysLeftInBin } from "@/lib/bottle-trash";
+import { TRASH_DAYS, daysLeftInBin, trashCutoff } from "@/lib/bottle-trash";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 // BottleTrash). The Undo bar after a delete lasts seconds; this is the way
 // back after that.
 export default async function DeletedPage() {
+  // The purge that enforces the 30 days runs per Domaine on its next delete, so
+  // the reader applies the cutoff too: an expired entry is not offered.
   const entries = await db.bottleTrash.findMany({
+    where: { deletedAt: { gte: trashCutoff() } },
     orderBy: { deletedAt: "desc" },
     select: { id: true, label: true, deletedAt: true },
     take: 200,

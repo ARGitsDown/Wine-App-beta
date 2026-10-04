@@ -109,6 +109,12 @@ export default function FilterBar({
             ))}
           </datalist>
 
+          {!showWindowFilter && (
+            <p className="text-xs text-zinc-500">
+              Drinking window and place: tap a count in Cellar at a glance, above the list.
+            </p>
+          )}
+
           <div className="flex flex-wrap items-end gap-3">
             <label className={labelClass}>
               Variety

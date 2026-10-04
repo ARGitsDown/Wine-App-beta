@@ -25,7 +25,8 @@ body {
 }
 
 /* While OfflineGuard reports no network, anything that would save looks it. */
-html[data-offline] main button[type="submit"] {
+html[data-offline] main button[type="submit"],
+html[data-offline] a[href]:not([data-offline-ok]) {
   opacity: 0.5;
 }
 

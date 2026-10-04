@@ -453,7 +453,8 @@ model Bottle {
   // `acquiredAt` date is when it arrived and `createdAt` is when the row was
   // typed; the price belongs to the purchase, so a different price is a
   // different row. Moving a wine back to the wishlist does not clear it, but
-  // totals only count cellar and History rows. Where it was bought stays in
+  // totals of money count cellar rows only (a History row's quantity is not a
+  // reliable count of what was bought - see `quantity`). Where it was bought stays in
   // `notes` ("Source"), which is deliberately free text.
   pricePaidCents       Int?
   priceCurrency        String?
@@ -990,8 +991,9 @@ model UsageEvent {
 // delete (a pairing pick is only SET NULL, never removed) lines up again; ids
 // are never re-issued by the sequence, so it cannot collide.
 //
-// Written only by deleteBottle (the bottle page's delete), read only by
-// restoreBottle, purged lazily when the next delete runs. Left out of the
+// Written only by deleteBottle (the bottle page's delete), read by
+// restoreBottle and the /deleted page, purged lazily when the next delete of
+// the SAME Domaine runs - so readers apply the 30-day cutoff themselves. Left out of the
 // export: it is a recycle bin, not part of the cellar. Cascades with the
 // Domaine.
 model BottleTrash {
@@ -1015,10 +1017,14 @@ model BottleTrash {
 // One CSV import, so "Undo import" works after the page is closed and never
 // has to trust ids sent by a browser. `bottleIds` are the wines it created (a
 // plain id list, not a relation: undo is "delete those that are still
-// untouched", and a wine deleted since simply is not there). `status` is the
+// untouched", and a wine deleted since simply is not there; a wine restored
+// from the bin is removed from its batch by restoreBottle, so Undo import
+// cannot delete something the person deliberately brought back). `status` is the
 // list they went to ("inventory" or "wishlist"), which undo requires them to
 // still be in. Written by commitImport, read by the import page and undoImport,
-// purged lazily after 30 days by the next import; left out of the export.
+// purged lazily after 30 days by the next import of the same Domaine (readers
+// apply the cutoff too); left out of the export. An Undo that keeps some wines
+// still deletes the batch row, so the kept ones cannot be undone later.
 model ImportBatch {
   id        Int      @id @default(autoincrement())
   domaineId String

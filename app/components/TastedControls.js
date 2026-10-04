@@ -43,8 +43,7 @@ export default function TastedControls({
   // bottle (or "Tasted all") moves the wine to History and the list this sits
   // in re-renders without it, which is the moment an inline Undo would vanish.
   async function undoTasted() {
-    await undoOneTasted(bottleId);
-    return { ok: true };
+    return undoOneTasted(bottleId);
   }
 
   function tasteOne() {

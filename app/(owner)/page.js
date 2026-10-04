@@ -253,13 +253,13 @@ export default async function HomePage() {
           matters most for someone signed in on a borrowed phone
           (BACKLOG #53). Hidden on desktop, where the header has both. */}
       <div className="flex flex-col items-start gap-3 text-sm text-zinc-500">
-        <a href="/export" className="underline underline-offset-2">
+        <a href="/export" className="flex min-h-11 items-center underline underline-offset-2">
           Export all your data (JSON backup) →
         </a>
-        <Link href="/deleted" className="underline underline-offset-2">
+        <Link href="/deleted" className="flex min-h-11 items-center underline underline-offset-2">
           Recently deleted →
         </Link>
-        <Link href="/invites" className="underline underline-offset-2 sm:hidden">
+        <Link href="/invites" className="flex min-h-11 items-center underline underline-offset-2 sm:hidden">
           People &amp; Domaine →
         </Link>
         {isAuthConfigured() && (

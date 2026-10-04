@@ -69,7 +69,13 @@ async function splitDuplicates(wines, status) {
   const known = new Set(existing.map(keyOf));
   const fresh = [];
   const duplicates = [];
-  for (const wine of await adoptLocations(wines)) (known.has(keyOf(wine)) ? duplicates : fresh).push(wine);
+  for (const wine of await adoptLocations(wines)) {
+    const key = keyOf(wine);
+    (known.has(key) ? duplicates : fresh).push(wine);
+    // A wishlist row has no lot, so two lines of one wine in the file are one
+    // wish; the cellar keeps them (different lots, or overflow past 999).
+    if (status === "wishlist") known.add(key);
+  }
   return { fresh, duplicates };
 }
 
@@ -142,21 +148,31 @@ export async function commitImport(prevState, formData) {
       wine.acquiredAt === false ? null : acquiredAtForStatus(status, status === "inventory" ? wine.acquiredAt : null),
   }));
 
+  let created;
   try {
-    const created = await db.bottle.createManyAndReturn({ data: rows, select: { id: true } });
-    // Remembered server-side so the Undo outlives this page and never has to
-    // trust ids sent back by a browser; old batches are purged here.
-    const batch = await db.importBatch.create({
-      data: { status, bottleIds: created.map((row) => row.id) },
-    });
-    await db.importBatch.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86400000) } } });
-    revalidatePath(status === "inventory" ? "/inventory" : "/wishlist");
-    revalidatePath("/import");
-    return { done: { count: created.length, status, destination: DESTINATIONS[status], batchId: batch.id } };
+    created = await db.bottle.createManyAndReturn({ data: rows, select: { id: true } });
   } catch (err) {
     console.error("Import failed:", err);
     return { error: "Couldn't import that file. Nothing was added." };
   }
+  // The wines are written; what follows is bookkeeping and must never turn a
+  // successful import into a reported failure (a retry would then skip them as
+  // duplicates). Remembered server-side so the Undo outlives this page and
+  // never trusts ids sent by a browser; old batches of this Domaine are purged
+  // here, which is why readers also apply the 30-day cutoff themselves.
+  let batchId = null;
+  try {
+    const batch = await db.importBatch.create({
+      data: { status, bottleIds: created.map((row) => row.id) },
+    });
+    batchId = batch.id;
+    await db.importBatch.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 86400000) } } });
+  } catch (err) {
+    console.error("Import wrote its wines but couldn't record the batch (no Undo):", err);
+  }
+  revalidatePath(status === "inventory" ? "/inventory" : "/wishlist");
+  revalidatePath("/import");
+  return { done: { count: created.length, status, destination: DESTINATIONS[status], batchId } };
 }
 
 // Takes back what an import added, but only wines still exactly as the import

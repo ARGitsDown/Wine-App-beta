@@ -4149,6 +4149,30 @@ Undo is gone); Bought it offers back a price the wine already carries; the scan 
 place input. Data nits: the quantity CHECK migration now first raises any quantity below 1,
 and an unreadable import purchase date is stored as unknown rather than today.
 
+**Third review round (2026-10-04, over the follow-up round):** fixed - an import that wrote its
+wines could report failure if the batch bookkeeping threw (it is now separate, so a retry
+cannot skip them as duplicates); Undo for an added purchase could delete any old, never-edited
+bottle by id (now only wines created in the last hour, with the child conditions repeated in
+the delete); a wine restored from the bin re-entered its import batch and Undo import could
+delete it (restore now removes it from the batch); `/deleted` and `/import` apply the 30-day
+cutoff themselves; a wishlist import dedupes within the file; merged lots keep the earliest
+readable purchase date; one accent-folding "same wine" key; `undoBought` bounds; the prompts no
+longer say every estimated window is the app's own guess (imported ones are marked estimated
+too); a scan whose response is lost now warns the wines may already be saved; Undo import asks
+first; Tasted's Undo reports failure; wording (Renamed/Merged, "kept 30 days in Recently
+deleted"), 44px Home links, a pointer from "More filters" to the overview, offline greys links.
+
+**Still open from that round (UX, bigger):** after "Add purchase" the wine's own page shows no
+list of its other purchases (and the button is inside the closed Wine details); the several-lots
+line only counts rows on screen, so a filter hides it, it sits last on the row, and "Cellar at a
+glance" counts each lot as a wine; wines removed by Undo import / Undo add-purchase / scan
+removal never reach Recently deleted and the link shows even when the bin is empty; the Tasted
+bar does not say where the wine went (last bottle -> Tasting notes); the new form inputs are
+under 44px and 14px (iOS zooms); the scan strip now shows two unlabelled boxes; a wishlist
+price now prefilled in Bought it can silently become the price paid. A purchase that exactly
+matches its source lot is still its own row (merge by the quantity stepper). Data: the
+`bottleIds Int[]` could become a `Bottle.importBatchId` FK if it ever needs more than undo.
+
 **Still open:** offline reading (a service worker caching what was seen) is **not** built -
 63.12 shipped as the banner and refused writes only. 63.6 (taste profile) is folded into a
 larger capability by the owner. Earlier carried-over items (not part of #63): Drink offered on

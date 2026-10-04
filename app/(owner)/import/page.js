@@ -2,6 +2,7 @@ import BackButton from "@/app/components/BackButton";
 import ImportPanel from "@/app/components/ImportPanel";
 import RecentImports from "@/app/components/RecentImports";
 import { db } from "@/lib/scoped-prisma";
+import { trashCutoff } from "@/lib/bottle-trash";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +10,10 @@ export const dynamic = "force-dynamic";
 // spreadsheet saved as CSV. Scanning is better for a few bottles; this is for
 // a few hundred.
 export default async function ImportPage() {
-  // Batches older than 30 days are purged by the next import, so this is the
-  // recent few.
+  // The recent few. Old batches are purged by the next import of this Domaine,
+  // so the reader applies the 30-day cutoff itself.
   const batches = await db.importBatch.findMany({
+    where: { createdAt: { gte: trashCutoff() } },
     orderBy: { createdAt: "desc" },
     take: 10,
   });

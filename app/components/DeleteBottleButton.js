@@ -25,7 +25,7 @@ export default function DeleteBottleButton({ bottleId, warning, className }) {
         return;
       }
       router.push(result.path);
-      showUndo(`Deleted ${result.label}`, () => restoreBottle(result.trashId));
+      showUndo(`Deleted ${result.label} \u00b7 kept 30 days in Recently deleted`, () => restoreBottle(result.trashId));
     });
   }
 

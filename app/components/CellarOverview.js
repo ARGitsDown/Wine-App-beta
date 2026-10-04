@@ -83,7 +83,8 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
       if (filters.location === from) onFilter("location", result.to);
       if (result.ids?.length > 0) {
         const n = result.ids.length;
-        showUndo(`Moved ${n} wine${n === 1 ? "" : "s"} from ${result.from} to ${result.to}`, async () => {
+        const verb = result.merged ? `Merged ${result.from} into ${result.to}` : `Renamed ${result.from} to ${result.to}`;
+        showUndo(`${verb} (${n} wine${n === 1 ? "" : "s"})`, async () => {
           const undone = await undoRenameLocation(result.ids, result.from, result.to);
           if (undone?.ok && filters.location === result.to) onFilter("location", result.from);
           return undone;
@@ -106,6 +107,7 @@ export default function CellarOverview({ bottles, filters, onFilter }) {
     <details ref={detailsRef} className="rounded-lg border border-zinc-200 dark:border-zinc-800">
       <summary className="min-h-11 cursor-pointer px-4 py-2.5 text-sm">
         <span className="font-medium">Cellar at a glance</span>
+        <span className="ml-2 text-xs text-zinc-400">tap a count to filter</span>
         <span className="ml-2 text-zinc-500">{headline}</span>
       </summary>
       <div className="flex flex-col gap-4 border-t border-zinc-200 p-4 dark:border-zinc-800">

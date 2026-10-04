@@ -397,7 +397,7 @@ export async function renameLocation(from, to) {
   const ids = moving.map((row) => row.id);
   await db.bottle.updateMany({ where: { id: { in: ids }, location: source }, data: { location: finalName } });
   revalidatePath("/inventory");
-  return { ok: true, ids, from: source, to: finalName };
+  return { ok: true, ids, from: source, to: finalName, merged: others.includes(finalName) };
 }
 
 // Undo for renameLocation: puts those wines back under the old name, but only
@@ -475,13 +475,13 @@ export async function undoBought(
   const bottleId = Number(id);
   const bought = Number(boughtQuantity);
   const previous = Number(previousQuantity);
-  if (![bottleId, bought, previous].every((n) => Number.isInteger(n) && n >= 1)) {
+  if (![bottleId, bought, previous].every((n) => Number.isInteger(n) && n >= 1 && n <= 1000000)) {
     return { error: "Couldn't undo that." };
   }
   // Whatever price the wishlist row held before goes back (the two travel
   // together, as the CHECK requires); anything else is dropped as invalid.
   const priceBack =
-    Number.isInteger(previousPriceCents) && previousPriceCents >= 0 && /^[A-Z]{3}$/.test(previousPriceCurrency ?? "")
+    Number.isInteger(previousPriceCents) && previousPriceCents >= 0 && previousPriceCents <= 100000000 && /^[A-Z]{3}$/.test(previousPriceCurrency ?? "")
       ? { pricePaidCents: previousPriceCents, priceCurrency: previousPriceCurrency }
       : { pricePaidCents: null, priceCurrency: null };
   const reverted = await db.bottle.updateMany({
@@ -639,7 +639,9 @@ export async function markOneTasted(id) {
 // prisma/schema.prisma). This copies the wine's identity into a fresh cellar
 // row with the count, price and place just entered. Notes, photos and research
 // stay with the original: they are about the wine on its page, and the new row
-// carries only what identifies it. The caller stays on the page and shows an
+// carries only what identifies it. A purchase that happens to match the source
+// lot exactly (same size, place, price) is still its own row; the quantity
+// stepper merges them by hand. The caller stays on the page and shows an
 // Undo (undoAddedPurchase) rather than navigating to a page that looks
 // identical to the one it left.
 export async function addAnotherPurchase(id, { quantity, price, currency, location } = {}) {
@@ -690,7 +692,9 @@ export async function addAnotherPurchase(id, { quantity, price, currency, locati
 // Takes back an added purchase, only while it is still exactly as created (see
 // deleteUntouchedBottles): once it has a note, a photo or an edit it is real.
 export async function undoAddedPurchase(id) {
-  const { removed } = await deleteUntouchedBottles([id], "inventory");
+  // Only a wine created in the last hour: the id comes from the browser, and
+  // this must never be a way to delete an old, never-edited bottle.
+  const { removed } = await deleteUntouchedBottles([id], "inventory", { sinceMs: 3600000 });
   if (removed === 0) return { error: "It has changed since - delete it from its own page." };
   revalidatePath("/inventory");
   return { ok: true };
@@ -730,13 +734,14 @@ export async function undoOneTasted(id) {
     where: { id },
     select: { status: true },
   });
-  if (!bottle) return;
+  if (!bottle) return { error: "That wine is no longer in your cellar." };
 
   if (bottle.status === "consumed") {
     await setBottleStatus(id, "inventory");
   } else {
     await adjustBottleQuantity(id, 1);
   }
+  return { ok: true };
 }
 
 // Deletes a wine from its own page, keeping a snapshot of it (and everything
@@ -834,6 +839,18 @@ export async function restoreBottle(trashId) {
         const present = new Set(flights.map((f) => f.id));
         const keep = snap.flightPicks.filter((p) => present.has(p.flightId));
         if (keep.length) await tx.flightPick.createMany({ data: keep });
+      }
+      // A restored wine is the person's own deliberate choice, so it leaves any
+      // import batch it was in: Undo import must not delete it.
+      const batches = await tx.importBatch.findMany({
+        where: { domaineId, bottleIds: { has: b.id } },
+        select: { id: true, bottleIds: true },
+      });
+      for (const batch of batches) {
+        await tx.importBatch.update({
+          where: { id: batch.id },
+          data: { bottleIds: batch.bottleIds.filter((wineId) => wineId !== b.id) },
+        });
       }
       if (snap.pairingPickIds.length) {
         await tx.pairingPick.updateMany({
@@ -1828,7 +1845,7 @@ function describeBottleForResearch(bottle) {
     bottle.drinkFrom || bottle.drinkTo
       ? `Drinking window: ${bottle.drinkFrom ?? "?"}–${bottle.drinkTo ?? "?"}${
           bottle.drinkWindowEstimated
-            ? " (the app's own estimate - nobody looked this up, so treat it as a placeholder to verify or replace, not as data on file)"
+            ? " (marked as an estimate: either the app's own guess or a window imported from another app's file, not confirmed by the owner here - treat it as a placeholder to verify or replace, not as data on file)"
             : " (read from a source or entered by the owner)"
         }`
       : null,

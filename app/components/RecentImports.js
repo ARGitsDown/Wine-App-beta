@@ -12,6 +12,7 @@ export default function RecentImports({ batches: current }) {
   const [results, setResults] = useState({});
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(null);
+  const [confirming, setConfirming] = useState(null);
 
   const batches = [
     ...current,
@@ -24,6 +25,7 @@ export default function RecentImports({ batches: current }) {
   if (batches.length === 0) return null;
 
   function undo(id) {
+    setConfirming(null);
     setBusy(id);
     startTransition(async () => {
       const result = await undoImport(id);
@@ -54,14 +56,38 @@ export default function RecentImports({ batches: current }) {
                     {batch.remaining} wine{batch.remaining === 1 ? "" : "s"} to the {batch.destination} ·{" "}
                     {batch.when}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => undo(batch.id)}
-                    disabled={pending}
-                    className="ml-auto min-h-11 rounded border border-zinc-300 px-3 text-sm disabled:opacity-50 dark:border-zinc-700"
-                  >
-                    {busy === batch.id ? "Undoing…" : "Undo import"}
-                  </button>
+                  {confirming === batch.id ? (
+                    <span className="ml-auto flex w-full flex-wrap items-center gap-2">
+                      <span className="text-sm text-red-700 dark:text-red-400">
+                        Remove {batch.remaining} wine{batch.remaining === 1 ? "" : "s"} imported {batch.when}? Wines
+                        you&apos;ve changed since are kept. This can&apos;t be undone.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => undo(batch.id)}
+                        disabled={pending}
+                        className="min-h-11 rounded border border-red-300 px-3 text-sm text-red-600 disabled:opacity-50 dark:border-red-900 dark:text-red-400"
+                      >
+                        Remove {batch.remaining}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirming(null)}
+                        className="min-h-11 rounded border border-zinc-300 px-3 text-sm dark:border-zinc-700"
+                      >
+                        Keep
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirming(batch.id)}
+                      disabled={pending}
+                      className="ml-auto min-h-11 rounded border border-zinc-300 px-3 text-sm disabled:opacity-50 dark:border-zinc-700"
+                    >
+                      {busy === batch.id ? "Removing…" : "Undo import"}
+                    </button>
+                  )}
                   {result?.error && <span className="w-full text-red-600 dark:text-red-400">{result.error}</span>}
                 </>
               )}
