@@ -3880,3 +3880,50 @@ Checked on a production build: the renamed row and no "Edit details" left on the
 heading and button on one row, photos at 96x112 with no border, no empty-state text, the
 Research row on one line with no sentence, no horizontal overflow at 360 and 390px, the
 Wine details form still saving, and a flagged bottle keeping the boxed panel.
+
+### Saved pairings: grouped by dish, a Drink / Hold choice per wine (built, owner's choice: detail option 1, list option 4)
+
+Built from the contact sheets made with the app's own components.
+- **Header** "Kept pairings" is now "Saved pairings", with the one line "Wines paired with
+  a dish or menu". Suggest's link to it reads "Saved pairings →" to match.
+- **Detail page.** Row 1 the title (still renameable) and the Tonight badge; Row 2 what was
+  asked (two lines, "Read more"); a line "N to drink · N on hold · N undecided"; then the
+  wines **grouped under their dish or course** (alternatives for the lamb sit together,
+  the dish is said once; a single-dish pairing has no heading). One card per wine: its name
+  (a link to the bottle when there is one), the **full reason** it was suggested (shown, not
+  behind "Why this wine?", since the choice is made on it), then two full-width tiles in
+  the style of Scan's "Save to" picker. Underneath: the model's overall "About this
+  pairing", Done for tonight, and a quiet line with Ask again / Delete and the kept date and
+  settings (what used to be the "What was asked" box).
+- **The choice.** `PairingPick.decision` is NULL, "drink" or "hold" (a CHECK holds it to
+  those two words). **Drink** wears the Tasted look (sky) and **Hold** the Cellar look
+  (rose); a wine on hold is dimmed, one to drink is sky. Undecided has no label and no third
+  button: it is what a wine is until chosen, because a suggestion hands over several options
+  and a new pairing has chosen none of them (and Drink or Hold assumed would be claiming a
+  plan, or discarding wines, nobody made). Tapping the chosen tile again returns to
+  undecided, so both choices are reversible. Drink means *planned*: the tasting is recorded
+  later, from the bottle's page; nothing happens to an owned bottle's quantity or status.
+- **A wine you do not own.** Choosing Drink also puts it on the **wishlist**: a wishlist
+  bottle is made from the suggestion's producer, type, region and country, with "Suggested
+  because: ..." as its source (what Suggest's own wishlist form writes), and linked back on the
+  pick, so the card shows "On your wishlist →" and a second tap cannot make a second one.
+  Un-choosing Drink **leaves the wishlist bottle alone**: it may already have been shopped
+  for or edited, and an undo is the wrong moment to delete a wine. (If undo-removes-it is
+  wanted, it would have to check the bottle is still untouched.)
+- **List page.** Each pairing: title and Tonight badge, what was asked, then **each wine on
+  its own line** with the choice as the app's own status pills (Drink in the Tasted look,
+  Hold in the Cellar look, Wishlist / "Not owned" in the Wishlist look); a wine on hold is
+  greyed; undecided has no pill. Replaces the one run-on summary line, so
+  `pairingSummaryLine` and `pairingDishes` are gone from `lib/pairings.js`.
+- Still open: "Tonight" and Drink overlap and need a clearer concept (the owner said to keep
+  both for now); "Add a tasting note" under a wine still shows only on a tonight pairing, for
+  an owned wine not on hold.
+
+New: `PairingDecision` (client), `setPairingPickDecision`, `groupPicksByDish`,
+`decisionCounts`, `pickNotOwned` and the stored words in `lib/pairings.js`, with
+`scripts/pairings.test.mjs` (in `npm run verify`). The JSON export picks the column up on its
+own (it includes every pick column).
+
+Checked on a production build: grouping, the reason visible, Drink / Hold / undo / switching,
+an owned wine's quantity untouched, the wishlist bottle made once and linked, undo leaving it,
+the database refusing any other word, and the list's one-line-per-wine pills.

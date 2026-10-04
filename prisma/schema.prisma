@@ -812,6 +812,17 @@ model PairingPick {
   // rendered as a unit, never queried into. It also means keeping a
   // pairing never quietly creates a wishlist bottle nobody asked for.
   gap       Json?
+  // What the owner decided about this wine, once it has been read: "drink"
+  // (planned - the tasting is recorded later, from the bottle's page) or
+  // "hold" (leave it where it is). NULL is the default and means undecided,
+  // deliberately not a third stored word: a suggestion hands over several
+  // options and a new pairing has chosen none of them, so no choice is the
+  // honest state, and tapping the chosen button again returns to it.
+  // Choosing "drink" on a wine that is not owned also puts it on the
+  // wishlist (bottleId then points at that wishlist bottle) - see
+  // setPairingPickDecision. Held to the two words by a CHECK in the
+  // migration, which Prisma does not model.
+  decision  String?
 
   @@index([pairingId])
   @@index([bottleId])

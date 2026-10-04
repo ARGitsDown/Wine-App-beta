@@ -1,115 +1,108 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
+import PairingDecision from "@/app/components/PairingDecision";
+import { groupPicksByDish, pickNotOwned } from "@/lib/pairings";
 
-// A pairing's picks. The wine name is a direct link into its own bottle
-// page - that's the point of a kept pairing, going straight from "what to
-// drink" to the bottle itself - with a separate toggle below it for the
-// reason and (for a gap suggestion) region/country, which don't need to be
-// on screen until asked for. Not the same button-does-both pattern
-// BottleList/FlightPicksList use, because nesting the navigable <Link>
-// inside that toggle <button> would be invalid HTML.
+// A pairing's wines, grouped under the dish or course each is for, so a
+// menu's alternatives for the lamb sit together and the dish is said once
+// instead of on every wine. One card per wine: its name (a link to the
+// bottle when there is one), the reason it was suggested - shown in full,
+// not behind a tap, because it is what the choice below is made on - and
+// the Drink / Hold choice. A wine on hold is dimmed; one to drink wears
+// the Tasted colour.
+//
+// Not the client component it was: with the reason always visible there is
+// no expand state left to hold, and the one interactive part is
+// PairingDecision.
 export default function PairingPicksList({ picks, plannedForTonight = false }) {
-  const [expandedIds, setExpandedIds] = useState(new Set());
-
-  function toggle(id) {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   return (
-    <ul className="flex flex-col gap-3">
-      {picks.map((pick) => {
-        const expanded = expandedIds.has(pick.id);
-        return (
-          <li
-            key={pick.id}
-            className="rounded-lg border border-zinc-200 dark:border-zinc-800"
-          >
-            <div className="flex items-start gap-2 px-4 py-2.5">
-              <span className="min-w-0 flex-1">
-                {pick.dish && (
-                  <span className="mb-1 inline-block rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                    {pick.dish}
-                  </span>
-                )}
-                {/* The full heading here, not the short wineName the list
-                    page uses - this row isn't sharing space with dish
-                    names from other picks, so there's room for it. */}
-                {pick.bottle ? (
-                  <Link
-                    href={`/bottles/${pick.bottle.id}`}
-                    className="block font-medium underline underline-offset-2"
-                  >
-                    {pick.wineLabel}
-                  </Link>
-                ) : (
-                  <span className="block font-medium">{pick.wineLabel}</span>
-                )}
-                {/* Only while the evening is actually tonight, and only
-                    where there's a bottle and a dish to name - a kept
-                    pairing's own links used to skip the ?pairedWith
-                    prefill Suggest's own result gives the same wine, so
-                    the saved version worked worse than the throwaway one
-                    it came from (a UX review, 2026-09-27). */}
-                {plannedForTonight && pick.bottle && pick.dish && (
-                  <Link
-                    href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish)}`}
-                    className="mt-0.5 block text-sm text-zinc-500 underline underline-offset-2"
-                  >
-                    Add a tasting note →
-                  </Link>
-                )}
-              </span>
-              <span className="shrink-0">
-                {/* Three states, and the label is the same in all of them
-                    because it is a snapshot of how the wine read when this
-                    was kept. What differs is whether there is still a
-                    bottle to click through to, and why not. */}
-                {pick.gap ? (
-                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
-                    Not in your cellar
-                  </span>
-                ) : (
-                  !pick.bottle && (
-                    <span className="text-xs text-zinc-500">
-                      No longer in your cellar
+    <div className="flex flex-col gap-6">
+      {groupPicksByDish(picks).map((group) => (
+        <section key={group.dish ?? "single"} className="flex flex-col gap-2">
+          {group.dish && (
+            <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+              {group.dish}
+            </h2>
+          )}
+          {group.picks.map((pick) => {
+            const notOwned = pickNotOwned(pick);
+            const wishlisted = notOwned && Boolean(pick.bottle);
+            const held = pick.decision === "hold";
+            const drinking = pick.decision === "drink";
+            return (
+              <div
+                key={pick.id}
+                className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+              >
+                <div className={held ? "opacity-60" : ""}>
+                  {pick.bottle ? (
+                    <Link
+                      href={`/bottles/${pick.bottle.id}`}
+                      className={`block font-medium underline underline-offset-2 ${
+                        drinking ? "text-sky-700 dark:text-sky-400" : ""
+                      }`}
+                    >
+                      {pick.wineLabel}
+                    </Link>
+                  ) : (
+                    <span className={`block font-medium ${drinking ? "text-sky-700 dark:text-sky-400" : ""}`}>
+                      {pick.wineLabel}
                     </span>
-                  )
-                )}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => toggle(pick.id)}
-              aria-expanded={expanded}
-              className="flex w-full items-center gap-1 border-t border-zinc-200 px-4 py-2 text-left text-sm text-zinc-500 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-            >
-              <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-              Why this wine?
-            </button>
-
-            {expanded && (
-              <div className="flex flex-col gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                {pick.gap && (
-                  <p className="text-sm text-zinc-500">
-                    {[pick.gap.region, pick.gap.country].filter(Boolean).join(", ")}
-                  </p>
-                )}
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {pick.reason}
-                </p>
+                  )}
+                  {/* Three states, and the label is the same in all of them
+                      because it is a snapshot of how the wine read when this
+                      was kept. What differs is whether there is still a
+                      bottle to click through to, and why not. */}
+                  {notOwned ? (
+                    wishlisted ? (
+                      <Link
+                        href={`/bottles/${pick.bottle.id}`}
+                        className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+                      >
+                        On your wishlist &rarr;
+                      </Link>
+                    ) : (
+                      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-400">
+                        Not in your cellar
+                      </span>
+                    )
+                  ) : (
+                    !pick.bottle && (
+                      <span className="mt-1 block text-xs text-zinc-500">No longer in your cellar</span>
+                    )
+                  )}
+                  {pick.gap && (pick.gap.region || pick.gap.country) && (
+                    <p className="mt-1 text-sm text-zinc-500">
+                      {[pick.gap.region, pick.gap.country].filter(Boolean).join(", ")}
+                    </p>
+                  )}
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{pick.reason}</p>
+                </div>
+                <PairingDecision
+                  pickId={pick.id}
+                  decision={pick.decision}
+                  wineLabel={pick.wineLabel}
+                  wishlist={notOwned && !wishlisted}
+                />
+                {/* Only while the evening is actually tonight, and only for a
+                    wine that is in the cellar and has a dish to name: the
+                    ?pairedWith prefill is what the throwaway Suggest result
+                    gives the same wine. A wine on hold is not being tasted. */}
+                {plannedForTonight &&
+                  !held &&
+                  pick.dish &&
+                  pick.bottle?.status === "inventory" && (
+                    <Link
+                      href={`/bottles/${pick.bottle.id}?pairedWith=${encodeURIComponent(pick.dish)}`}
+                      className="text-sm text-zinc-500 underline underline-offset-2"
+                    >
+                      Add a tasting note →
+                    </Link>
+                  )}
               </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+            );
+          })}
+        </section>
+      ))}
+    </div>
   );
 }

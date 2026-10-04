@@ -15,7 +15,7 @@ export default async function SuggestPage({ searchParams }) {
   const { from } = await searchParams;
   const fromId = Number(from);
 
-  // The pairing count decides whether "Kept pairings" renders at all
+  // The pairing count decides whether "Saved pairings" renders at all
   // (BACKLOG #24) - the link was the only clutter on a first visit, when
   // there's nothing yet to compare against; once something exists, it's
   // the one way back to it from inside the Suggest flow now that the tab
@@ -53,7 +53,7 @@ export default async function SuggestPage({ searchParams }) {
             href="/pairings"
             className="shrink-0 text-sm underline underline-offset-2"
           >
-            Kept pairings →
+            Saved pairings →
           </Link>
         )}
       </div>

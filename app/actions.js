@@ -14,6 +14,8 @@ import { depthTier } from "@/lib/suggest-model";
 import { normalizeCharacter } from "@/lib/suggestion-character";
 import { BROWSE_CELLAR_TOOL, SUGGESTIONS_TOOL, buildSuggestSystemPrompt } from "@/lib/suggest-prompt";
 import {
+  PICK_DECISION,
+  PICK_DECISION_VALUES,
   wineLabelForBottle,
   wineLabelForGap,
   wineNameForBottle,
@@ -3201,6 +3203,67 @@ export async function markPairingForTonight(id) {
   });
   revalidatePath(`/pairings/${id}`);
   revalidatePath("/pairings");
+}
+
+// Decide a wine in a saved pairing: "drink" (planned - the tasting is
+// recorded later, from the bottle's page), "hold" (leave it be), or null
+// (undecided again - tapping the chosen button a second time sends this).
+// Nothing happens to an owned bottle: no quantity change, no status change.
+//
+// The one side effect: choosing "drink" on a wine the owner does not have
+// puts it on the wishlist, because planning to drink something you have to
+// buy first is a shopping item. The new wishlist bottle is linked back onto
+// the pick (bottleId), which is what lets the page link to it and stops a
+// second tap creating a second one. Switching away from "drink" afterwards
+// leaves that wishlist bottle alone: it may already have been shopped for
+// or edited, and deleting a wine on an undo is the wrong default.
+export async function setPairingPickDecision(pickId, decision) {
+  const next = PICK_DECISION_VALUES.has(decision) ? decision : null;
+
+  // Scoped through the pairing, so a pick that is not this owner's reads as
+  // missing rather than being updated.
+  const pick = await db.pairingPick.findUnique({
+    where: { id: pickId },
+    select: { id: true, pairingId: true, bottleId: true, gap: true, reason: true },
+  });
+  if (!pick) return { error: "That wine is no longer in this pairing." };
+
+  try {
+    let bottleId = pick.bottleId;
+    let wishlisted = false;
+    if (next === PICK_DECISION.DRINK && !bottleId && pick.gap?.producer) {
+      const created = await db.bottle.create({
+        data: {
+          ownerId: await currentOwnerId(),
+          producer: pick.gap.producer,
+          type: pick.gap.type ?? null,
+          region: pick.gap.region ?? null,
+          country: pick.gap.country ?? null,
+          // The same "where it came from" the wishlist form on Suggest
+          // writes, so it reads the same wherever it is seen.
+          notes: `Suggested because: ${pick.reason}`,
+          status: "wishlist",
+          emptiedAt: emptiedAtForStatus("wishlist", null),
+          acquiredAt: acquiredAtForStatus("wishlist", null),
+        },
+        select: { id: true },
+      });
+      bottleId = created.id;
+      wishlisted = true;
+      invalidateRegionOptions();
+    }
+    await db.pairingPick.update({
+      where: { id: pickId },
+      data: { decision: next, bottleId },
+    });
+    revalidatePath(`/pairings/${pick.pairingId}`);
+    revalidatePath("/pairings");
+    if (wishlisted) revalidatePath("/wishlist");
+    return { ok: true, wishlisted };
+  } catch (err) {
+    console.error("Failed to set a pairing pick's decision:", err);
+    return { error: "Couldn't save that choice. Please try again." };
+  }
 }
 
 // The only way the flag ever clears - see the schema comment on

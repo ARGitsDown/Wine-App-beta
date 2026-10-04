@@ -192,9 +192,13 @@ or multiple locations in one cellar.
   result leads with a short evocative title ("The Many Faces of Pinot")
   and keeps the fuller explanation behind a "Why these" disclosure, so
   you can see what was suggested before reading why. A pairing
-  recommendation can be kept via "Save this pairing" (`/pairings`, its own
-  list of every one you've kept), which also links each pick straight to
-  "Add a tasting note," prefilling the dish. A tasting-flight result can be
+  recommendation can be kept via "Save this pairing" (`/pairings`, "Saved
+  pairings": its own list of every one you've kept). On a saved pairing the
+  wines are grouped under their dish, each with the reason it was suggested,
+  and each can be marked **Drink** (planned - the tasting is recorded later)
+  or **Hold**; neither is "undecided", the default. Choosing Drink on a wine
+  you don't own also adds it to your wishlist. A tonight pairing's wines
+  link straight to "Add a tasting note," prefilling the dish. A tasting-flight result can be
   saved the same way via "Save this flight" - see **Tasting flights**
   below.
 - **Tasting flights** (`/flights`) — a themed flight kept as a queue to

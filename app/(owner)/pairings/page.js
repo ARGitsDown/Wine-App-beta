@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/scoped-prisma";
-import { pairingSummaryLine, tonightLabel } from "@/lib/pairings";
+import { pickNotOwned, tonightLabel } from "@/lib/pairings";
+import { STATUS_LOOK } from "@/lib/status-look";
 import TonightToggle from "@/app/components/TonightToggle";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,14 @@ export default async function PairingsPage() {
   const pairings = await db.savedPairing.findMany({
     include: {
       picks: {
-        select: { dish: true, wineName: true },
+        select: {
+          id: true,
+          dish: true,
+          wineName: true,
+          decision: true,
+          gap: true,
+          bottle: { select: { status: true } },
+        },
         orderBy: { order: "asc" },
       },
     },
@@ -28,16 +36,13 @@ export default async function PairingsPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
       <div>
-        <h1 className="text-2xl font-semibold">Kept pairings</h1>
-        <p className="text-sm text-zinc-500">
-          A dish and its wine, or a whole menu and its wines — the ones you
-          decided were worth writing down.
-        </p>
+        <h1 className="text-2xl font-semibold">Saved pairings</h1>
+        <p className="text-sm text-zinc-500">Wines paired with a dish or menu</p>
       </div>
 
       {pairings.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          Nothing kept yet. Ask{" "}
+          Nothing saved yet. Ask{" "}
           <Link href="/suggest" className="underline underline-offset-2">
             Suggest
           </Link>{" "}
@@ -68,21 +73,43 @@ export default async function PairingsPage() {
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-sm text-zinc-500">
-                {pairingSummaryLine(pairing)}
-              </p>
-              {/* The request, not the model's summary: what you asked for
-                  is what you will recognize a month later. */}
+              {/* The request, not the model's summary: what you asked for is
+                  what you will recognize a month later. */}
               <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
                 {pairing.request}
               </p>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              {/* The wines, one to a line, with the choice made about each as
+                  the app's own status pills: Drink in the Tasted look, Hold
+                  in the Cellar look, a wine you do not own in the Wishlist
+                  look. Undecided has no pill. */}
+              <ul className="mt-2 flex flex-col gap-1">
+                {pairing.picks.map((pick) => (
+                  <li key={pick.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className={pick.decision === "hold" ? "text-zinc-400 dark:text-zinc-500" : ""}>
+                      {pick.wineName}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {pick.decision === "drink" && <Pill look={STATUS_LOOK.consumed} label="Drink" />}
+                      {pick.decision === "hold" && <Pill look={STATUS_LOOK.inventory} label="Hold" />}
+                      {pickNotOwned(pick) && (
+                        <Pill
+                          look={STATUS_LOOK.wishlist}
+                          label={pick.bottle ? "Wishlist" : "Not owned"}
+                        />
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-zinc-500">
                   Kept {new Date(pairing.createdAt).toLocaleDateString()}
+                  {" \u00b7 "}
+                  {pairing.picks.length === 1 ? "1 wine" : `${pairing.picks.length} wines`}
                 </p>
-                {/* On the row itself, not just the detail page - clearing
-                    a stale "Planned ... - done?" shouldn't require opening
-                    the pairing first (a UX review, 2026-09-27). */}
+                {/* On the row itself, not just the detail page - clearing a
+                    stale "Planned ... - done?" shouldn't require opening the
+                    pairing first (a UX review, 2026-09-27). */}
                 <TonightToggle
                   pairingId={pairing.id}
                   plannedForTonight={pairing.plannedForTonight}
@@ -93,5 +120,18 @@ export default async function PairingsPage() {
         </ul>
       )}
     </div>
+  );
+}
+
+// A small pill in one of the app's status looks (lib/status-look.js), the
+// same one StatusBadge draws for a bottle, at the size a list line affords.
+function Pill({ look, label }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${look.accent}`}
+    >
+      <look.Icon className="h-3 w-3" />
+      {label}
+    </span>
   );
 }
