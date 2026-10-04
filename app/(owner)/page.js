@@ -11,6 +11,8 @@ import {
   ResearchIcon,
 } from "@/app/components/icons";
 import { getResearchCount } from "@/lib/bottles";
+import { windowBucket } from "@/lib/drink-window";
+import { readyNowText } from "@/lib/cellar-overview";
 import { isAuthConfigured } from "@/lib/auth";
 import { signOutOfCellar } from "@/app/signin/actions";
 
@@ -66,6 +68,7 @@ export default async function HomePage() {
     plannedPairings,
     unfiledFlightCount,
     researchCount,
+    cellarWindows,
   ] = await Promise.all([
       db.bottle.count({ where: { status: "inventory" } }),
       db.bottle.count({ where: { status: "wishlist" } }),
@@ -97,7 +100,15 @@ export default async function HomePage() {
       // this count is what swaps the card's own description to name it.
       db.bottle.count({ where: { status: "flight", flightPicks: { none: {} } } }),
       getResearchCount(),
+      // Two small integers per cellar row, to say how many are ready to open.
+      db.bottle.findMany({
+        where: { status: "inventory" },
+        select: { drinkFrom: true, drinkTo: true },
+      }),
     ]);
+  const readyNow = readyNowText(
+    cellarWindows.filter((bottle) => windowBucket(bottle) === "ready").length
+  );
   const plannedCount = plannedPairings.length;
 
   // Two columns, ordered by how often each one is actually reached for
@@ -199,7 +210,7 @@ export default async function HomePage() {
       href: "/inventory",
       label: "Cellar",
       count: inventoryCount,
-      description: "Wines",
+      description: readyNow ?? "Wines",
       Icon: CellarIcon,
       accent: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400",
     },

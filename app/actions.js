@@ -368,6 +368,32 @@ export async function setBottleStatus(id, status) {
   }
 }
 
+// Renames a place: one UPDATE of Bottle.location over the Domaine's rows (the
+// scoped client adds the Domaine). Naming a place that already exists, in any
+// capitalisation, merges the two under the existing spelling - which is what
+// a typo fix usually is. Only cellar rows carry a place that is shown, but
+// every row holding the old name is moved so none is left behind under it.
+export async function renameLocation(from, to) {
+  const source = cleanLocation(from);
+  const target = cleanLocation(to);
+  if (!source || !target) return { error: "Choose a place and give it a new name." };
+  const rows = await db.bottle.findMany({
+    where: { location: { not: null } },
+    distinct: ["location"],
+    select: { location: true },
+  });
+  const names = rows.map((row) => row.location);
+  if (!names.includes(source)) return { error: "That place no longer exists." };
+  // A different place with the same name apart from case wins; renaming a
+  // place to its own name in another case is a plain re-spelling.
+  const others = names.filter((name) => name !== source);
+  const finalName = adoptExistingLocation(target, others);
+  if (finalName === source) return { ok: true };
+  await db.bottle.updateMany({ where: { location: source }, data: { location: finalName } });
+  revalidatePath("/inventory");
+  return { ok: true };
+}
+
 // "Bought it" on a wishlist wine: it becomes a cellar wine in place (same row,
 // so a pairing pick that points at it stays linked), with how many arrived,
 // what one cost, and today as the date. setBottleStatus cannot do this - it

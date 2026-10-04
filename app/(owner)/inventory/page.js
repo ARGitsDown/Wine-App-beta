@@ -93,6 +93,7 @@ export default async function CellarPage({ searchParams }) {
         initialFilters={filters}
         emptyMessage="No bottles match. Clear your filters, or add a bottle above."
         flights={openFlights}
+        overview
         showAcquired
       />
     </div>

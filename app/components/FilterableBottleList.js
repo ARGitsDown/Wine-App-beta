@@ -1,6 +1,7 @@
 "use client";
 
 import FilterBar from "@/app/components/FilterBar";
+import CellarOverview from "@/app/components/CellarOverview";
 import BottleList from "@/app/components/BottleList";
 import useBottleFilters from "@/app/components/useBottleFilters";
 
@@ -19,11 +20,26 @@ export default function FilterableBottleList({
   showAcquired = false,
   // Only the cellar supplies this; see BottleList for why.
   flights = null,
+  // Only the cellar shows the at-a-glance summary (and its Place filter).
+  overview = false,
 }) {
   const { filters, visible, update, clear } = useBottleFilters(bottles, initialFilters);
 
+  const locationOptions = overview
+    ? [...new Set(bottles.map((bottle) => bottle.location).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b)
+      )
+    : [];
+
   return (
     <div className="flex flex-col gap-4">
+      {overview && (
+        <CellarOverview
+          bottles={bottles}
+          filters={filters}
+          onFilter={(key, value) => update({ ...filters, [key]: value })}
+        />
+      )}
       <FilterBar
         filters={filters}
         onChange={update}
@@ -32,6 +48,7 @@ export default function FilterableBottleList({
         showDrinkSoon={showDrinkSoon}
         showEmptied={showEmptied}
         showAcquired={showAcquired}
+        locationOptions={locationOptions}
         resultCount={visible.length}
         totalCount={bottles.length}
       />
