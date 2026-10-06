@@ -100,7 +100,6 @@ export default function TastingNoteForm({ bottleId, defaultNote = "", today, bac
             box opens at two rows and grows with what is typed. */}
         <AutoTextarea
           name="note"
-          required
           minRows={2}
           maxHeight={240}
           aria-label="Tasting note"
@@ -111,7 +110,7 @@ export default function TastingNoteForm({ bottleId, defaultNote = "", today, bac
         />
         <div className="grid grid-cols-2 gap-3">
           <div className="flex min-w-0 flex-col gap-1 text-sm">
-            <span id={ratingLabelId}>Rating (opt.)</span>
+            <span id={ratingLabelId}>Rating</span>
             <StarRating value={rating} onChange={setRating} labelledBy={ratingLabelId} />
           </div>
           <label className="flex min-w-0 flex-col gap-1 text-sm">

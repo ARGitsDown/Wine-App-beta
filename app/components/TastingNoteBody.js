@@ -70,7 +70,7 @@ export default function TastingNoteBody({ note: savedNote, rating: savedRating, 
             </button>
           </span>
         </div>
-        <p className="mt-1 whitespace-pre-wrap">{note}</p>
+        {note && <p className="mt-1 whitespace-pre-wrap">{note}</p>}
       </>
     );
   }
@@ -85,7 +85,6 @@ export default function TastingNoteBody({ note: savedNote, rating: savedRating, 
           Note
           <textarea
             name="note"
-            required
             rows={4}
             value={text}
             onChange={(event) => setText(event.target.value)}
@@ -93,7 +92,7 @@ export default function TastingNoteBody({ note: savedNote, rating: savedRating, 
           />
         </label>
         <div className="flex max-w-[12rem] flex-col gap-1 text-sm">
-          <span id={ratingLabelId}>Rating (opt.)</span>
+          <span id={ratingLabelId}>Rating</span>
           <StarRating value={stars} onChange={setStars} labelledBy={ratingLabelId} />
         </div>
         {state?.error && (

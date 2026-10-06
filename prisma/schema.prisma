@@ -530,6 +530,9 @@ model TastingNote {
   id       Int      @id @default(autoincrement())
   bottleId Int
   bottle   Bottle   @relation(fields: [bottleId], references: [id], onDelete: Cascade)
+  // The words. Empty ("") when only a rating was given - the column stays
+  // required so nothing has to treat it as maybe-missing, and a note needs
+  // words or a rating (addTastingNote, updateTastingNote).
   note     String
   // Nullable: a note can be logged without a personal score - e.g. a shop's
   // own tasting-sheet write-up brought in via the scan feature, before (or

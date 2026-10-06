@@ -222,9 +222,12 @@ export default function BottleList({
                       one meant opening the bottle's own page. */}
                   {bottle.latestNote && (
                     <div className="flex flex-col gap-0.5 border-l-2 border-zinc-200 pl-3 dark:border-zinc-700">
-                      <p className="text-sm italic text-zinc-600 dark:text-zinc-300">
-                        &ldquo;{bottle.latestNote.note}&rdquo;
-                      </p>
+                      {/* A rating given without words has no text to quote. */}
+                      {bottle.latestNote.note && (
+                        <p className="text-sm italic text-zinc-600 dark:text-zinc-300">
+                          &ldquo;{bottle.latestNote.note}&rdquo;
+                        </p>
+                      )}
                       <p className="text-xs text-zinc-500">
                         {formatTastedDate(bottle.latestNote.tastedAt)}
                         {bottle.noteCount > 1 &&

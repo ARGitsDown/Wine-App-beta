@@ -4624,3 +4624,12 @@ as words, because they are other vocabularies that share a spelling: the scan *i
 name `FlightPick: "flight"` in `lib/scoped-prisma.js`, and the plain-English "your wishlist" in a
 warning. Unrelated words that look alike (`FlightPick.consumed`, the pairing result "wishlist-existing")
 were not touched. No behaviour change; migrations and `scripts/` still carry the words in SQL.
+
+### Rating without words (2026-10-06)
+
+A tasting note can now be saved with a score and no text (owner request): the note box is no
+longer required on the bottle page, when editing a note, or on a scan card. Stored as an empty
+`TastingNote.note` (the column stays required - no migration). A note still needs words or a
+rating: `addTastingNote` / `updateTastingNote` answer "Add a rating or a few words first." when
+it has neither. A rating-only note shows its stars and date with no empty quote, and is left out
+of the notes search text. The form's "Rating (opt.)" is now just "Rating".

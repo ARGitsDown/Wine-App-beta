@@ -267,8 +267,9 @@ export async function createBottleWithNote(status, prevState, formData) {
   if (!bottle) return { error: "Couldn't save that bottle - check the producer name and try again." };
 
   const note = String(formData.get("note") || "").trim();
-  if (note) {
-    const rating = parseOptionalRating(formData.get("rating"));
+  const rating = parseOptionalRating(formData.get("rating"));
+  // A score alone is a note too (stored with empty text).
+  if (note || rating !== null) {
     try {
       await db.tastingNote.create({ data: { bottleId: bottle.id, note, rating } });
     } catch (err) {
@@ -958,8 +959,10 @@ export async function removeScannedBottles(ids) {
 
 export async function addTastingNote(bottleId, prevState, formData) {
   const note = String(formData.get("note") || "").trim();
-  if (!note) return { error: "Write a note first." };
   const rating = parseOptionalRating(formData.get("rating"));
+  // Words are optional when there is a score: a rating on its own is a note
+  // (stored with empty text). Neither is nothing to save.
+  if (!note && rating === null) return { error: "Add a rating or a few words first." };
   // Falls back to the column's own now() when the field is missing or
   // unparseable, so a note is never lost to a bad date.
   const tastedAt = parseTastedDate(formData.get("tastedAt")) ?? undefined;
@@ -988,8 +991,8 @@ export async function addTastingNote(bottleId, prevState, formData) {
 // this owner's matches nothing and throws, so it reads as a failed save.
 export async function updateTastingNote(noteId, prevState, formData) {
   const note = String(formData.get("note") || "").trim();
-  if (!note) return { error: "A note can't be empty." };
   const rating = parseOptionalRating(formData.get("rating"));
+  if (!note && rating === null) return { error: "A note needs a rating or a few words." };
 
   try {
     const saved = await db.tastingNote.update({
